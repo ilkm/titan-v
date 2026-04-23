@@ -1,0 +1,16 @@
+[package]
+name = "titan-vmm"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Virtualization abstraction: traits + Hyper-V (Windows) + KVM placeholders (Linux)."
+
+[dependencies]
+titan-common = { path = "../titan-common" }
+dashmap = "6.1"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tracing = "0.1"
+
+[features]
+default = []

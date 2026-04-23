@@ -1,0 +1,16 @@
+# Phase 1 example: copy and adjust paths for `titan-host provision --config ...`
+# Parent VHDX must exist on the host before non-dry-run provision.
+
+timeout_secs = 600
+
+[[vm]]
+parent_vhdx = "D:\\Images\\golden-parent.vhdx"
+diff_dir = "D:\\Diffs"
+vm_name = "demo-01"
+memory_bytes = 4294967296
+generation = 2
+switch_name = "External"
+# Optional DDA instance path (from PnpUtil / Device Manager); omit to skip GPU assign.
+# gpu_partition_instance_path = "PCI\\VEN_xxxx&DEV_yyyy\\..."
+# Default true: run Start-VM after provision + post steps; set false to leave VM off.
+auto_start_after_provision = true

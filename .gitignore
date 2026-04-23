@@ -1,0 +1,31 @@
+# Rust
+/target/
+**/*.rs.bk
+*.pdb
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Editor / IDE
+.idea/
+*.swp
+*.swo
+*~
+
+# Local env and secrets (do not commit)
+.env
+.env.*
+!.env.example
+
+# Logs and coverage
+*.log
+*.profraw
+*.profdata
+lcov.info
