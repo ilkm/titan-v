@@ -92,13 +92,22 @@ pub fn provision_plan_blocking(plan: &VmProvisionPlan, timeout: Duration) -> Res
     plan.validate()?;
     #[cfg(windows)]
     {
+        if !super::gpu_pv::hyperv_ps_module_available_blocking() {
+            tracing::warn!(
+                vm = %plan.vm_name,
+                "provision skipped: Hyper-V PowerShell module not available (role not installed or disabled)"
+            );
+            return Ok(());
+        }
         windows::provision(plan)
     }
     #[cfg(not(windows))]
     {
-        Err(Error::HyperVRejected {
-            message: "Hyper-V automation requires Windows with Hyper-V enabled.".into(),
-        })
+        tracing::warn!(
+            vm = %plan.vm_name,
+            "provision skipped: Hyper-V automation is not available on this host OS (non-Windows build)"
+        );
+        Ok(())
     }
 }
 
@@ -119,7 +128,7 @@ mod tests {
     }
 
     #[test]
-    fn non_windows_rejects() {
+    fn non_windows_provision_is_noop_ok() {
         let plan = VmProvisionPlan {
             parent_vhdx: "C:\\p.vhdx".into(),
             diff_dir: "C:\\d".into(),
@@ -132,8 +141,6 @@ mod tests {
             spoof: titan_common::VmSpoofProfile::default(),
             identity: titan_common::VmIdentityProfile::default(),
         };
-        let err = provision_plan_blocking(&plan, Duration::from_secs(1)).unwrap_err();
-        let msg = err.to_string();
-        assert!(msg.contains("Windows"), "msg={msg}");
+        provision_plan_blocking(&plan, Duration::from_secs(1)).unwrap();
     }
 }

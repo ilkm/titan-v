@@ -1,5 +1,7 @@
 # Hyper-V / Secure Boot configuration matrix (Phase 2+)
 
+**Scope:** this matrix applies to the **Windows / Hyper-V track** only (host OS running Hyper-V with `titan-host`). Linux (KVM) and macOS (Hypervisor.framework) will need **separate** host/guest policy matrices when those backends leave placeholder status; see the backend table in [need.md](../need.md).
+
 This document aligns `need.md` “方案 B” host vs guest policies with engineering milestones. It is **not** a guarantee of anti-cheat or EULA compliance.
 
 ## Roles

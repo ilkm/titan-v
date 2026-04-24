@@ -1,5 +1,6 @@
-//! Control-plane message types (postcard-serialized bodies).
+//! Control-plane message types (rkyv-serialized bodies).
 
+use rkyv::{Archive, Deserialize as RkyvDeserialize, Serialize as RkyvSerialize};
 use serde::{Deserialize, Serialize};
 
 use crate::capabilities::Capabilities;
@@ -9,13 +10,14 @@ use crate::state::VmPowerState;
 /// Center → host control request.
 ///
 /// **Wire stability**: new variants append at the end; bump [`crate::PROTOCOL_VERSION`] when
-/// breaking layout is unavoidable. Postcard discriminant follows declaration order (`Ping` = 0).
+/// breaking layout is unavoidable. rkyv discriminant follows declaration order (`Ping` = 0).
 ///
-/// Guest memory / mouse uses the separate JSON guest-agent TCP protocol. **Registration** of the
-/// guest agent address for a VM is [`ControlRequest::RegisterGuestAgent`] on the host M2 socket
-/// (typically **center → host** or another operator client; host persists bindings).
-#[non_exhaustive]
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Guest memory / mouse uses the separate JSON guest-agent TCP protocol. VM → agent addresses on
+/// the host are configured out-of-band (for example `agent-bindings.toml`); there is no
+/// control-plane registration request in this protocol version.
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Archive, RkyvSerialize, RkyvDeserialize,
+)]
 pub enum ControlRequest {
     /// Liveness + capability snapshot (same payload shape as [`ControlRequest::Hello`] response).
     Ping,
@@ -31,12 +33,6 @@ pub enum ControlRequest {
     SetScriptArtifact { version: String, sha256_hex: String },
     /// Load or replace a per-VM Lua chunk and execute it once (bounded by host policy).
     LoadScriptVm { vm_name: String, source: String },
-    /// Guest or operator registers **Hyper-V VM name → guest agent TCP** on the host (scheme A).
-    RegisterGuestAgent {
-        vm_name: String,
-        /// Guest agent listen address **as seen from the host** (e.g. `192.168.1.50:9000`).
-        guest_agent_addr: String,
-    },
     /// Apply host-side [`VmSpoofProfile`] steps to an existing VM (PowerShell; Windows).
     ApplySpoofProfile {
         vm_name: String,
@@ -49,18 +45,31 @@ pub enum ControlRequest {
         step_id: String,
         dry_run: bool,
     },
+    /// Capture the host OS primary display, downscale, and return JPEG bytes.
+    HostDesktopSnapshot {
+        /// Longer edge cap (pixels); host scales down preserving aspect.
+        max_width: u32,
+        max_height: u32,
+        /// JPEG quality 1–100.
+        jpeg_quality: u8,
+    },
+    /// One-shot host machine CPU / memory / network throughput snapshot.
+    HostResourceSnapshot,
 }
 
 /// One row in a [`ControlResponse::VmList`] payload.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Archive, RkyvSerialize, RkyvDeserialize,
+)]
 pub struct VmBrief {
     pub name: String,
     pub state: VmPowerState,
 }
 
 /// Host → center response.
-#[non_exhaustive]
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Archive, RkyvSerialize, RkyvDeserialize,
+)]
 pub enum ControlResponse {
     Pong {
         capabilities: Capabilities,
@@ -91,10 +100,6 @@ pub enum ControlResponse {
     ScriptLoadAck {
         vm_name: String,
     },
-    /// [`ControlRequest::RegisterGuestAgent`] applied; host will use this binding for guest-agent RPC.
-    GuestAgentRegisterAck {
-        vm_name: String,
-    },
     /// Result of [`ControlRequest::ApplySpoofProfile`].
     SpoofApplyAck {
         vm_name: String,
@@ -110,4 +115,86 @@ pub enum ControlResponse {
         ok: bool,
         detail: String,
     },
+    /// Answer to [`ControlRequest::HostDesktopSnapshot`].
+    DesktopSnapshotJpeg {
+        jpeg_bytes: Vec<u8>,
+        width_px: u32,
+        height_px: u32,
+    },
+    /// Answer to [`ControlRequest::HostResourceSnapshot`].
+    HostResourceSnapshot {
+        stats: HostResourceStats,
+    },
+}
+
+/// Host machine resource snapshot (CPU / RAM / NIC totals; rates from host-side deltas).
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Archive, RkyvSerialize, RkyvDeserialize,
+)]
+pub struct HostResourceStats {
+    /// System-wide CPU usage in permille (0–1000 ≈ 0–100%).
+    pub cpu_permille: u32,
+    pub mem_used_bytes: u64,
+    pub mem_total_bytes: u64,
+    /// Receive bytes per second (download).
+    pub net_down_bps: u64,
+    /// Transmit bytes per second (upload).
+    pub net_up_bps: u64,
+    /// Aggregate disk read bytes per second (sum of mounted volumes’ counters).
+    pub disk_read_bps: u64,
+    /// Aggregate disk write bytes per second.
+    pub disk_write_bps: u64,
+}
+
+/// One mounted volume / filesystem for telemetry.
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Archive, RkyvSerialize, RkyvDeserialize,
+)]
+pub struct DiskVolume {
+    pub mount: String,
+    pub free_bytes: u64,
+    pub total_bytes: u64,
+}
+
+/// Host → center push payload (telemetry TCP; event-driven).
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Archive, RkyvSerialize, RkyvDeserialize,
+)]
+pub enum ControlPush {
+    HostTelemetry {
+        vms: Vec<VmBrief>,
+        volumes: Vec<DiskVolume>,
+        #[serde(default)]
+        content_hint: Option<String>,
+    },
+    /// Periodic CPU / memory / NIC rates (telemetry TCP only; sent while at least one subscriber is connected).
+    HostResourceLive { stats: HostResourceStats },
+    /// Live host primary display preview (telemetry TCP only; JPEG; sent while subscribers connected).
+    HostDesktopPreviewJpeg {
+        jpeg_bytes: Vec<u8>,
+        width_px: u32,
+        height_px: u32,
+    },
+}
+
+/// Center → host framed request (command TCP).
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Archive, RkyvSerialize, RkyvDeserialize,
+)]
+pub struct ControlRequestFrame {
+    pub id: u64,
+    pub body: ControlRequest,
+}
+
+/// Host → center frame on command TCP (response correlates to [`ControlRequestFrame::id`]).
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Archive, RkyvSerialize, RkyvDeserialize,
+)]
+pub enum ControlHostFrame {
+    Response {
+        id: u64,
+        body: ControlResponse,
+    },
+    /// Optional on command socket; primary path is dedicated telemetry TCP.
+    Push(ControlPush),
 }

@@ -1,4 +1,4 @@
-//! Script engine smoke test via `ScriptEngine` (same path as CLI `script eval`).
+//! Script engine smoke test via `ScriptEngine` (same path as `titan_host::batch::script_eval`).
 
 use std::io::Write;
 

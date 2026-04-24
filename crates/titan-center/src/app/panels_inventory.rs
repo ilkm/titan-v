@@ -2,7 +2,7 @@
 
 use egui::{CornerRadius, RichText, Sense, Stroke};
 
-use super::constants::{CONTENT_COLUMN_GAP, HOST_TILE_WIDTH, PANEL_SPACING};
+use super::constants::{CONTENT_COLUMN_GAP, HOST_TILE_MIN_WIDTH, PANEL_SPACING};
 use super::i18n::{t, Msg};
 use super::widgets::section_card;
 use super::CenterApp;
@@ -10,7 +10,7 @@ use super::CenterApp;
 impl CenterApp {
     /// Window management: VM-centric tiles; empty inventory → only 暂无数据.
     pub(super) fn panel_window_management(&mut self, ui: &mut egui::Ui) {
-        if self.vm_inventory.is_empty() {
+        if self.inventory_slice().is_empty() {
             ui.add_space(48.0);
             ui.vertical_centered(|ui| {
                 ui.label(
@@ -22,10 +22,10 @@ impl CenterApp {
             return;
         }
 
-        let inner = ui.available_width().min(960.0);
+        let inner = ui.available_width();
         let gap = CONTENT_COLUMN_GAP;
-        let left_w = (inner * 0.42).clamp(280.0, 420.0);
-        let right_w = (inner - gap - left_w).max(200.0);
+        let left_w = (inner * 0.42).clamp(200.0, (inner - gap - 160.0).max(200.0));
+        let right_w = (inner - gap - left_w).max(160.0);
 
         ui.horizontal(|ui| {
             ui.set_min_width(inner);
@@ -34,6 +34,7 @@ impl CenterApp {
                 section_card(ui, t(self.ui_lang, Msg::VmInventoryTitle), |ui| {
                     ui.add_space(4.0);
                     egui::ScrollArea::vertical()
+                        .id_salt("vm_inventory_youtube_cards")
                         .auto_shrink([false, false])
                         .show(ui, |ui| {
                             self.panel_vm_youtube_cards(ui);
@@ -44,6 +45,8 @@ impl CenterApp {
             ui.vertical(|ui| {
                 ui.set_width(right_w);
                 self.panel_window_preview_placeholder(ui);
+                ui.add_space(PANEL_SPACING);
+                self.panel_host_disk_volumes(ui);
                 ui.add_space(PANEL_SPACING);
                 self.panel_virtual_slots(ui);
             });
@@ -73,8 +76,8 @@ impl CenterApp {
             ui.spacing_mut().item_spacing.x = 12.0;
             ui.spacing_mut().item_spacing.y = 12.0;
 
-            for row in &self.vm_inventory {
-                let w = HOST_TILE_WIDTH.min(ui.available_width());
+            for row in self.inventory_slice() {
+                let w = ui.available_width().clamp(HOST_TILE_MIN_WIDTH, 280.0);
                 ui.vertical(|ui| {
                     ui.set_width(w);
                     let thumb_h = (w * 9.0 / 16.0).max(72.0);
@@ -116,6 +119,46 @@ impl CenterApp {
                 });
                 ui.add_space(4.0);
             }
+        });
+    }
+
+    fn panel_host_disk_volumes(&self, ui: &mut egui::Ui) {
+        section_card(ui, "Host disk volumes (telemetry)", |ui| {
+            if self.disk_volumes_slice().is_empty() {
+                ui.label(
+                    RichText::new(t(self.ui_lang, Msg::NoDataShort))
+                        .small()
+                        .color(ui.visuals().widgets.inactive.text_color()),
+                );
+                return;
+            }
+            egui::ScrollArea::vertical()
+                .id_salt("host_disk_volumes_list")
+                .max_height(200.0)
+                .show(ui, |ui| {
+                    for v in self.disk_volumes_slice() {
+                        ui.horizontal(|ui| {
+                            ui.label(
+                                RichText::new(&v.mount)
+                                    .monospace()
+                                    .size(12.0)
+                                    .color(ui.visuals().text_color()),
+                            );
+                            ui.with_layout(
+                                egui::Layout::right_to_left(egui::Align::Center),
+                                |ui| {
+                                    let free_gib = v.free_bytes as f64 / (1024.0 * 1024.0 * 1024.0);
+                                    let tot_gib = v.total_bytes as f64 / (1024.0 * 1024.0 * 1024.0);
+                                    ui.label(
+                                        RichText::new(format!("{free_gib:.1} / {tot_gib:.1} GiB"))
+                                            .small()
+                                            .color(ui.visuals().widgets.inactive.text_color()),
+                                    );
+                                },
+                            );
+                        });
+                    }
+                });
         });
     }
 }

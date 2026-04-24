@@ -3,57 +3,43 @@
 use egui::widgets::Button;
 use egui::{Align2, CornerRadius, RichText};
 
-use super::constants::ERR_ROSE;
+use super::constants::{CONTENT_COLUMN_GAP, ERR_ROSE};
 use super::i18n::{t, Msg};
-use super::widgets::{confirm_dialog_frame, primary_button, section_card_danger, subtle_button};
+use super::widgets::{
+    confirm_dialog_frame, inset_editor_shell, primary_button, section_card, subtle_button,
+};
 use super::CenterApp;
 
 impl CenterApp {
     pub(super) fn panel_danger(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
-        section_card_danger(ui, t(self.ui_lang, Msg::DangerCardTitle), |ui| {
-            ui.label(
-                RichText::new(t(self.ui_lang, Msg::DangerBlurb))
-                    .small()
-                    .color(ui.visuals().widgets.inactive.text_color()),
-            );
-            ui.add_space(8.0);
-            ui.add(
-                egui::TextEdit::multiline(&mut self.bulk_vm_names)
-                    .desired_width(f32::INFINITY)
-                    .desired_rows(2)
-                    .hint_text(t(self.ui_lang, Msg::HintBulkVms)),
-            );
-            ui.add_space(8.0);
-            let idle = !self.pending_confirm_stop && !self.pending_confirm_start;
-            ui.horizontal_wrapped(|ui| {
-                if primary_button(ui, t(self.ui_lang, Msg::BtnBulkStart), idle).clicked() {
-                    self.pending_confirm_start = true;
-                }
-                let stop_fill = if idle {
-                    ERR_ROSE.linear_multiply(0.85)
-                } else {
-                    ui.visuals().widgets.inactive.bg_fill
-                };
-                let stop_label = if idle {
-                    RichText::new(t(self.ui_lang, Msg::BtnBulkStop))
-                        .strong()
-                        .color(egui::Color32::WHITE)
-                } else {
-                    RichText::new(t(self.ui_lang, Msg::BtnBulkStop)).strong()
-                };
-                if ui
-                    .add_enabled(
-                        idle,
-                        Button::new(stop_label)
-                            .fill(stop_fill)
-                            .corner_radius(CornerRadius::same(7)),
-                    )
-                    .clicked()
-                {
-                    self.pending_confirm_stop = true;
-                }
+        let inner = ui.available_width();
+        let gap = CONTENT_COLUMN_GAP;
+        let lang = self.ui_lang;
+        if inner >= 560.0 {
+            let half = ((inner - gap).max(0.0)) * 0.5;
+            ui.horizontal(|ui| {
+                ui.set_min_width(inner);
+                ui.vertical(|ui| {
+                    ui.set_width(half);
+                    section_card(ui, t(lang, Msg::DangerCardTitle), |ui| {
+                        self.danger_vm_list_body(ui);
+                    });
+                });
+                ui.add_space(gap);
+                ui.vertical(|ui| {
+                    ui.set_width(half);
+                    section_card(ui, t(lang, Msg::CardActions), |ui| {
+                        self.danger_actions_body(ui);
+                    });
+                });
             });
-        });
+        } else {
+            section_card(ui, t(lang, Msg::DangerCardTitle), |ui| {
+                self.danger_vm_list_body(ui);
+                ui.add_space(10.0);
+                self.danger_actions_body(ui);
+            });
+        }
 
         if self.pending_confirm_stop {
             self.window_confirm_stop(ctx, ui);
@@ -61,6 +47,56 @@ impl CenterApp {
         if self.pending_confirm_start {
             self.window_confirm_start(ctx, ui);
         }
+    }
+
+    fn danger_vm_list_body(&mut self, ui: &mut egui::Ui) {
+        ui.label(
+            RichText::new(t(self.ui_lang, Msg::DangerBlurb))
+                .small()
+                .color(ui.visuals().widgets.inactive.text_color()),
+        );
+        ui.add_space(6.0);
+        inset_editor_shell(ui, 72.0, |ui| {
+            ui.add(
+                egui::TextEdit::multiline(&mut self.bulk_vm_names)
+                    .desired_width(f32::INFINITY)
+                    .desired_rows(2)
+                    .hint_text(t(self.ui_lang, Msg::HintBulkVms)),
+            );
+        });
+    }
+
+    fn danger_actions_body(&mut self, ui: &mut egui::Ui) {
+        ui.add_space(4.0);
+        let idle = !self.pending_confirm_stop && !self.pending_confirm_start;
+        ui.horizontal_wrapped(|ui| {
+            if primary_button(ui, t(self.ui_lang, Msg::BtnBulkStart), idle).clicked() {
+                self.pending_confirm_start = true;
+            }
+            let stop_fill = if idle {
+                ERR_ROSE.linear_multiply(0.85)
+            } else {
+                ui.visuals().widgets.inactive.bg_fill
+            };
+            let stop_label = if idle {
+                RichText::new(t(self.ui_lang, Msg::BtnBulkStop))
+                    .strong()
+                    .color(egui::Color32::WHITE)
+            } else {
+                RichText::new(t(self.ui_lang, Msg::BtnBulkStop)).strong()
+            };
+            if ui
+                .add_enabled(
+                    idle,
+                    Button::new(stop_label)
+                        .fill(stop_fill)
+                        .corner_radius(CornerRadius::same(8)),
+                )
+                .clicked()
+            {
+                self.pending_confirm_stop = true;
+            }
+        });
     }
 
     fn window_confirm_stop(&mut self, ctx: &egui::Context, outer_ui: &egui::Ui) {
@@ -86,7 +122,7 @@ impl CenterApp {
                                     .color(egui::Color32::WHITE),
                             )
                             .fill(ERR_ROSE.linear_multiply(0.9))
-                            .corner_radius(CornerRadius::same(7)),
+                            .corner_radius(CornerRadius::same(8)),
                         )
                         .clicked()
                     {

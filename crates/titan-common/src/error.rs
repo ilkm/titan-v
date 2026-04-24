@@ -16,6 +16,9 @@ pub enum Error {
     #[error("Hyper-V operation failed: {message}")]
     HyperVRejected { message: String },
 
+    #[error("VMM operation failed: {message}")]
+    VmmRejected { message: String },
+
     #[error("timed out after {0:?}")]
     Timeout(std::time::Duration),
 

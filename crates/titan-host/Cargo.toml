@@ -3,7 +3,16 @@ name = "titan-host"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Host node: local multi-VM management; delegates virtualization to titan-vmm."
+description = "Host node: egui control-plane settings + batch provision; library includes `titan_host::batch`."
+
+# See `titan-center` crate for packaging notes (`cargo-packager`).
+[package.metadata.packager]
+product-name = "Titan Host"
+identifier = "dev.titanv.host"
+
+# Main window + tray; show in Dock when foregrounded.
+[package.metadata.packager.macos]
+background_app = false
 
 [lib]
 name = "titan_host"
@@ -18,11 +27,23 @@ titan-common = { path = "../titan-common" }
 titan-driver = { path = "../titan-driver" }
 titan-scripts = { path = "../titan-scripts" }
 titan-vmm = { path = "../titan-vmm" }
+titan-tray = { path = "../titan-tray", features = ["egui"] }
+eframe = { version = "0.31", features = ["persistence"] }
+egui = "0.31"
+fontdb = "0.23"
+if-addrs = "0.15"
 anyhow = "1.0"
 dashmap = "6.1"
-clap = { version = "4.5", features = ["derive"] }
+whoami = "1.5"
 serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+screenshots = "0.8"
+image = { version = "0.25", default-features = false, features = ["jpeg"] }
 thiserror = "2.0"
+quinn = { version = "0.11", default-features = false, features = ["runtime-tokio", "rustls-ring"] }
+rcgen = "0.13"
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
+socket2 = { version = "0.5", features = ["all"] }
 tokio = { version = "1.43", features = [
     "io-util",
     "macros",
@@ -32,9 +53,11 @@ tokio = { version = "1.43", features = [
     "sync",
     "time",
 ] }
+sysinfo = { version = "0.33", default-features = false, features = ["system", "disk", "network"] }
 toml = "0.8"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+machine-uid = "0.5"
 
 [dev-dependencies]
 tempfile = "3"

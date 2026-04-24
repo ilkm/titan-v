@@ -3,7 +3,14 @@ name = "titan-center"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Center manager UI shell (egui)."
+description = "Center manager desktop app (egui); no CLI."
+
+# macOS: `cargo packager --release --manifest-path crates/titan-center/Cargo.toml --formats dmg`
+# Windows (NSIS): same with `--formats nsis` — requires NSIS (`makensis`) on PATH.
+# Linux: use plain `cargo build --release -p titan-center` (no packager).
+[package.metadata.packager]
+product-name = "Titan Center"
+identifier = "dev.titanv.center"
 
 [[bin]]
 name = "titan-center"
@@ -16,7 +23,12 @@ eframe = { version = "0.31", features = ["persistence"] }
 egui = "0.31"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-tokio = { version = "1.43", features = ["io-util", "macros", "net", "rt"] }
+rusqlite = { version = "0.32", features = ["bundled"] }
+dirs = "5"
+image = { version = "0.25", default-features = false, features = ["jpeg"] }
+tokio = { version = "1.43", features = ["io-util", "macros", "net", "rt", "rt-multi-thread", "sync", "time"] }
+if-addrs = "0.15"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 fontdb = "0.23"
+titan-tray = { path = "../titan-tray", features = ["egui"] }

@@ -1,4 +1,4 @@
-//! Titan-v center manager: egui shell + control-plane client (M2 Ping).
+//! Titan-v center manager: egui shell + control-plane client (Hello/Ping over framed TCP).
 
 mod app;
 
@@ -22,6 +22,14 @@ fn main() -> eframe::Result<()> {
     eframe::run_native(
         "Titan Center",
         native_options,
-        Box::new(|cc| Ok(Box::new(CenterApp::new(cc)))),
+        Box::new(|cc| {
+            titan_tray::register_center_tray_wakeup(&cc.egui_ctx);
+
+            #[cfg(target_os = "linux")]
+            titan_tray::spawn_linux_tray_thread();
+
+            let app = CenterApp::new(cc);
+            Ok(Box::new(app))
+        }),
     )
 }

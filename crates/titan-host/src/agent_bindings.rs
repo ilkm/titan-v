@@ -97,10 +97,29 @@ pub fn save_agent_bindings(path: &Path, table: &AgentBindingTable) -> anyhow::Re
 }
 
 /// Builds a map from optional path; missing path → empty map.
-pub fn load_or_empty(path: Option<&Path>) -> anyhow::Result<AgentBindingTable> {
+///
+/// If a path is given but the file is missing, unreadable, or invalid TOML, returns an **empty**
+/// table and a human-readable notice for [`titan_common::Capabilities::host_notice`] instead of
+/// failing startup.
+pub fn load_or_empty(path: Option<&Path>) -> (AgentBindingTable, Option<String>) {
     match path {
-        Some(p) => load_agent_bindings(p),
-        None => Ok(AgentBindingTable::new()),
+        None => (AgentBindingTable::new(), None),
+        Some(p) => match load_agent_bindings(p) {
+            Ok(t) => (t, None),
+            Err(e) => {
+                let msg = format!(
+                    "agent-bindings: path missing or system file unreadable [{}] ({})",
+                    p.display(),
+                    e
+                );
+                tracing::warn!(
+                    path = %p.display(),
+                    error = %e,
+                    "agent-bindings load failed; serving with empty bindings and reporting host_notice"
+                );
+                (AgentBindingTable::new(), Some(msg))
+            }
+        },
     }
 }
 
@@ -129,6 +148,16 @@ addr = "127.0.0.1:9002"
         let m = load_agent_bindings(f.path()).unwrap();
         assert_eq!(m.len(), 2);
         assert!(m.contains_key("a"));
+    }
+
+    #[test]
+    fn load_or_empty_missing_file_still_yields_empty_table_and_notice() {
+        let p = Path::new("/nonexistent/titan-agent-bindings-99.toml");
+        let (t, w) = load_or_empty(Some(p));
+        assert!(t.is_empty());
+        let msg = w.expect("notice");
+        assert!(msg.contains("path missing"));
+        assert!(msg.contains("nonexistent"));
     }
 
     #[test]

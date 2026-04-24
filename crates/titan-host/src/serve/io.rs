@@ -1,6 +1,6 @@
 use std::io::ErrorKind;
 
-use titan_common::{decode_request_payload, parse_header, ControlRequest, WireError};
+use titan_common::{decode_control_request_payload, parse_header, ControlRequestFrame, WireError};
 use tokio::io::AsyncReadExt;
 use tokio::net::TcpStream;
 
@@ -21,9 +21,9 @@ pub(super) async fn read_exact_tcp(sock: &mut TcpStream, buf: &mut [u8]) -> std:
     Ok(())
 }
 
-pub(super) async fn read_one_request(
+pub(super) async fn read_one_control_request(
     sock: &mut TcpStream,
-) -> Result<Option<ControlRequest>, ServeError> {
+) -> Result<Option<ControlRequestFrame>, ServeError> {
     let mut hdr = [0u8; titan_common::FRAME_HEADER_LEN];
     match read_exact_tcp(sock, &mut hdr).await {
         Ok(()) => {}
@@ -38,5 +38,5 @@ pub(super) async fn read_one_request(
         }
         return Err(e.into());
     }
-    Ok(Some(decode_request_payload(&payload)?))
+    Ok(Some(decode_control_request_payload(&payload)?))
 }

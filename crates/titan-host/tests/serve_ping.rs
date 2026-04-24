@@ -3,7 +3,8 @@
 use std::time::Duration;
 
 use titan_common::{
-    encode_request_frame, parse_header, read_response_frame, ControlRequest, ControlResponse,
+    encode_request_frame, parse_header, read_control_host_frame, ControlHostFrame, ControlRequest,
+    ControlResponse,
 };
 use titan_host::serve::{handle_connection, ServeState};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -35,7 +36,10 @@ async fn ping_pong_over_tcp() {
     buf.extend_from_slice(&hdr);
     buf.extend_from_slice(&payload);
 
-    let res = read_response_frame(&mut buf.as_slice()).unwrap();
+    let res = match read_control_host_frame(&mut buf.as_slice()).unwrap() {
+        ControlHostFrame::Response { body, .. } => body,
+        other => panic!("unexpected control host frame: {other:?}"),
+    };
     match res {
         ControlResponse::Pong { capabilities } => {
             assert!(!capabilities.gpu_partition);

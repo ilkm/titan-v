@@ -1,4 +1,4 @@
-# Phase 1 example: copy and adjust paths for `titan-host provision --config ...`
+# Phase 1 example: copy and adjust paths; drive batch provision via `titan_host::batch::run_provision` (no `titan-host` CLI).
 # Parent VHDX must exist on the host before non-dry-run provision.
 
 timeout_secs = 600

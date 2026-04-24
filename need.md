@@ -1,136 +1,116 @@
 # 需求说明
 
-> **仓库当前交付阶段（Phase 1）**：实现与 PR 验收默认对齐「M2 控制面 + Hyper-V 自动化 + 协作式 Guest Agent」及配套 Lua/配置能力；下文仍为**长期产品愿景**全文。Phase 1 的正式范围、Definition of Done 与 Phase 2/3 边界见 `crates/titan-common/src/need_mapping.rs`（`need_mapping` 模块文档）。
+> **仓库当前交付阶段（Phase 1）**：与 PR 验收默认对齐「中控↔宿主 TCP 控制面 + Windows Hyper-V 自动化 + 协作式 Guest Agent」及配套 Lua/配置能力。下文描述**长期产品形态**（高级虚拟机 fabric）与 **titan-host 元能力**意图 API；**哪些已在代码中闭环**以 `crates/titan-common/src/need_mapping.rs`（Phase 1 Definition of Done / Phase 2+ 边界）为准，避免将路线图误读为已交付能力。
+>
+> 本文档描述的技术可用于合法自动化、安全研究与自有软件测试；对第三方软件与在线服务的滥用可能违反服务条款或法律。工程文档**不**保证反作弊或 EULA 合规；宿主/来宾安全启动与驱动策略见 `docs/hyperv-secure-boot-matrix.md`。
 
-方案的核心是构建一个**三层架构**的自动化集群系统，利用 **Rust** 的底层性能、**Hyper-V** 的隔离性以及 **VMBus** 的隐蔽通讯。以下是针对您 200 台设备、8000 窗口规模的需求总结：
+## 产品与角色
 
-一、 系统核心架构
+| 组件 | 职责 |
+|------|------|
+| **titan-center（中控端）** | 编排多台宿主机及其上的虚拟机：状态聚合、策略下发、脚本（Lua）与资源视图；长期目标含多路预览与流式交互。代码：`crates/titan-center`。 |
+| **titan-host（被控端）** | 安装在每台宿主机上，对接具体虚拟化后端，向上暴露**元能力**（内存、伪装、输入、视觉、网络）；执行 provision、电源、每 VM Lua 运行时等。代码：`crates/titan-host`。 |
+| **来宾 VM** | 承载业务负载的隔离环境；与宿主协作或通过底层 API 被宿主观测/操控（取决于阶段与能力位）。 |
 
-1. ​**中控管理端 (Center Manager)**​：
-   * ​**职责**​：全局指挥。管理 200 台物理机的状态、分发挂机脚本（Lua）、分配代理 IP、监控角色收益。
-   * ​**无缝体验**​：采用**视频流聚合**技术，在单一 UI 界面内像“刷网页”一样预览或操控 8000 个窗口中的任意一个。
-2. ​**宿主机客户端 (Host Node)**​：
-   * ​**职责**​：生产执行。每台宿主机管理 40 个虚拟机（VM），负责差分磁盘克隆、GPU 资源分发（GPU-PV）。
-   * ​**业务逻辑**​：在宿主机层运行 40 个独立的 ​**Lua 状态机**​，通过虚拟化 API（WinHv）从“窗外”读写内存，完全不经过游戏检测。
-3. ​**驱动/通讯层 (VMBus & Driver)**​：
-   * ​**职责**​：硬件欺骗。宿主机驱动通过 **VMBus 总线** 向 VM 注入原始 HID 报文，模拟​**真实物理鼠标**​，同时在底层抹除 Hyper-V 特征。
+## 规模用例（非架构前提）
 
-二、 技术落地清单
+在「约 200 台物理机、单宿主机约 40 VM、合计约 8000 窗口」一类规模下：中控做全局调度与代理池视图，宿主侧做差分盘批量克隆、多路 Lua、按 VM 的网络策略。具体数字随硬件与后端可调；需求以**元能力**与**控制面契约**为主。
 
-* ​**虚拟化技术**​：使用 **Hyper-V + 差分磁盘 (VHDX)** 实现秒级多开；使用 **GPU-PV** 实现单显卡 40 窗口 3D 加速。
-* ​**过检测方案 (方案 B)**​：
-  * ​**环境**​：宿主机关闭安全启动以加载 Rust 开发驱动；虚拟机开启虚拟安全启动以伪装成正规物理机。
-  * ​**伪装**​：通过修改注册表 Hive 文件和驱动拦截，动态随机化 MAC、硬盘序列号和 CPUID 信息。
-  * **工程侧摘要**：宿主 / 来宾 Secure Boot 与驱动交付边界见 `docs/hyperv-secure-boot-matrix.md`（与 Phase 2+ IPC / 驱动里程碑对齐；当前 Phase 1.x 仍为 PowerShell 宿主配置与协作式 Agent）。
-* ​**操作模拟**​：放弃远程桌面（RDP），采用 ​**VMBus 信号注入**​。宿主机 Rust 驱动直接向 VM 的虚拟硬件总线发送点击指令。
-* ​**画面显示**​：基于 `Windows.Graphics.Capture` 抓取后台 VM 画面，通过硬件编码器（NVENC）推流至中控端。
+## 宿主虚拟化后端矩阵
 
-三、 部署与运行流程
+| 宿主 OS | 后端 | 存储形态（目标） | 仓库状态 |
+|---------|------|------------------|----------|
+| Windows | Hyper-V | 母盘（只读）+ 差分 VHDX | **主实作轨**：`crates/titan-vmm::hyperv`、宿主 provision / 电源 / GPU-PV 可选路径 |
+| Linux | KVM | 按后端惯例（镜像 / COW 等，产品化时细化） | **占位**：`crates/titan-vmm::kvm`，Phase 3 前不进入 DoD |
+| macOS | Hypervisor.framework | 按 Apple 虚拟化惯例 | **占位**：`crates/titan-vmm::hvf`，Phase 3 前不进入 DoD |
 
-1. ​**制作母盘**​：在一台虚拟机装好 Win10、NC 游戏、运行库，通过 `Sysprep` 封装后设为​**只读母盘**​。
-2. ​**一键启动**​：中控端点击启动，宿主机 Rust 自动创建 40 个差分盘并挂载 GPU-PV 驱动，静默（Headless）启动。
-3. ​**独立 IP**​：宿主机客户端利用 `WinDivert` 库将 40 个 VM 的网络流量分别导向 40 个不同的独享 Socks5 代理。
-4. ​**全自动挂机**​：宿主机读取内存数据 -> Lua 处理逻辑 -> 通过驱动向 VMBus 发送鼠标动作。
+中控与宿主之间的**默认控制面**为带版本号的二进制帧（`crates/titan-common` 中 `wire` / `PROTOCOL_VERSION`）；能力协商见 `Capabilities` 与宿主启动探测。
 
-四、 核心优势
-
-* ​**高安全性**​：游戏进程在“盒子里”，脚本和读写在“盒子外”，实现​**物理级避让**​。
-* ​**高性能**​：Rust 异步架构配合 GPU 分区，最大化压榨物理机硬件性能。
-* ​**高隐蔽性**​：模拟物理总线信号，无注入特征，支持 NCSoft 所有游戏的长期挂机。
-
-这个方案将您的 200 台电脑转化为一个庞大的​**分布式计算阵列**​。下一步建议先完成**母盘的去特征化**和 **Rust 自动化克隆脚本** 的编写。
-
-您是否准备好从 **Rust 实现自动化创建差分磁盘虚拟机** 的代码模块开始启动项目？**这是实现 8000 窗口一键部署的第一步。**
-
-# 技术说明
-
-基于 **Rust + Hyper-V + VMBus** 的顶级群控架构。该方案利用虚拟化底层的物理隔离特性，实现 **“零注入、零特征、全自动”** 的挂机环境。
+扩写与分层说明见 `docs/host-cross-platform-architecture.md`。
 
 ---
 
-一、 技术栈核心方案
+## titan-host 元能力（宿主侧抽象 API）
 
-1. ​**虚拟化层 (Hyper-V + GPU-PV)**​：
-   * 利用 **差分磁盘 (VHDX)** 实现秒级多开。
-   * 通过 **GPU 分区 (GPU-PV)** 让 40 个窗口共享物理显卡算力，支持 3D 游戏流畅运行。
-2. ​**通讯层 (VMBus / AF\_HYPERV)**​：
-   * 绕过网络协议栈，利用宿主机与虚拟机之间的物理总线进行高速数据交换（指令下发与内存读取）。
-3. ​**驱动层 (Rust Kernel Driver)**​：
-   * ​**宿主驱动**​：在 Ring -1 层拦截并伪装 VM 硬件特征（CPUID, MAC, Disk ID）。
-   * ​**合成 HID 注入**​：通过 VMBus 注入原始报文，使 VM 系统将其识别为“真实物理鼠标”。
-4. ​**逻辑层 (Rust + Lua)**​：
-   * Rust 负责底层内存读写（WinHv API）与驱动通讯。
-   * Lua 负责高层业务逻辑（脚本流程、自动打怪）。
+以下名称为**产品/契约层**意图；Windows 轨下列出主要底层落点。Linux / Mac 轨在对应后端落地时再做等价实现或子集声明。**并非**所有调用都会或应该以 TCP `ControlRequest` 暴露（调试与 orchestrator 内部路径见 `need_mapping.rs` 对照表）。
+
+### 一、内存操控元能力（Memory Sovereignty）
+
+在**不依赖来宾内核配合**的前提下，由宿主侧对 VM **物理地址空间**进行观测与修改（工程上即 hypervisor / WHV 视角的 guest physical memory）。
+
+| 意图 API | 能力说明 | Windows 轨（目标底层） |
+|----------|----------|-------------------------|
+| `vm_read_raw(addr: u64, len: u32) -> Bytes` | 按 guest **物理**地址读取 | `WHvReadGuestPhysicalMemory` |
+| `vm_write_raw(addr: u64, data: Bytes)` | 按 guest **物理**地址写入 | `WHvWriteGuestPhysicalMemory` |
+| `vm_virt_to_phys(cr3: u64, virt_addr: u64) -> u64` | 软件页表遍历，虚拟地址 → guest 物理地址 | 不依赖 Windows 来宾用户态 API |
+| `vm_scan_pattern(pattern: String) -> Vec<u64>` | 多线程等在物理内存范围内做特征扫描 | 利用多核扫较大 guest RAM |
+
+**Phase 提示**：真 WinHv/WHV 无协作路径属 Phase 2+；Phase 1 协作式读内存等见 `need_mapping.rs`。`Capabilities::winhv_guest_memory` 等位须与探测一致。
+
+### 二、硬件伪装元能力（Spoofing & Stealth）
+
+使每个 VM 在观察者视角呈现为一致、可配置或随机化的「独立物理机」特征集。
+
+| 意图 API | 能力说明 | Windows 轨（主要手段） |
+|----------|----------|-------------------------|
+| `vm_set_cpu_mask(feature_bits: u64)` | 影响 CPUID / 特性暴露（含隐藏 Hyper-V 相关标志等目标） | 处理器策略、驱动/虚拟化栈等组合，见 Phase 2+ |
+| `vm_modify_hive(hive_path: Path, entries: Map)` | **离线**编辑挂载磁盘上的注册表 Hive（如磁盘序列号、显卡名称） | VHDX 挂载 + Hive 解析：`titan-offline-spoof`（`offline-hive` feature） |
+| `vm_randomize_hwid()` | 一键生成逻辑自洽的硬件标识（如 MAC 与厂商前缀一致） | `VmSpoofProfile` / `mother_image` / PowerShell 宿主侧步骤等 |
+
+方案 B（宿主 SB 与来宾 SB/vTPM 组合）的工程边界见 `docs/hyperv-secure-boot-matrix.md`。
+
+### 三、合成输入元能力（Input Injection）
+
+通过总线级路径注入**原始 HID 风格**输入，避免典型用户态模拟痕迹（产品目标；实现随阶段变化）。
+
+| 意图 API | 能力说明 | Windows 轨（目标底层） |
+|----------|----------|-------------------------|
+| `vm_send_mouse_report(x: i16, y: i16, button: u8)` | 鼠标位移/按键类报告 | VMBus 合成 HID 路径；`Capabilities::vmbus_hid` |
+| `vm_send_key_report(key_code: u16, state: bool)` | 键盘按下/抬起 | 同上 |
+
+**Phase 提示**：真 VMBus HID 注入为 Phase 2+；`titan-driver` 区分 `GuestAgentChannel` 与 `VmbusHidChannel`。Phase 1 协作式 Agent 通道不等价于本元能力闭环。
+
+### 四、视觉捕捉元能力（Visual Perception）
+
+支持「无缝模式」、中控缩略预览与像素级自动化。
+
+| 意图 API | 能力说明 | Windows 轨（目标底层） |
+|----------|----------|-------------------------|
+| `vm_get_frame_buffer() -> RawImage` | 获取当前帧原始像素 | `Windows.Graphics.Capture` 等监听 `vmwp.exe` 关联表面 |
+| `vm_image_find(template: Image) -> Option<(x, y)>` | 在像素流上做模板匹配，结果可反馈 Lua | 宿主 Rust 实现 |
+
+**Phase 提示**：完整采集 + NVENC + WebRTC 为路线图里程碑；`streaming_precheck` 等能力位见 `capabilities.rs`。
+
+### 五、网络隔离元能力（Network Isolation）
+
+按 VM（或按网卡/队列）强制流量走指定出口，支撑「一窗口一出口」类拓扑。
+
+| 意图 API | 能力说明 | Windows 轨（目标底层） |
+|----------|----------|-------------------------|
+| `vm_set_proxy(proxy_url: String)` | 将该 VM 相关流量导入代理隧道 | WinDivert 等内核态分流/转发与配置 schema：`proxy_pool`、`windivert` |
+
+**Phase 提示**：Phase 1 对代理 / WinDivert 配置多为 **TOML 校验与 schema**，不接内核转发；`Capabilities::windivert_forward` 等位诚实反映探测结果。
 
 ---
 
-二、 职责划分与系统流程
+## 技术栈摘要
 
-1. 中控端（Manager - 全局指挥中心）
+- **语言与运行时**：Rust；宿主侧每 VM **Lua** 有界执行（`titan-host::runtime`）。
+- **控制面**：rkyv 帧、版本化协议；中控发起、宿主 `serve` 响应。
+- **Windows 纵深**：Hyper-V 差分盘、可选 GPU-PV、PowerShell 自动化与（后续）驱动 IPC；与上节五大元能力一一对应。
+- **驱动**：Ring-0 组件为 Phase 2+ 独立交付物；与 `titan-host` 用户态服务通过约定 IPC 衔接。
 
-* ​**物理形式**​：一台独立的管理员电脑，运行 Rust GUI 程序（egui/iced）。
-* ​**核心职责**​：
-  * ​**资源调度**​：远程指令 200 台宿主机进行一键多开、重启、关闭。
-  * ​**监控看板**​：实时显示 8000 个窗口的角色状态（等级、坐标、血量）。
-  * ​**无缝预览**​：点击任意窗口，通过 WebRTC/H.264 拉取该窗口的实时流，实现“点击即看、点击即控”。
-  * ​**数据中心**​：集中管理账号库、IP 代理池、脚本版本。
+## 部署与运行流程（摘要）
 
-2. 宿主机端（Host Node - 生产节点）
+1. **母盘**：在参考 VM 内安装系统、依赖与负载，Sysprep 等封装后作为只读母盘。
+2. **一键多开**：中控或宿主 CLI 触发 provision：差分盘、（可选）GPU 分区、伪装 profile、自动上电等（见 `VmProvisionPlan`、`Orchestrator::post_provision_after_create`）。
+3. **运行期**：Lua +（Phase 1）Guest Agent 协作；后续阶段逐步替换为 WinHv / VMBus / 采集 / WinDivert 等真路径。
 
-* ​**物理形式**​：200 台物理电脑，运行 Rust 客户端服务 + Rust 宿主驱动。
-* ​**核心职责**​：
-  * ​**环境克隆**​：基于母盘创建差分 VHDX，配置独立的硬件 ID。
-  * ​**内存读写**​：利用 Hypervisor API 从“窗外”扫描游戏数据，喂给 Lua。
-  * ​**脚本并发**​：同时运行 40 个 Lua 状态机，处理 40 路独立逻辑。
-  * ​**网络隔离**​：劫持 VM 流量，实现单窗口绑定独立 Socks5 代理。
-  * ​**画面编码**​：利用 NVENC 硬件编码器将游戏窗口压制为流，按需发往中控。
+## 文档索引
 
-3. 执行单元（Guest / VM - 纯净环境）
-
-* ​**物理形式**​：40 个静默运行的系统实例。
-* ​**核心职责**​：
-  * ​**环境欺骗**​：加载 Spoofer 驱动，让 NCSoft 检测到的是“真实的物理机”。
-  * ​**信号执行**​：VMBus 接收来自宿主机的 HID 报文，由系统内核产生真实的硬件中断。
-
----
-
-三、 无缝 App 窗口模式实现方案
-
-为了让中控端和宿主机端能像操作本地应用一样管理游戏：
-
-1. ​**捕获层 (Host Side)**​：
-   * 宿主机 Rust 客户端调用 `Windows.Graphics.Capture` 监听 `vmwp.exe`（VM 进程）。
-   * 只抓取游戏进程所在的坐标区域，剔除虚拟机桌面。
-2. ​**传输层 (Streaming)**​：
-   * 将捕获的画面帧传入显卡编码器，生成极低延迟的视频流。
-3. ​**渲染层 (UI Side)**​：
-   * 中控端/宿主机 Rust UI 中预留 ​**Texture 渲染位**​。
-   * 将视频流解码后直接贴图到 UI 控件上。
-4. ​**交互映射 (Input Mapping)**​：
-   * 当你在 UI 窗口点击 (x, y) 时，Rust 计算相对坐标，通过 VMBus 瞬时注入该 VM 内部。
-   * ​**视觉效果**​：游戏窗口看起来就是 Rust UI 的一部分，操作无延迟。
-
----
-
-四、 实施流程图
-
-1. ​**母盘制作**​：安装 Win10 LTSC -> 预装游戏与运行库 -> Sysprep 封装 -> 设为只读母盘。
-2. ​**宿主机部署**​：安装 Hyper-V -> 运行 Rust 宿主驱动（关闭安全启动）-> 启动 Rust 客户端。
-3. ​**一键启动**​：
-   * 中控下发指令 `START_VM_GROUP(1-40)`。
-   * 宿主机：`创建差分盘` -> `随机化硬件 ID` -> `分配 GPU 分区` -> `后台启动 VM`。
-4. ​**自动挂机**​：
-   * 宿主机读内存 -> Lua 判断逻辑 -> VMBus 发送鼠标指令。
-5. ​**人工介入**​：
-   * 中控点击查看 -> 宿主机推流 -> 画面在界面显示 -> 中控鼠标点击 -> 坐标跨网络传回 -> 驱动注入点击。
-
-五、 关键技术难点提示
-
-* ​**VMBus 通讯协议**​：需要深入研究 `vmbus.h` 与内核态通讯机制。
-* ​**GPU-PV 稳定性**​：40 个窗口对显存（VRAM）是巨大挑战，母盘必须强行修改游戏配置文件，锁定最低渲染比例。
-* ​**独立 IP 性能**​：使用 Rust `WinDivert` 库处理 40 路并发流量转发。
-
-这个方案是目前**大型自动化工作室**最稳健、最高端的选型。如果你准备开始编码，建议先从 **Rust 实现差分磁盘创建与 PowerShell 自动化控制** 开始。
-
-是否需要我为你提供一个 **Rust 调用 PowerShell 批量配置 GPU-PV 与差分盘** 的核心模块代码？**这将是你“一键多开”的基石。**
-
+| 文档 | 用途 |
+|------|------|
+| `crates/titan-common/src/need_mapping.rs` | Phase 1 DoD、Phase 2+ 列表、主题 → crate 对照 |
+| `docs/requirements-traceability.md` | 元能力 / API → 实现轨 / 代码锚点 / 测试 |
+| `docs/host-cross-platform-architecture.md` | titan-host 跨宿主 OS 分层、后端矩阵扩写、WHP 与 Hyper-V 关系、Capabilities/Lua 约束与演进里程碑（路线图） |
+| `docs/hyperv-secure-boot-matrix.md` | **仅 Windows / Hyper-V 轨** 的宿主/来宾 SB 与驱动矩阵 |

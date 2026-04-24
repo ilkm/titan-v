@@ -1,7 +1,11 @@
 //! Control-plane transports: DDS-style heartbeat + **TCP wire-compatible** gRPC-shaped ping.
 
 use crate::error::{Error, Result};
-use crate::{encode_request_frame, read_response_frame, ControlRequest, ControlResponse};
+use crate::{
+    decode_control_host_payload, encode_control_request_frame, parse_header, ControlHostFrame,
+    ControlRequest, ControlRequestFrame, ControlResponse, FRAME_HEADER_LEN,
+};
+use std::io::Read;
 use std::io::Write;
 use std::net::{SocketAddr, TcpStream};
 
@@ -54,7 +58,7 @@ impl DdsControlBus for TracingHeartbeatBus {
     }
 }
 
-/// Performs one `Ping`/`Pong` exchange over TCP using M2 wire framing.
+/// Performs one `Ping`/`Pong` exchange over TCP using framed control-plane encoding.
 #[derive(Debug, Clone)]
 pub struct TcpWirePingClient {
     addr: SocketAddr,
@@ -72,18 +76,34 @@ impl GrpcControlPlane for TcpWirePingClient {
         let mut stream = TcpStream::connect(self.addr).map_err(|e| Error::HyperVRejected {
             message: format!("tcp wire ping connect {}: {e}", self.addr),
         })?;
-        let frame =
-            encode_request_frame(&ControlRequest::Ping).map_err(|e| Error::HyperVRejected {
-                message: format!("encode ping: {e}"),
-            })?;
+        let frame = encode_control_request_frame(&ControlRequestFrame {
+            id: 1,
+            body: ControlRequest::Ping,
+        })
+        .map_err(|e| Error::HyperVRejected {
+            message: format!("encode ping: {e}"),
+        })?;
         stream.write_all(&frame).map_err(Error::Io)?;
         stream.flush().map_err(Error::Io)?;
-        let res = read_response_frame(&mut stream).map_err(|e| Error::HyperVRejected {
-            message: format!("read pong: {e}"),
+        let mut hdr = [0u8; FRAME_HEADER_LEN];
+        stream.read_exact(&mut hdr).map_err(Error::Io)?;
+        let (_, len) = parse_header(&hdr).map_err(|e| Error::HyperVRejected {
+            message: format!("parse header: {e}"),
         })?;
-        match res {
-            ControlResponse::Pong { .. } => Ok(()),
-            ControlResponse::ServerError { code, message } => Err(Error::HyperVRejected {
+        let mut payload = vec![0u8; len as usize];
+        stream.read_exact(&mut payload).map_err(Error::Io)?;
+        let host = decode_control_host_payload(&payload).map_err(|e| Error::HyperVRejected {
+            message: format!("decode control host frame: {e}"),
+        })?;
+        match host {
+            ControlHostFrame::Response {
+                id: 1,
+                body: ControlResponse::Pong { .. },
+            } => Ok(()),
+            ControlHostFrame::Response {
+                body: ControlResponse::ServerError { code, message },
+                ..
+            } => Err(Error::HyperVRejected {
                 message: format!("host error {code}: {message}"),
             }),
             _ => Err(Error::HyperVRejected {

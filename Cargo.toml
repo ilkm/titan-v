@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
     "crates/titan-common",
+    "crates/titan-tray",
     "crates/titan-vmm",
     "crates/titan-scripts",
     "crates/titan-driver",

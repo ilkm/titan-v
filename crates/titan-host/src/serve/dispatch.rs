@@ -33,7 +33,7 @@ where
 }
 
 async fn handle_list_vms() -> Result<ControlResponse, ServeError> {
-    let rows = spawn_blocking_result(titan_vmm::hyperv::list_vms_blocking).await?;
+    let rows = spawn_blocking_result(titan_vmm::platform_vm::list_vms_blocking).await?;
     let vms = rows
         .into_iter()
         .map(|(name, s)| VmBrief { name, state: s })
@@ -91,6 +91,7 @@ fn handle_load_script_vm(
     Ok(res)
 }
 
+#[cfg(windows)]
 fn spoof_apply_notes(dry_run: bool) -> String {
     if dry_run {
         "dry-run: steps were recorded; Hyper-V mutations skipped where applicable".into()
@@ -104,26 +105,40 @@ async fn handle_apply_spoof_profile(
     dry_run: bool,
     spoof: VmSpoofProfile,
 ) -> Result<ControlResponse, ServeError> {
-    if let Err(e) = spoof.validate() {
-        return Ok(server_err(400, format!("invalid VmSpoofProfile: {e}")));
+    #[cfg(not(windows))]
+    {
+        let _ = dry_run;
+        let _ = spoof;
+        Ok(server_err(
+            501,
+            format!(
+                "ApplySpoofProfile requires Windows with Hyper-V (mother_image); vm_name={vm_name}"
+            ),
+        ))
     }
-    let vm = vm_name.clone();
-    let profile = spoof;
-    let join = tokio::task::spawn_blocking(move || {
-        titan_vmm::hyperv::mother_image::apply_host_spoof_profile_with_options(
-            &vm, &profile, dry_run,
-        )
-    })
-    .await
-    .map_err(|e| join_io(format!("join: {e}")))?;
-    match join {
-        Ok(steps) => Ok(ControlResponse::SpoofApplyAck {
-            vm_name,
-            dry_run,
-            steps_executed: steps,
-            notes: spoof_apply_notes(dry_run),
-        }),
-        Err(e) => Ok(server_err(500, e.to_string())),
+    #[cfg(windows)]
+    {
+        if let Err(e) = spoof.validate() {
+            return Ok(server_err(400, format!("invalid VmSpoofProfile: {e}")));
+        }
+        let vm = vm_name.clone();
+        let profile = spoof;
+        let join = tokio::task::spawn_blocking(move || {
+            titan_vmm::hyperv::mother_image::apply_host_spoof_profile_with_options(
+                &vm, &profile, dry_run,
+            )
+        })
+        .await
+        .map_err(|e| join_io(format!("join: {e}")))?;
+        match join {
+            Ok(steps) => Ok(ControlResponse::SpoofApplyAck {
+                vm_name,
+                dry_run,
+                steps_executed: steps,
+                notes: spoof_apply_notes(dry_run),
+            }),
+            Err(e) => Ok(server_err(500, e.to_string())),
+        }
     }
 }
 
@@ -132,54 +147,43 @@ async fn handle_apply_spoof_step(
     step_id: String,
     dry_run: bool,
 ) -> Result<ControlResponse, ServeError> {
-    let vm = vm_name.clone();
-    let sid = step_id.clone();
-    let join = tokio::task::spawn_blocking(move || {
-        titan_vmm::hyperv::mother_image::apply_spoof_step(&vm, &sid, dry_run)
-    })
-    .await
-    .map_err(|e| join_io(format!("join: {e}")))?;
-    match join {
-        Ok(ok) => Ok(ControlResponse::SpoofStepAck {
-            vm_name,
-            step_id,
-            dry_run,
-            ok,
-            detail: "ok".into(),
-        }),
-        Err(e) => Ok(ControlResponse::SpoofStepAck {
+    #[cfg(not(windows))]
+    {
+        let _ = dry_run;
+        Ok(ControlResponse::SpoofStepAck {
             vm_name,
             step_id,
             dry_run,
             ok: false,
-            detail: e.to_string(),
-        }),
+            detail: "ApplySpoofStep requires Windows with Hyper-V (mother_image).".into(),
+        })
     }
-}
-
-fn handle_register_guest_agent(
-    request_id: &str,
-    state: &ServeState,
-    vm_name: String,
-    guest_agent_addr: String,
-) -> Result<ControlResponse, ServeError> {
-    let vm = vm_name.trim().to_string();
-    if vm.is_empty() {
-        return Ok(server_err(400, "vm_name is empty"));
-    }
-    let addr_trim = guest_agent_addr.trim();
-    let addr: std::net::SocketAddr = match addr_trim.parse() {
-        Ok(a) => a,
-        Err(e) => return Ok(server_err(400, format!("invalid guest_agent_addr: {e}"))),
-    };
-    state.agents.insert(vm.clone(), addr);
-    tracing::info!(%request_id, %vm, %addr, "guest agent binding registered");
-    if let Some(path) = &state.agent_bindings_path {
-        if let Err(e) = crate::agent_bindings::save_agent_bindings(path, &state.agents) {
-            tracing::warn!(error = %e, path = %path.display(), "failed to persist agent bindings");
+    #[cfg(windows)]
+    {
+        let vm = vm_name.clone();
+        let sid = step_id.clone();
+        let join = tokio::task::spawn_blocking(move || {
+            titan_vmm::hyperv::mother_image::apply_spoof_step(&vm, &sid, dry_run)
+        })
+        .await
+        .map_err(|e| join_io(format!("join: {e}")))?;
+        match join {
+            Ok(ok) => Ok(ControlResponse::SpoofStepAck {
+                vm_name,
+                step_id,
+                dry_run,
+                ok,
+                detail: "ok".into(),
+            }),
+            Err(e) => Ok(ControlResponse::SpoofStepAck {
+                vm_name,
+                step_id,
+                dry_run,
+                ok: false,
+                detail: e.to_string(),
+            }),
         }
     }
-    Ok(ControlResponse::GuestAgentRegisterAck { vm_name: vm })
 }
 
 pub(super) async fn dispatch_request(
@@ -211,13 +215,54 @@ pub(super) async fn dispatch_request(
             step_id,
             dry_run,
         } => handle_apply_spoof_step(vm_name, step_id, dry_run).await,
-        ControlRequest::RegisterGuestAgent {
-            vm_name,
-            guest_agent_addr,
-        } => handle_register_guest_agent(request_id, state, vm_name, guest_agent_addr),
-        _ => Ok(server_err(
-            501,
-            "unsupported control request for this host build",
-        )),
+        ControlRequest::HostDesktopSnapshot {
+            max_width,
+            max_height,
+            jpeg_quality,
+        } => handle_host_desktop_snapshot(max_width, max_height, jpeg_quality).await,
+        ControlRequest::HostResourceSnapshot => handle_host_resource_snapshot().await,
+    }
+}
+
+async fn handle_host_resource_snapshot() -> Result<ControlResponse, ServeError> {
+    let join = tokio::task::spawn_blocking(crate::host_resources::collect_blocking)
+        .await
+        .map_err(|e| join_io(format!("join: {e}")))?;
+    Ok(ControlResponse::HostResourceSnapshot { stats: join })
+}
+
+async fn handle_host_desktop_snapshot(
+    max_width: u32,
+    max_height: u32,
+    jpeg_quality: u8,
+) -> Result<ControlResponse, ServeError> {
+    let mw = max_width.clamp(320, 4096);
+    let mh = max_height.clamp(240, 4096);
+    let q = jpeg_quality.clamp(1, 95);
+    let join = tokio::task::spawn_blocking(move || {
+        crate::desktop_snapshot::capture_primary_display_jpeg(mw, mh, q)
+    })
+    .await
+    .map_err(|e| join_io(format!("join: {e}")))?;
+    match join {
+        Ok((jpeg_bytes, width_px, height_px)) => {
+            let max = titan_common::MAX_PAYLOAD_BYTES as usize;
+            if jpeg_bytes.len() > max.saturating_sub(512) {
+                return Ok(server_err(
+                    413,
+                    format!(
+                        "desktop JPEG {} bytes exceeds wire limit (~{} bytes); lower resolution or quality",
+                        jpeg_bytes.len(),
+                        max
+                    ),
+                ));
+            }
+            Ok(ControlResponse::DesktopSnapshotJpeg {
+                jpeg_bytes,
+                width_px,
+                height_px,
+            })
+        }
+        Err(e) => Ok(server_err(500, e)),
     }
 }

@@ -2,6 +2,7 @@
 
 use std::path::Path;
 
+use rkyv::{Archive, Deserialize as RkyvDeserialize, Serialize as RkyvSerialize};
 use serde::{Deserialize, Serialize};
 
 use crate::error::{Error, Result};
@@ -58,7 +59,9 @@ impl VmIdentityProfile {
 }
 
 /// Host-side Hyper-V tweaks applied after the VM exists (Layer A; PowerShell).
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(
+    Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Archive, RkyvSerialize, RkyvDeserialize,
+)]
 #[serde(default)]
 pub struct VmSpoofProfile {
     /// Synthetic NICs: enable dynamic MAC (`Set-VMNetworkAdapter -DynamicMacAddress On`).
@@ -79,7 +82,7 @@ pub struct VmSpoofProfile {
     pub enable_vtpm: Option<bool>,
     /// Append JSONL audit records for each applied step (host path).
     pub audit_log_path: Option<String>,
-    /// Reserved for guest identity pipelines; orchestrator / M2 may trigger artifact work.
+    /// Reserved for guest identity pipelines; orchestrator / control plane may trigger artifact work.
     pub guest_identity_tag: Option<String>,
 }
 

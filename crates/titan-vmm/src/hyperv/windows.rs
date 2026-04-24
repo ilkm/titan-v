@@ -11,6 +11,8 @@ use std::process::{Command, Stdio};
 
 use titan_common::{state::VmPowerState, Error, Result, VmProvisionPlan};
 
+use super::gpu_pv::hyperv_ps_module_available_blocking;
+
 const PS_SCRIPT: &str = r#"
 $ErrorActionPreference = 'Stop'
 if (-not (Get-Module -ListAvailable -Name Hyper-V)) {
@@ -97,6 +99,12 @@ Get-VM | ForEach-Object { [Console]::WriteLine(("{0}|{1}" -f $_.Name, $_.State))
 
 /// Lists `(name, power_state)` via Hyper-V PowerShell (blocking).
 pub fn list_vms() -> Result<Vec<(String, VmPowerState)>> {
+    if !hyperv_ps_module_available_blocking() {
+        tracing::warn!(
+            "list_vms: Hyper-V module not available; returning empty VM list for control plane"
+        );
+        return Ok(Vec::new());
+    }
     let mut cmd = Command::new("powershell.exe");
     cmd.arg("-NoProfile")
         .arg("-NonInteractive")
@@ -150,6 +158,9 @@ if ($vm) { [Console]::WriteLine('1') } else { [Console]::WriteLine('0') }
 
 /// Returns whether a VM with this name exists (blocking).
 pub fn vm_exists(vm_name: &str) -> Result<bool> {
+    if !hyperv_ps_module_available_blocking() {
+        return Ok(false);
+    }
     let mut cmd = Command::new("powershell.exe");
     cmd.arg("-NoProfile")
         .arg("-NonInteractive")

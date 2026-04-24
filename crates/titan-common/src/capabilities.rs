@@ -1,12 +1,24 @@
 //! Placeholder capability flags for future center–host negotiation.
 
+use rkyv::{Archive, Deserialize as RkyvDeserialize, Serialize as RkyvSerialize};
 use serde::{Deserialize, Serialize};
 
 /// Hyper-V–only **host-side** spoof automation probes (PowerShell cmdlet surface).
 ///
-/// Reported in M2 [`crate::wire::ControlResponse`] capability snapshots; does not imply guest
+/// Reported in [`crate::wire::ControlResponse`] capability snapshots on the control plane; does not imply guest
 /// offline edits or kernel drivers.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(
+    Debug,
+    Clone,
+    Default,
+    Serialize,
+    Deserialize,
+    PartialEq,
+    Eq,
+    Archive,
+    RkyvSerialize,
+    RkyvDeserialize,
+)]
 pub struct HypervSpoofHostCaps {
     /// `Get-VMNetworkAdapter` / `Set-VMNetworkAdapter` (dynamic MAC path).
     #[serde(default)]
@@ -32,7 +44,18 @@ pub struct HypervSpoofHostCaps {
 }
 
 /// Declares which optional subsystems a node supports (center ↔ host negotiation).
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(
+    Debug,
+    Clone,
+    Default,
+    Serialize,
+    Deserialize,
+    PartialEq,
+    Eq,
+    Archive,
+    RkyvSerialize,
+    RkyvDeserialize,
+)]
 pub struct Capabilities {
     pub hyperv: bool,
     pub gpu_partition: bool,
@@ -68,6 +91,15 @@ pub struct Capabilities {
     /// WinDivert kernel forward path (not implemented until R5c).
     #[serde(default)]
     pub windivert_forward: bool,
+    /// Linux: `virsh` on PATH for optional list / batch power (libvirt shell; not full QEMU parity).
+    #[serde(default)]
+    pub linux_virsh_inventory: bool,
+    /// Host-reported notice (e.g. agent-bindings path missing or unreadable at startup).
+    #[serde(default)]
+    pub host_notice: String,
+    /// OS-stable machine id from the host (`machine-uid`); empty on older hosts.
+    #[serde(default)]
+    pub device_id: String,
 }
 
 impl Capabilities {
@@ -77,7 +109,7 @@ impl Capabilities {
         Self::default()
     }
 
-    /// Values the host reports on the control socket (M2); extend with real probes later.
+    /// Values the host reports on the control TCP socket; extend with real probes later.
     #[must_use]
     pub fn host_control_plane() -> Self {
         Self::host_control_plane_with_agents(false, false, HypervSpoofHostCaps::default())
@@ -106,9 +138,10 @@ impl Capabilities {
     ) -> Self {
         #[cfg(windows)]
         {
+            let hv = probes.hyperv_ps_module_available;
             let mut c = Capabilities {
-                hyperv: true,
-                streaming_precheck: true,
+                hyperv: hv,
+                streaming_precheck: hv,
                 gpu_partition: gpu_partition_cmdlets_available,
                 hardware_spoof: probes.spoof_host.network_identity,
                 hyperv_spoof_host: probes.spoof_host.clone(),
@@ -118,6 +151,7 @@ impl Capabilities {
                 streaming_nvenc: probes.streaming_nvenc,
                 streaming_webrtc: probes.streaming_webrtc,
                 windivert_forward: probes.windivert_forward,
+                linux_virsh_inventory: false,
                 ..Self::default()
             };
             if agent_configured {
@@ -128,23 +162,22 @@ impl Capabilities {
         }
         #[cfg(not(windows))]
         {
-            let mut c = Self::default();
-            if agent_configured {
-                c.guest_agent = true;
-                c.vmbus_input = true;
+            Capabilities {
+                hyperv: probes.hyperv_ps_module_available,
+                guest_agent: agent_configured,
+                vmbus_input: agent_configured,
+                gpu_partition: gpu_partition_cmdlets_available,
+                hardware_spoof: probes.spoof_host.network_identity,
+                hyperv_spoof_host: probes.spoof_host.clone(),
+                kernel_driver_ipc: probes.kernel_driver_ipc,
+                winhv_guest_memory: probes.winhv_guest_memory,
+                vmbus_hid: probes.vmbus_hid,
+                streaming_nvenc: probes.streaming_nvenc,
+                streaming_webrtc: probes.streaming_webrtc,
+                windivert_forward: probes.windivert_forward,
+                linux_virsh_inventory: probes.linux_virsh_available,
+                ..Default::default()
             }
-            if gpu_partition_cmdlets_available {
-                c.gpu_partition = true;
-            }
-            c.hardware_spoof = probes.spoof_host.network_identity;
-            c.hyperv_spoof_host = probes.spoof_host.clone();
-            c.kernel_driver_ipc = probes.kernel_driver_ipc;
-            c.winhv_guest_memory = probes.winhv_guest_memory;
-            c.vmbus_hid = probes.vmbus_hid;
-            c.streaming_nvenc = probes.streaming_nvenc;
-            c.streaming_webrtc = probes.streaming_webrtc;
-            c.windivert_forward = probes.windivert_forward;
-            c
         }
     }
 }
@@ -153,10 +186,14 @@ impl Capabilities {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct HostRuntimeProbes {
     pub spoof_host: HypervSpoofHostCaps,
+    /// `Import-Module Hyper-V` / module list probe (Windows); always false off-Windows.
+    pub hyperv_ps_module_available: bool,
     pub kernel_driver_ipc: bool,
     pub winhv_guest_memory: bool,
     pub vmbus_hid: bool,
     pub streaming_nvenc: bool,
     pub streaming_webrtc: bool,
     pub windivert_forward: bool,
+    /// Linux: `virsh --version` succeeds (libvirt client tools).
+    pub linux_virsh_available: bool,
 }

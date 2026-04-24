@@ -29,47 +29,64 @@ pub enum Msg {
     NavSpoof,
     NavPower,
 
-    ConnectionCardTitle,
-    ConnectionM2Hint,
-    HintControlAddr,
-    BtnSyncHost,
-    BtnListVms,
-    ChkAutoRefresh,
-    PollIntervalLabel,
-
     DiscoveryTitle,
     DiscoveryUdpBlurb,
     DiscoveryCheckbox,
+    DiscoveryBindBlurb,
+    DiscoveryBindQuickAdd,
+    DiscoveryBindScrollHint,
+    DiscoveryRefreshIfaces,
+    DiscoveryClearBindIps,
+    DiscoveryNoIpv4Ifaces,
     IntervalLabel,
     UdpPortLabel,
 
-    GuestCardTitle,
-    GuestBlurb,
-    VmLabelSmall,
-    AgentLabelSmall,
-    HintVmName,
-    HintAgentAddr,
-    BtnRegisterHost,
+    HostCollectTitle,
+    HostCollectBlurb,
+    HostCollectCheckbox,
+    HostCollectIntervalLabel,
+    HostCollectPollPortLabel,
+    HostCollectRegisterPortLabel,
 
-    SessionTitle,
-    BtnConnect,
-    BtnDisconnect,
-    BtnPing,
-    WaitEllipsis,
-    StatusConnected,
-    StatusNotConnected,
-    CapsSnapshotTitle,
-
-    HostsCardTitle,
-    HostListEmpty,
-    HostListSelectedEditTitle,
-    HostListNameField,
-    HostListAddrField,
-    DeviceMgmtNavHint,
     /// Device management tab when there are no saved hosts (no section title).
     NoDataShort,
+    /// Device management: centered headline when the registered list is empty.
+    DeviceMgmtNoRegistered,
+    /// Hint under empty device list: connect from Settings to populate.
+    DeviceMgmtEmptyHint,
+    /// Shown on device card preview until host desktop streaming is wired.
+    DeviceMgmtDesktopPreviewNote,
+    /// Device card: CPU usage label (value appended in UI).
+    DeviceMgmtResCpu,
+    /// Device card: memory usage label.
+    DeviceMgmtResMem,
+    /// Device card: network line; values are `down / up` (compact suffixes, no arrow glyphs).
+    DeviceMgmtResNet,
+    /// Device card: disk I/O line; values are `read / write` (compact suffixes, no arrow glyphs).
+    DeviceMgmtResDiskIo,
+    /// Device card: user remark section title.
+    DeviceMgmtRemarkTitle,
+    /// Device card: empty remark hint (double-click to edit).
+    DeviceMgmtRemarkDblclkHint,
     BtnAddHost,
+    /// Manual add-host dialog (IP + port).
+    AddHostDialogTitle,
+    AddHostDialogSubtitle,
+    AddHostIpLabel,
+    AddHostPortLabel,
+    AddHostConfirm,
+    AddHostInvalidHint,
+    /// Add-host: Hello probe in progress (button disabled).
+    AddHostVerifying,
+    /// Toast when manual add-host Hello fails (offline / timeout / error).
+    AddHostOfflineToast,
+    /// Status log after manual add-host succeeds.
+    AddHostSavedLog,
     BtnRemoveSelected,
+    /// Device toolbar: send Hello to the currently selected host.
+    BtnHostHello,
+    /// Device toolbar: open telemetry stream for the selected host.
+    BtnHostTelemetry,
 
     VmInventoryTitle,
     ColState,
@@ -79,21 +96,20 @@ pub enum Msg {
     WindowPreviewTitle,
     WindowPreviewHint,
 
-    StatusBoardTitle,
-    AccountsCardTitle,
-    BtnAccount,
-    BtnProxyLabel,
-    AccountsLabel,
-    ProxiesLabel,
-    ScriptArtifactHint,
-    HintScriptVersion,
+    MonitorCardDevices,
+    MonitorCardWindows,
+    MonitorStatTotal,
+    MonitorStatOnline,
+    MonitorStatOffline,
+    MonitorDevicesScopeHint,
+    MonitorWindowsScopeHint,
+
+    /// Second column title on wide layouts (Spoof / Power), aligned with Usage cards.
+    CardActions,
 
     SlotGridTitle,
     SlotEmpty,
     NoHost,
-
-    ActivityTitle,
-    ActivityHint,
 
     SpoofCardTitle,
     SpoofBlurb,
@@ -141,33 +157,18 @@ pub fn t(lang: UiLang, msg: Msg) -> &'static str {
         (UiLang::En, Msg::LangRadioZh) => "中文",
         (UiLang::Zh, Msg::LangRadioZh) => "中文",
 
-        (UiLang::En, Msg::NavConnect) => "Device management",
+        (UiLang::En, Msg::NavConnect) => "Devices",
         (UiLang::Zh, Msg::NavConnect) => "设备管理",
         (UiLang::En, Msg::NavSettings) => "Settings",
         (UiLang::Zh, Msg::NavSettings) => "设置",
-        (UiLang::En, Msg::NavHostsVms) => "Window management",
+        (UiLang::En, Msg::NavHostsVms) => "Windows",
         (UiLang::Zh, Msg::NavHostsVms) => "窗口管理",
-        (UiLang::En, Msg::NavMonitor) => "Resource monitor",
+        (UiLang::En, Msg::NavMonitor) => "Usage",
         (UiLang::Zh, Msg::NavMonitor) => "资源监控",
-        (UiLang::En, Msg::NavSpoof) => "Host spoof",
+        (UiLang::En, Msg::NavSpoof) => "Spoof",
         (UiLang::Zh, Msg::NavSpoof) => "主机伪装",
-        (UiLang::En, Msg::NavPower) => "Bulk power",
+        (UiLang::En, Msg::NavPower) => "Power",
         (UiLang::Zh, Msg::NavPower) => "批量电源",
-
-        (UiLang::En, Msg::ConnectionCardTitle) => "Connection & inventory",
-        (UiLang::Zh, Msg::ConnectionCardTitle) => "连接与清单",
-        (UiLang::En, Msg::ConnectionM2Hint) => "M2 control address (titan-host serve)",
-        (UiLang::Zh, Msg::ConnectionM2Hint) => "M2 控制地址（titan-host serve）",
-        (UiLang::En, Msg::HintControlAddr) => "e.g. 192.168.1.10:7788",
-        (UiLang::Zh, Msg::HintControlAddr) => "例如 192.168.1.10:7788",
-        (UiLang::En, Msg::BtnSyncHost) => "Sync from selected host",
-        (UiLang::Zh, Msg::BtnSyncHost) => "从选中主机同步",
-        (UiLang::En, Msg::BtnListVms) => "List VMs",
-        (UiLang::Zh, Msg::BtnListVms) => "列出虚拟机",
-        (UiLang::En, Msg::ChkAutoRefresh) => "Auto refresh VM list when connected",
-        (UiLang::Zh, Msg::ChkAutoRefresh) => "已连接时自动刷新虚拟机列表",
-        (UiLang::En, Msg::PollIntervalLabel) => "Poll interval (s):",
-        (UiLang::Zh, Msg::PollIntervalLabel) => "轮询间隔（秒）：",
 
         (UiLang::En, Msg::DiscoveryTitle) => "LAN discovery (optional)",
         (UiLang::Zh, Msg::DiscoveryTitle) => "局域网发现（可选）",
@@ -179,69 +180,106 @@ pub fn t(lang: UiLang, msg: Msg) -> &'static str {
         }
         (UiLang::En, Msg::DiscoveryCheckbox) => "Broadcast discovery on LAN",
         (UiLang::Zh, Msg::DiscoveryCheckbox) => "在局域网广播发现",
+        (UiLang::En, Msg::DiscoveryBindBlurb) => {
+            "Optional: pick one or more local IPv4 addresses to send subnet broadcasts from (multi-homed). Leave none selected to use the OS default route (255.255.255.255)."
+        }
+        (UiLang::Zh, Msg::DiscoveryBindBlurb) => {
+            "可选：选择一个或多个本机 IPv4，从对应网卡向子网广播；不选则走系统默认路由（255.255.255.255）。"
+        }
+        (UiLang::En, Msg::DiscoveryBindQuickAdd) => "Add interface IPv4…",
+        (UiLang::Zh, Msg::DiscoveryBindQuickAdd) => "从列表添加 IPv4…",
+        (UiLang::En, Msg::DiscoveryBindScrollHint) => "Multi-select (non-loopback IPv4):",
+        (UiLang::Zh, Msg::DiscoveryBindScrollHint) => "多选广播源（不含回环）：",
+        (UiLang::En, Msg::DiscoveryRefreshIfaces) => "Refresh interfaces",
+        (UiLang::Zh, Msg::DiscoveryRefreshIfaces) => "刷新网卡列表",
+        (UiLang::En, Msg::DiscoveryClearBindIps) => "Clear selection",
+        (UiLang::Zh, Msg::DiscoveryClearBindIps) => "清空已选",
+        (UiLang::En, Msg::DiscoveryNoIpv4Ifaces) => "No non-loopback IPv4 interfaces found.",
+        (UiLang::Zh, Msg::DiscoveryNoIpv4Ifaces) => "未发现可用的非回环 IPv4 网卡。",
         (UiLang::En, Msg::IntervalLabel) => "Interval (s):",
         (UiLang::Zh, Msg::IntervalLabel) => "间隔（秒）：",
         (UiLang::En, Msg::UdpPortLabel) => "UDP port:",
         (UiLang::Zh, Msg::UdpPortLabel) => "UDP 端口：",
 
-        (UiLang::En, Msg::GuestCardTitle) => "Guest agent binding",
-        (UiLang::Zh, Msg::GuestCardTitle) => "来宾代理绑定",
-        (UiLang::En, Msg::GuestBlurb) => {
-            "After Connect: map Hyper-V VM name → guest agent TCP address (reachable from the host)."
+        (UiLang::En, Msg::HostCollectTitle) => "LAN host registration (scale-out)",
+        (UiLang::Zh, Msg::HostCollectTitle) => "局域网宿主注册（批量）",
+        (UiLang::En, Msg::HostCollectBlurb) => {
+            "Broadcasts a short poll on UDP. Each `titan-host serve` on the LAN replies with its control-plane TCP address — no per-host Connect click. Uses the same bind-IPv4 list as guest discovery when set."
         }
-        (UiLang::Zh, Msg::GuestBlurb) => {
-            "连接后：将 Hyper-V 虚拟机名映射为来宾代理 TCP 地址（须从宿主可达）。"
+        (UiLang::Zh, Msg::HostCollectBlurb) => {
+            "在局域网周期性广播唤请包（UDP）。各台 `titan-host serve` 收到后自动向中控上报控制面 TCP 地址，无需在每台机器上单独操作中控。若上方指定了绑定 IPv4，则与本页「来宾发现」共用该列表。"
         }
-        (UiLang::En, Msg::VmLabelSmall) => "VM",
-        (UiLang::Zh, Msg::VmLabelSmall) => "虚拟机",
-        (UiLang::En, Msg::AgentLabelSmall) => "Agent",
-        (UiLang::Zh, Msg::AgentLabelSmall) => "代理",
-        (UiLang::En, Msg::HintVmName) => "name",
-        (UiLang::Zh, Msg::HintVmName) => "名称",
-        (UiLang::En, Msg::HintAgentAddr) => "host-visible IP:port",
-        (UiLang::Zh, Msg::HintAgentAddr) => "宿主可见 IP:端口",
-        (UiLang::En, Msg::BtnRegisterHost) => "Register on host",
-        (UiLang::Zh, Msg::BtnRegisterHost) => "在宿主注册",
+        (UiLang::En, Msg::HostCollectCheckbox) => "Broadcast registration poll",
+        (UiLang::Zh, Msg::HostCollectCheckbox) => "广播唤请宿主注册",
+        (UiLang::En, Msg::HostCollectIntervalLabel) => "Poll interval (seconds):",
+        (UiLang::Zh, Msg::HostCollectIntervalLabel) => "唤请间隔（秒）：",
+        (UiLang::En, Msg::HostCollectPollPortLabel) => "Poll UDP port (destination):",
+        (UiLang::Zh, Msg::HostCollectPollPortLabel) => "唤请 UDP 端口（目的）：",
+        (UiLang::En, Msg::HostCollectRegisterPortLabel) => "Host reply UDP port (center listens):",
+        (UiLang::Zh, Msg::HostCollectRegisterPortLabel) => "宿主应答 UDP 端口（中控监听）：",
 
-        (UiLang::En, Msg::SessionTitle) => "Session",
-        (UiLang::Zh, Msg::SessionTitle) => "会话",
-        (UiLang::En, Msg::BtnConnect) => "Connect",
-        (UiLang::Zh, Msg::BtnConnect) => "连接",
-        (UiLang::En, Msg::BtnDisconnect) => "Disconnect",
-        (UiLang::Zh, Msg::BtnDisconnect) => "断开",
-        (UiLang::En, Msg::BtnPing) => "Ping",
-        (UiLang::Zh, Msg::BtnPing) => "Ping",
-        (UiLang::En, Msg::WaitEllipsis) => "…",
-        (UiLang::Zh, Msg::WaitEllipsis) => "…",
-        (UiLang::En, Msg::StatusConnected) => "● Connected",
-        (UiLang::Zh, Msg::StatusConnected) => "● 已连接",
-        (UiLang::En, Msg::StatusNotConnected) => "○ Not connected — use Connect (Hello)",
-        (UiLang::Zh, Msg::StatusNotConnected) => "○ 未连接 — 请先点「连接」(Hello)",
-        (UiLang::En, Msg::CapsSnapshotTitle) => "Capabilities snapshot",
-        (UiLang::Zh, Msg::CapsSnapshotTitle) => "能力快照",
-
-        (UiLang::En, Msg::HostsCardTitle) => "Host devices",
-        (UiLang::Zh, Msg::HostsCardTitle) => "宿主机设备",
-        (UiLang::En, Msg::HostListEmpty) => "No host devices yet — use + Add host below.",
-        (UiLang::Zh, Msg::HostListEmpty) => "暂无数据 — 请使用下方「添加主机」。",
-        (UiLang::En, Msg::HostListSelectedEditTitle) => "Edit selected device",
-        (UiLang::Zh, Msg::HostListSelectedEditTitle) => "编辑当前选中的设备",
-        (UiLang::En, Msg::HostListNameField) => "Device name",
-        (UiLang::Zh, Msg::HostListNameField) => "设备名称",
-        (UiLang::En, Msg::HostListAddrField) => "Control IP:port",
-        (UiLang::Zh, Msg::HostListAddrField) => "控制地址 IP:端口",
-        (UiLang::En, Msg::DeviceMgmtNavHint) => {
-            "Connection, discovery, host list, and session controls are under Settings in the left nav."
-        }
-        (UiLang::Zh, Msg::DeviceMgmtNavHint) => {
-            "连接、发现、宿主机列表与会话控制已整合到左侧导航的「设置」页面。"
-        }
         (UiLang::En, Msg::NoDataShort) => "No data",
         (UiLang::Zh, Msg::NoDataShort) => "暂无数据",
+        (UiLang::En, Msg::DeviceMgmtNoRegistered) => "No registered devices yet",
+        (UiLang::Zh, Msg::DeviceMgmtNoRegistered) => "暂无注册设备～",
+        (UiLang::En, Msg::DeviceMgmtEmptyHint) => {
+            "No hosts yet. Use **Settings** → LAN discovery / LAN host registration; devices also merge here when they announce on UDP."
+        }
+        (UiLang::Zh, Msg::DeviceMgmtEmptyHint) => {
+            "暂无设备。请打开左侧「设置」使用局域网发现或局域网宿主注册；宿主 UDP 宣告后也会出现在此列表。"
+        }
+        (UiLang::En, Msg::DeviceMgmtDesktopPreviewNote) => {
+            "Desktop preview — live capture not connected yet"
+        }
+        (UiLang::Zh, Msg::DeviceMgmtDesktopPreviewNote) => {
+            "桌面预览 — 尚未接入实时画面"
+        }
+        (UiLang::En, Msg::DeviceMgmtResCpu) => "CPU",
+        (UiLang::Zh, Msg::DeviceMgmtResCpu) => "CPU",
+        (UiLang::En, Msg::DeviceMgmtResMem) => "Mem",
+        (UiLang::Zh, Msg::DeviceMgmtResMem) => "内存",
+        (UiLang::En, Msg::DeviceMgmtResNet) => "Net",
+        (UiLang::Zh, Msg::DeviceMgmtResNet) => "网速",
+        (UiLang::En, Msg::DeviceMgmtResDiskIo) => "Disk",
+        (UiLang::Zh, Msg::DeviceMgmtResDiskIo) => "磁盘",
+        (UiLang::En, Msg::DeviceMgmtRemarkTitle) => "Note",
+        (UiLang::Zh, Msg::DeviceMgmtRemarkTitle) => "备注",
+        (UiLang::En, Msg::DeviceMgmtRemarkDblclkHint) => {
+            "Double-click to add a note…"
+        },
+        (UiLang::Zh, Msg::DeviceMgmtRemarkDblclkHint) => "双击添加备注…",
         (UiLang::En, Msg::BtnAddHost) => "+ Add host",
         (UiLang::Zh, Msg::BtnAddHost) => "+ 添加主机",
+        (UiLang::En, Msg::AddHostDialogTitle) => "Add host",
+        (UiLang::Zh, Msg::AddHostDialogTitle) => "添加主机",
+        (UiLang::En, Msg::AddHostDialogSubtitle) => {
+            "Control-plane address on the machine running `titan-host serve`. The host must be online — we send Hello before adding."
+        }
+        (UiLang::Zh, Msg::AddHostDialogSubtitle) => {
+            "填写运行 `titan-host serve` 的机器上的控制面 TCP 地址。添加前会检测在线（发送 Hello）。"
+        }
+        (UiLang::En, Msg::AddHostIpLabel) => "IPv4 address",
+        (UiLang::Zh, Msg::AddHostIpLabel) => "IPv4 地址",
+        (UiLang::En, Msg::AddHostPortLabel) => "TCP port",
+        (UiLang::Zh, Msg::AddHostPortLabel) => "TCP 端口",
+        (UiLang::En, Msg::AddHostConfirm) => "Add",
+        (UiLang::Zh, Msg::AddHostConfirm) => "添加",
+        (UiLang::En, Msg::AddHostInvalidHint) => {
+            "Enter a valid IPv4 and a port from 1 to 65535."
+        }
+        (UiLang::Zh, Msg::AddHostInvalidHint) => "请输入有效的 IPv4 与 1–65535 范围内的端口。",
+        (UiLang::En, Msg::AddHostVerifying) => "Checking…",
+        (UiLang::Zh, Msg::AddHostVerifying) => "正在检测…",
+        (UiLang::En, Msg::AddHostOfflineToast) => "Device is offline.",
+        (UiLang::Zh, Msg::AddHostOfflineToast) => "设备不在线～",
+        (UiLang::En, Msg::AddHostSavedLog) => "Host added (online check OK).",
+        (UiLang::Zh, Msg::AddHostSavedLog) => "已添加主机（在线检测通过）。",
         (UiLang::En, Msg::BtnRemoveSelected) => "Remove selected",
         (UiLang::Zh, Msg::BtnRemoveSelected) => "删除选中",
+        (UiLang::En, Msg::BtnHostHello) => "Hello",
+        (UiLang::Zh, Msg::BtnHostHello) => "Hello",
+        (UiLang::En, Msg::BtnHostTelemetry) => "Telemetry",
+        (UiLang::Zh, Msg::BtnHostTelemetry) => "遥测",
 
         (UiLang::En, Msg::VmInventoryTitle) => "VM inventory",
         (UiLang::Zh, Msg::VmInventoryTitle) => "虚拟机清单",
@@ -259,26 +297,30 @@ pub fn t(lang: UiLang, msg: Msg) -> &'static str {
             "视频预览占位。后续按「宿主机名 · 虚拟机 · 窗口编号 1–40」接入推流。"
         }
 
-        (UiLang::En, Msg::StatusBoardTitle) => "Status board",
-        (UiLang::Zh, Msg::StatusBoardTitle) => "状态看板",
-        (UiLang::En, Msg::AccountsCardTitle) => "Accounts & proxies (labels)",
-        (UiLang::Zh, Msg::AccountsCardTitle) => "账号与代理（标签）",
-        (UiLang::En, Msg::BtnAccount) => "+ Account",
-        (UiLang::Zh, Msg::BtnAccount) => "+ 账号",
-        (UiLang::En, Msg::BtnProxyLabel) => "+ Proxy label",
-        (UiLang::Zh, Msg::BtnProxyLabel) => "+ 代理标签",
-        (UiLang::En, Msg::AccountsLabel) => "Accounts",
-        (UiLang::Zh, Msg::AccountsLabel) => "账号",
-        (UiLang::En, Msg::ProxiesLabel) => "Proxies",
-        (UiLang::Zh, Msg::ProxiesLabel) => "代理",
-        (UiLang::En, Msg::ScriptArtifactHint) => {
-            "Script artifact version label (optional mirror for SetScriptArtifact)"
+        (UiLang::En, Msg::MonitorCardDevices) => "Devices",
+        (UiLang::Zh, Msg::MonitorCardDevices) => "设备数量",
+        (UiLang::En, Msg::MonitorCardWindows) => "Windows",
+        (UiLang::Zh, Msg::MonitorCardWindows) => "窗口数",
+        (UiLang::En, Msg::MonitorStatTotal) => "Total",
+        (UiLang::Zh, Msg::MonitorStatTotal) => "总数",
+        (UiLang::En, Msg::MonitorStatOnline) => "Online",
+        (UiLang::Zh, Msg::MonitorStatOnline) => "在线",
+        (UiLang::En, Msg::MonitorStatOffline) => "Offline",
+        (UiLang::Zh, Msg::MonitorStatOffline) => "离线",
+        (UiLang::En, Msg::MonitorDevicesScopeHint) => {
+            "Online = last successful connect (Hello/Ping) while this device row was selected."
         }
-        (UiLang::Zh, Msg::ScriptArtifactHint) => {
-            "脚本产物版本标签（可选，与 SetScriptArtifact 对应）"
+        (UiLang::Zh, Msg::MonitorDevicesScopeHint) => {
+            "在线=该行设备为当前会话目标且最近一次连接成功（Hello/Ping）。"
         }
-        (UiLang::En, Msg::HintScriptVersion) => "e.g. v1.2.3",
-        (UiLang::Zh, Msg::HintScriptVersion) => "例如 v1.2.3",
+        (UiLang::En, Msg::MonitorWindowsScopeHint) => {
+            "Running vs other states from the last List VMs on the selected device."
+        }
+        (UiLang::Zh, Msg::MonitorWindowsScopeHint) => {
+            "在线=运行中；统计来自当前选中设备最近一次「列出虚拟机」。"
+        }
+        (UiLang::En, Msg::CardActions) => "Actions",
+        (UiLang::Zh, Msg::CardActions) => "操作",
 
         (UiLang::En, Msg::SlotGridTitle) => "Slot grid (virtualized)",
         (UiLang::Zh, Msg::SlotGridTitle) => "槽位网格（虚拟化示例）",
@@ -287,20 +329,13 @@ pub fn t(lang: UiLang, msg: Msg) -> &'static str {
         (UiLang::En, Msg::NoHost) => "no-host",
         (UiLang::Zh, Msg::NoHost) => "未选主机",
 
-        (UiLang::En, Msg::ActivityTitle) => "Activity",
-        (UiLang::Zh, Msg::ActivityTitle) => "活动",
-        (UiLang::En, Msg::ActivityHint) => {
-            "Connect to a host, then List VMs or use actions on the left."
-        }
-        (UiLang::Zh, Msg::ActivityHint) => "请先连接宿主，再列出虚拟机或使用左侧操作。",
-
-        (UiLang::En, Msg::SpoofCardTitle) => "Host spoof (M2)",
-        (UiLang::Zh, Msg::SpoofCardTitle) => "宿主伪装 (M2)",
+        (UiLang::En, Msg::SpoofCardTitle) => "Host spoof (control plane)",
+        (UiLang::Zh, Msg::SpoofCardTitle) => "宿主伪装（控制面）",
         (UiLang::En, Msg::SpoofBlurb) => {
-            "Connect first. Preview = dry-run; Apply runs Hyper-V PowerShell on the host (EULA / law is your responsibility)."
+            "Host session must be ready first. Preview = dry-run; Apply runs Hyper-V PowerShell on the host (EULA / law is your responsibility)."
         }
         (UiLang::Zh, Msg::SpoofBlurb) => {
-            "请先连接。预览为 dry-run；应用会在宿主执行 Hyper-V PowerShell（EULA/法律自负）。"
+            "请先等待宿主会话就绪。预览为 dry-run；应用会在宿主执行 Hyper-V PowerShell（EULA/法律自负）。"
         }
         (UiLang::En, Msg::TargetVmLabel) => "Target VM",
         (UiLang::Zh, Msg::TargetVmLabel) => "目标虚拟机",
@@ -407,10 +442,10 @@ pub fn log_spoof_apply(lang: UiLang, dry_run: bool, steps: &str, notes: &str) ->
 }
 
 #[must_use]
-pub fn log_guest_reg(lang: UiLang, vm: &str) -> String {
+pub fn log_lan_host_announced(lang: UiLang, label: &str, addr: &str) -> String {
     match lang {
-        UiLang::En => format!("RegisterGuestAgent ok for VM {vm} (host saved binding)."),
-        UiLang::Zh => format!("RegisterGuestAgent 成功：{vm}（宿主已保存绑定）。"),
+        UiLang::En => format!("LAN: host {label} announced at {addr} (device list updated)."),
+        UiLang::Zh => format!("局域网：主机 {label} 在 {addr} 宣告（设备列表已更新）。"),
     }
 }
 
@@ -419,14 +454,6 @@ pub fn log_request_failed(lang: UiLang) -> String {
     match lang {
         UiLang::En => "Request failed.".into(),
         UiLang::Zh => "请求失败。".into(),
-    }
-}
-
-#[must_use]
-pub fn log_disconnected(lang: UiLang) -> String {
-    match lang {
-        UiLang::En => "Disconnected.".into(),
-        UiLang::Zh => "已断开。".into(),
     }
 }
 
@@ -483,14 +510,6 @@ pub fn log_start_dispatched(lang: UiLang) -> String {
     match lang {
         UiLang::En => "StartVmGroup dispatched.".into(),
         UiLang::Zh => "已发送 StartVmGroup。".into(),
-    }
-}
-
-#[must_use]
-pub fn fmt_status_board_stats(lang: UiLang, vms: usize, accounts: usize, proxies: usize) -> String {
-    match lang {
-        UiLang::En => format!("VMs: {vms} · accounts: {accounts} · proxy labels: {proxies}"),
-        UiLang::Zh => format!("虚拟机：{vms} · 账号：{accounts} · 代理标签：{proxies}"),
     }
 }
 

@@ -3,7 +3,8 @@
 use std::time::Duration;
 
 use titan_common::{
-    decode_response_payload, encode_request_frame, parse_header, ControlRequest, ControlResponse,
+    encode_request_frame, parse_header, read_control_host_frame, ControlHostFrame, ControlRequest,
+    ControlResponse,
 };
 use titan_host::serve::ServeState;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -15,7 +16,13 @@ async fn read_one_response(client: &mut tokio::net::TcpStream) -> ControlRespons
     let (_, len) = parse_header(&hdr).unwrap();
     let mut payload = vec![0u8; len as usize];
     client.read_exact(&mut payload).await.unwrap();
-    decode_response_payload(&payload).unwrap()
+    let mut buf = Vec::new();
+    buf.extend_from_slice(&hdr);
+    buf.extend_from_slice(&payload);
+    match read_control_host_frame(&mut buf.as_slice()).unwrap() {
+        ControlHostFrame::Response { body, .. } => body,
+        other => panic!("unexpected control host frame: {other:?}"),
+    }
 }
 
 #[tokio::test]

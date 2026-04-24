@@ -6,14 +6,14 @@ use std::path::Path;
 use std::time::Duration;
 
 use anyhow::Context;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use titan_common::{VmIdentityProfile, VmProvisionPlan, VmSpoofProfile};
 
 /// Maximum VMs per `[[vm_group]]` (safety bound).
 pub const MAX_VM_GROUP_COUNT: u32 = 64;
 
 /// Expandable template: `vm_name` = `name_prefix` + zero-padded index.
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct VmGroup {
     pub parent_vhdx: String,
     pub diff_dir: String,
@@ -38,7 +38,7 @@ fn default_auto_start_after_provision() -> bool {
     true
 }
 
-/// Root config file for `titan-host provision`.
+/// Root config file for batch VM provisioning ([`crate::batch::run_provision`]).
 #[derive(Debug, Deserialize)]
 pub struct HostConfigFile {
     /// Max wall-clock time per VM for the outer async wait (see `HostConfigFile::timeout`).
@@ -59,6 +59,50 @@ fn index_pad_width(count: u32) -> usize {
         return 2;
     }
     ((count - 1).ilog10() as usize + 1).max(2)
+}
+
+/// Merges explicit `vm` entries with expanded `vm_group` templates; checks uniqueness (same rules as TOML config).
+pub fn expand_vm_plans(
+    vm: &[VmProvisionPlan],
+    vm_group: &[VmGroup],
+) -> anyhow::Result<Vec<VmProvisionPlan>> {
+    let mut out: Vec<VmProvisionPlan> = vm.to_vec();
+    for g in vm_group {
+        if g.count == 0 || g.count > MAX_VM_GROUP_COUNT {
+            anyhow::bail!(
+                "vm_group count must be 1..={MAX_VM_GROUP_COUNT} (got {})",
+                g.count
+            );
+        }
+        let width = index_pad_width(g.count);
+        for i in 0..g.count {
+            let vm_name = format!("{}{:0width$}", g.name_prefix, i, width = width);
+            let plan = VmProvisionPlan {
+                parent_vhdx: g.parent_vhdx.clone(),
+                diff_dir: g.diff_dir.clone(),
+                vm_name,
+                memory_bytes: g.memory_bytes,
+                generation: g.generation,
+                switch_name: g.switch_name.clone(),
+                gpu_partition_instance_path: g.gpu_partition_instance_path.clone(),
+                auto_start_after_provision: g.auto_start_after_provision,
+                spoof: g.spoof.clone(),
+                identity: g.identity.clone(),
+            };
+            plan.validate()
+                .map_err(|e| anyhow::anyhow!("vm_group entry invalid: {e}"))?;
+            out.push(plan);
+        }
+    }
+
+    let mut seen = HashSet::new();
+    for p in &out {
+        if !seen.insert(p.vm_name.clone()) {
+            anyhow::bail!("duplicate vm_name after expansion: {}", p.vm_name);
+        }
+    }
+
+    Ok(out)
 }
 
 impl HostConfigFile {
@@ -82,43 +126,7 @@ impl HostConfigFile {
 
     /// Merges explicit `[[vm]]` entries with expanded `[[vm_group]]` templates; checks uniqueness.
     pub fn expanded_vm_plans(&self) -> anyhow::Result<Vec<VmProvisionPlan>> {
-        let mut out: Vec<VmProvisionPlan> = self.vm.clone();
-        for g in &self.vm_group {
-            if g.count == 0 || g.count > MAX_VM_GROUP_COUNT {
-                anyhow::bail!(
-                    "vm_group count must be 1..={MAX_VM_GROUP_COUNT} (got {})",
-                    g.count
-                );
-            }
-            let width = index_pad_width(g.count);
-            for i in 0..g.count {
-                let vm_name = format!("{}{:0width$}", g.name_prefix, i, width = width);
-                let plan = VmProvisionPlan {
-                    parent_vhdx: g.parent_vhdx.clone(),
-                    diff_dir: g.diff_dir.clone(),
-                    vm_name,
-                    memory_bytes: g.memory_bytes,
-                    generation: g.generation,
-                    switch_name: g.switch_name.clone(),
-                    gpu_partition_instance_path: g.gpu_partition_instance_path.clone(),
-                    auto_start_after_provision: g.auto_start_after_provision,
-                    spoof: g.spoof.clone(),
-                    identity: g.identity.clone(),
-                };
-                plan.validate()
-                    .map_err(|e| anyhow::anyhow!("vm_group entry invalid: {e}"))?;
-                out.push(plan);
-            }
-        }
-
-        let mut seen = HashSet::new();
-        for p in &out {
-            if !seen.insert(p.vm_name.clone()) {
-                anyhow::bail!("duplicate vm_name after expansion: {}", p.vm_name);
-            }
-        }
-
-        Ok(out)
+        expand_vm_plans(&self.vm, &self.vm_group)
     }
 }
 
@@ -159,7 +167,9 @@ memory_bytes = 1073741824
 generation = 2
 "#;
         let cfg = HostConfigFile::parse(raw).unwrap();
+        let via_fn = expand_vm_plans(&cfg.vm, &cfg.vm_group).unwrap();
         let plans = cfg.expanded_vm_plans().unwrap();
+        assert_eq!(via_fn, plans);
         assert_eq!(plans.len(), 3);
         assert_eq!(plans[0].vm_name, "game-00");
         assert_eq!(plans[1].vm_name, "game-01");

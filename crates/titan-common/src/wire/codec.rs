@@ -1,17 +1,54 @@
-//! Framed binary codec: `MAGIC` + version + length + postcard payload.
+//! Framed binary codec: `MAGIC` + version + length + rkyv payload.
 
 use std::io::{Read, Write};
 
+use bytes::BytesMut;
 use thiserror::Error;
 
-use super::types::{ControlRequest, ControlResponse};
+use std::net::SocketAddr;
+
+use super::types::{
+    ControlHostFrame, ControlPush, ControlRequest, ControlRequestFrame, ControlResponse,
+};
 use crate::PROTOCOL_VERSION;
 
 /// Wire magic `TITANV01` (8 bytes, ASCII).
 pub const WIRE_MAGIC: [u8; 8] = *b"TITANV01";
 
 /// Maximum payload bytes after header (defense in depth).
-pub const MAX_PAYLOAD_BYTES: u32 = 64 * 1024;
+/// Large enough for a downscaled desktop JPEG (see [`ControlRequest::HostDesktopSnapshot`]).
+pub const MAX_PAYLOAD_BYTES: u32 = 512 * 1024;
+
+/// Cap for telemetry-only frames (VM list + disk + optional JPEG desktop preview push).
+pub const TELEMETRY_MAX_PAYLOAD_BYTES: u32 = 192 * 1024;
+
+/// TCP port offset from control-plane command listen port → telemetry listen port (same IP; TCP vs UDP may share numeric port).
+pub const CONTROL_PLANE_TELEMETRY_PORT_OFFSET: u16 = 1;
+
+/// UDP port offset for optional QUIC fleet control plane (same IP as command TCP).
+pub const CONTROL_PLANE_QUIC_PORT_OFFSET: u16 = 100;
+
+/// Telemetry TCP address paired with a control-plane command listen `addr` (`ip:port` + offset).
+#[must_use]
+pub fn control_plane_telemetry_addr(command: SocketAddr) -> SocketAddr {
+    SocketAddr::new(
+        command.ip(),
+        command
+            .port()
+            .saturating_add(CONTROL_PLANE_TELEMETRY_PORT_OFFSET),
+    )
+}
+
+/// QUIC UDP address paired with control-plane command listen `addr` (same IP).
+#[must_use]
+pub fn control_plane_quic_addr(command: SocketAddr) -> SocketAddr {
+    SocketAddr::new(
+        command.ip(),
+        command
+            .port()
+            .saturating_add(CONTROL_PLANE_QUIC_PORT_OFFSET),
+    )
+}
 
 /// Byte length of the wire header (`MAGIC` + version + payload length).
 pub const FRAME_HEADER_LEN: usize = 8 + 4 + 4;
@@ -27,9 +64,9 @@ pub enum WireError {
     PayloadTooLarge(u32),
     #[error("unexpected end of frame")]
     UnexpectedEof,
-    #[error("postcard decode: {0}")]
+    #[error("rkyv decode: {0}")]
     Decode(String),
-    #[error("postcard encode: {0}")]
+    #[error("rkyv encode: {0}")]
     Encode(String),
     #[error("I/O: {0}")]
     Io(#[from] std::io::Error),
@@ -37,32 +74,74 @@ pub enum WireError {
 
 pub type WireResult<T> = std::result::Result<T, WireError>;
 
-fn encode_postcard_payload(payload: Vec<u8>) -> WireResult<Vec<u8>> {
-    let len: u32 = payload
+fn push_wire_header(buf: &mut BytesMut, payload_len: u32) {
+    buf.reserve(FRAME_HEADER_LEN + payload_len as usize);
+    buf.extend_from_slice(&WIRE_MAGIC);
+    buf.extend_from_slice(&PROTOCOL_VERSION.to_le_bytes());
+    buf.extend_from_slice(&payload_len.to_le_bytes());
+}
+
+fn wrap_aligned_payload(aligned: rkyv::util::AlignedVec, max_payload: u32) -> WireResult<Vec<u8>> {
+    let len: u32 = aligned
         .len()
         .try_into()
         .map_err(|_| WireError::PayloadTooLarge(u32::MAX))?;
-    if len > MAX_PAYLOAD_BYTES {
+    if len > max_payload {
         return Err(WireError::PayloadTooLarge(len));
     }
-    let mut out = Vec::with_capacity(FRAME_HEADER_LEN + payload.len());
-    out.extend_from_slice(&WIRE_MAGIC);
-    out.extend_from_slice(&PROTOCOL_VERSION.to_le_bytes());
-    out.extend_from_slice(&len.to_le_bytes());
-    out.extend_from_slice(&payload);
-    Ok(out)
+    let mut buf = BytesMut::with_capacity(FRAME_HEADER_LEN + aligned.len());
+    push_wire_header(&mut buf, len);
+    buf.extend_from_slice(aligned.as_slice());
+    Ok(buf.freeze().to_vec())
 }
 
-/// Encodes a full frame (header + postcard payload) for `req`.
+/// Encodes a full control-plane request frame (center → host on command TCP).
+pub fn encode_control_request_frame(frame: &ControlRequestFrame) -> WireResult<Vec<u8>> {
+    let aligned = rkyv::to_bytes::<rkyv::rancor::Error>(frame)
+        .map_err(|e| WireError::Encode(e.to_string()))?;
+    wrap_aligned_payload(aligned, MAX_PAYLOAD_BYTES)
+}
+
+/// Encodes a full control-plane host frame (response or push on command TCP).
+pub fn encode_control_host_frame(frame: &ControlHostFrame) -> WireResult<Vec<u8>> {
+    let aligned = rkyv::to_bytes::<rkyv::rancor::Error>(frame)
+        .map_err(|e| WireError::Encode(e.to_string()))?;
+    wrap_aligned_payload(aligned, MAX_PAYLOAD_BYTES)
+}
+
+/// Whether `push` serializes to a telemetry payload within [`TELEMETRY_MAX_PAYLOAD_BYTES`].
+///
+/// Cheaper than [`encode_telemetry_push_frame`]: one rkyv buffer, no wire header allocation.
+#[must_use]
+pub fn telemetry_push_payload_fits(push: &ControlPush) -> bool {
+    match rkyv::to_bytes::<rkyv::rancor::Error>(push) {
+        Ok(v) => v.len() as u32 <= TELEMETRY_MAX_PAYLOAD_BYTES,
+        Err(_) => false,
+    }
+}
+
+/// Encodes a telemetry push (telemetry TCP only).
+pub fn encode_telemetry_push_frame(push: &ControlPush) -> WireResult<Vec<u8>> {
+    let aligned = rkyv::to_bytes::<rkyv::rancor::Error>(push)
+        .map_err(|e| WireError::Encode(e.to_string()))?;
+    wrap_aligned_payload(aligned, TELEMETRY_MAX_PAYLOAD_BYTES)
+}
+
+/// Encodes a full frame (header + rkyv payload) for `req`.
+///
+/// Uses [`ControlRequestFrame`] with `id == 1` for tests and legacy call sites.
 pub fn encode_request_frame(req: &ControlRequest) -> WireResult<Vec<u8>> {
-    let payload = postcard::to_allocvec(req).map_err(|e| WireError::Encode(e.to_string()))?;
-    encode_postcard_payload(payload)
+    encode_control_request_frame(&ControlRequestFrame {
+        id: 1,
+        body: req.clone(),
+    })
 }
 
-/// Encodes a full response frame.
+/// Encodes a full response frame (legacy: raw [`ControlResponse`] without framed host envelope).
 pub fn encode_response_frame(res: &ControlResponse) -> WireResult<Vec<u8>> {
-    let payload = postcard::to_allocvec(res).map_err(|e| WireError::Encode(e.to_string()))?;
-    encode_postcard_payload(payload)
+    let aligned =
+        rkyv::to_bytes::<rkyv::rancor::Error>(res).map_err(|e| WireError::Encode(e.to_string()))?;
+    wrap_aligned_payload(aligned, MAX_PAYLOAD_BYTES)
 }
 
 /// Parses the fixed wire header; returns `(protocol_version, payload_len)`.
@@ -92,26 +171,65 @@ pub fn parse_header(header: &[u8; FRAME_HEADER_LEN]) -> WireResult<(u32, u32)> {
     Ok((ver, len))
 }
 
-/// Decodes a request payload (postcard body only).
+/// Decodes control-plane request body (rkyv only).
+pub fn decode_control_request_payload(payload: &[u8]) -> WireResult<ControlRequestFrame> {
+    rkyv::from_bytes::<ControlRequestFrame, rkyv::rancor::Error>(payload)
+        .map_err(|e| WireError::Decode(e.to_string()))
+}
+
+/// Decodes control-plane host frame body (rkyv only).
+pub fn decode_control_host_payload(payload: &[u8]) -> WireResult<ControlHostFrame> {
+    rkyv::from_bytes::<ControlHostFrame, rkyv::rancor::Error>(payload)
+        .map_err(|e| WireError::Decode(e.to_string()))
+}
+
+/// Decodes telemetry push body (rkyv only).
+pub fn decode_telemetry_push_payload(payload: &[u8]) -> WireResult<ControlPush> {
+    rkyv::from_bytes::<ControlPush, rkyv::rancor::Error>(payload)
+        .map_err(|e| WireError::Decode(e.to_string()))
+}
+
+/// Decodes a request payload (rkyv body only).
 pub fn decode_request_payload(payload: &[u8]) -> WireResult<ControlRequest> {
-    postcard::from_bytes(payload).map_err(|e| WireError::Decode(e.to_string()))
+    rkyv::from_bytes::<ControlRequest, rkyv::rancor::Error>(payload)
+        .map_err(|e| WireError::Decode(e.to_string()))
 }
 
-/// Decodes a response payload (postcard body only).
+/// Decodes a response payload (rkyv body only).
 pub fn decode_response_payload(payload: &[u8]) -> WireResult<ControlResponse> {
-    postcard::from_bytes(payload).map_err(|e| WireError::Decode(e.to_string()))
+    rkyv::from_bytes::<ControlResponse, rkyv::rancor::Error>(payload)
+        .map_err(|e| WireError::Decode(e.to_string()))
 }
 
-/// Reads one frame from `r`, returning the decoded [`ControlRequest`].
-pub fn read_request_frame<R: Read>(r: &mut R) -> WireResult<ControlRequest> {
+/// Reads one control-plane request frame from `r`.
+pub fn read_control_request_frame<R: Read>(r: &mut R) -> WireResult<ControlRequestFrame> {
     let (payload, _) = read_payload(r)?;
-    decode_request_payload(&payload)
+    decode_control_request_payload(&payload)
 }
 
-/// Reads one frame from `r`, returning the decoded [`ControlResponse`].
+/// Reads one control-plane host frame from `r`.
+pub fn read_control_host_frame<R: Read>(r: &mut R) -> WireResult<ControlHostFrame> {
+    let (payload, _) = read_payload(r)?;
+    decode_control_host_payload(&payload)
+}
+
+/// Reads one frame from `r`, returning the decoded [`ControlResponse`] (legacy raw body).
 pub fn read_response_frame<R: Read>(r: &mut R) -> WireResult<ControlResponse> {
     let (payload, _) = read_payload(r)?;
     decode_response_payload(&payload)
+}
+
+/// Reads one telemetry push from `r` (telemetry TCP).
+pub fn read_telemetry_push_frame<R: Read>(r: &mut R) -> WireResult<ControlPush> {
+    let mut hdr = [0u8; FRAME_HEADER_LEN];
+    r.read_exact(&mut hdr)?;
+    let (_ver, len) = parse_header(&hdr)?;
+    if len > TELEMETRY_MAX_PAYLOAD_BYTES {
+        return Err(WireError::PayloadTooLarge(len));
+    }
+    let mut payload = vec![0u8; len as usize];
+    r.read_exact(&mut payload)?;
+    decode_telemetry_push_payload(&payload)
 }
 
 fn read_payload<R: Read>(r: &mut R) -> WireResult<(Vec<u8>, u32)> {

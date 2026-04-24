@@ -1,0 +1,4 @@
+{
+    "window": "(inner_position_pixels:Some((x:600.0,y:352.0)),outer_position_pixels:Some((x:600.0,y:320.0)),fullscreen:false,maximized:false,inner_size_points:Some((x:720.0,y:560.0)))",
+    "titan_host_ui_v1": "{\"listen\":\"0.0.0.0:7788\",\"announce_enabled\":true,\"announce_periodic_secs\":null,\"center_register_udp_port\":7791,\"center_poll_listen_port\":7792,\"public_addr_override\":\"\",\"label_override\":\"\",\"agent_rows\":[],\"batch_timeout_secs\":600,\"batch_fail_fast\":false,\"batch_vm\":[],\"batch_vm_group\":[]}",
+}

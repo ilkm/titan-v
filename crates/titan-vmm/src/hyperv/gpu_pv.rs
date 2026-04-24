@@ -94,6 +94,36 @@ pub fn assign_gpu_partition(vm_name: &str, partition_instance_id: &str) -> Resul
     }
 }
 
+/// Whether the Hyper-V PowerShell module can be imported (role / RSAT surface).
+#[must_use]
+pub fn hyperv_ps_module_available_blocking() -> bool {
+    #[cfg(windows)]
+    {
+        const PS: &str = r#"
+$ErrorActionPreference = 'Stop'
+if (-not (Get-Module -ListAvailable -Name Hyper-V)) { exit 1 }
+Import-Module Hyper-V -ErrorAction Stop
+"#;
+        let out = match Command::new("powershell.exe")
+            .arg("-NoProfile")
+            .arg("-NonInteractive")
+            .arg("-Command")
+            .arg(PS)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .output()
+        {
+            Ok(o) => o,
+            Err(_) => return false,
+        };
+        out.status.success()
+    }
+    #[cfg(not(windows))]
+    {
+        false
+    }
+}
+
 /// Returns whether `Add-VMGpuPartitionAdapter` is available (Hyper-V PowerShell module present).
 ///
 /// Used for capability bits only; does not prove DDA-capable hardware.

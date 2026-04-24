@@ -1,10 +1,10 @@
-//! Integration: ApplySpoofProfile over M2 TCP.
+//! Integration: ApplySpoofProfile over control-plane TCP.
 
 use std::time::Duration;
 
 use titan_common::{
-    encode_request_frame, parse_header, read_response_frame, ControlRequest, ControlResponse,
-    VmSpoofProfile,
+    encode_request_frame, parse_header, read_control_host_frame, ControlHostFrame, ControlRequest,
+    ControlResponse, VmSpoofProfile,
 };
 use titan_host::serve::{handle_connection, ServeState};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -46,11 +46,14 @@ async fn apply_spoof_profile_dry_run_roundtrip() {
     buf.extend_from_slice(&hdr);
     buf.extend_from_slice(&payload);
 
-    let res = read_response_frame(&mut buf.as_slice()).unwrap();
+    let res = match read_control_host_frame(&mut buf.as_slice()).unwrap() {
+        ControlHostFrame::Response { body, .. } => body,
+        other => panic!("unexpected control host frame: {other:?}"),
+    };
     #[cfg(not(windows))]
     match res {
         ControlResponse::ServerError { code, message } => {
-            assert_eq!(code, 500);
+            assert_eq!(code, 501);
             assert!(
                 message.contains("Windows") || message.contains("Hyper-V"),
                 "{message}"

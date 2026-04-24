@@ -1,0 +1,38 @@
+[package]
+name = "titan-tray"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Shared system tray (tray-icon) for Titan desktop binaries."
+
+[features]
+default = []
+egui = ["dep:egui"]
+tokio = ["dep:tokio"]
+
+[dependencies]
+tray-icon = "0.19"
+tracing = "0.1"
+
+[dependencies.egui]
+version = "0.31"
+optional = true
+
+[dependencies.tokio]
+version = "1.43"
+optional = true
+default-features = false
+features = ["sync"]
+
+[target.'cfg(target_os = "linux")'.dependencies]
+gtk = { version = "0.18", default-features = false, features = ["v3_24"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+dispatch = "0.2"
+libc = "0.2"
+objc2 = { version = "0.6", default-features = false }
+objc2-app-kit = { version = "0.3", default-features = false, features = [
+    "NSApplication",
+    "NSRunningApplication",
+] }
+objc2-core-foundation = { version = "0.3", default-features = false, features = ["CFRunLoop", "CFDate"] }
