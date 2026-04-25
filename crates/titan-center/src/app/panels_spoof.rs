@@ -3,7 +3,7 @@
 use egui::{Align2, RichText};
 
 use super::constants::CONTENT_COLUMN_GAP;
-use super::i18n::{t, Msg};
+use super::i18n::{t, Msg, UiLang};
 use super::widgets::{
     confirm_dialog_frame, form_field_row, inset_editor_shell, primary_button, section_card,
     subtle_button,
@@ -17,28 +17,9 @@ impl CenterApp {
         let lang = self.ui_lang;
         if inner >= 560.0 {
             let half = ((inner - gap).max(0.0)) * 0.5;
-            ui.horizontal(|ui| {
-                ui.set_min_width(inner);
-                ui.vertical(|ui| {
-                    ui.set_width(half);
-                    section_card(ui, t(lang, Msg::SpoofCardTitle), |ui| {
-                        self.spoof_options_body(ui);
-                    });
-                });
-                ui.add_space(gap);
-                ui.vertical(|ui| {
-                    ui.set_width(half);
-                    section_card(ui, t(lang, Msg::CardActions), |ui| {
-                        self.spoof_actions_body(ui);
-                    });
-                });
-            });
+            self.paint_spoof_two_column(ui, inner, gap, half, lang);
         } else {
-            section_card(ui, t(lang, Msg::SpoofCardTitle), |ui| {
-                self.spoof_options_body(ui);
-                ui.add_space(10.0);
-                self.spoof_actions_body(ui);
-            });
+            self.paint_spoof_stacked(ui, lang);
         }
 
         if self.pending_spoof_confirm_apply {
@@ -46,13 +27,41 @@ impl CenterApp {
         }
     }
 
-    fn spoof_options_body(&mut self, ui: &mut egui::Ui) {
-        ui.label(
-            RichText::new(t(self.ui_lang, Msg::SpoofBlurb))
-                .small()
-                .color(ui.visuals().widgets.inactive.text_color()),
-        );
-        ui.add_space(6.0);
+    fn paint_spoof_two_column(
+        &mut self,
+        ui: &mut egui::Ui,
+        inner: f32,
+        gap: f32,
+        half: f32,
+        lang: UiLang,
+    ) {
+        ui.horizontal(|ui| {
+            ui.set_min_width(inner);
+            ui.vertical(|ui| {
+                ui.set_width(half);
+                section_card(ui, t(lang, Msg::SpoofCardTitle), |ui| {
+                    self.spoof_options_body(ui);
+                });
+            });
+            ui.add_space(gap);
+            ui.vertical(|ui| {
+                ui.set_width(half);
+                section_card(ui, t(lang, Msg::CardActions), |ui| {
+                    self.spoof_actions_body(ui);
+                });
+            });
+        });
+    }
+
+    fn paint_spoof_stacked(&mut self, ui: &mut egui::Ui, lang: UiLang) {
+        section_card(ui, t(lang, Msg::SpoofCardTitle), |ui| {
+            self.spoof_options_body(ui);
+            ui.add_space(10.0);
+            self.spoof_actions_body(ui);
+        });
+    }
+
+    fn spoof_target_vm_field(&mut self, ui: &mut egui::Ui) {
         form_field_row(
             ui,
             RichText::new(t(self.ui_lang, Msg::TargetVmLabel)).small(),
@@ -68,6 +77,9 @@ impl CenterApp {
                 });
             },
         );
+    }
+
+    fn spoof_profile_checkboxes(&mut self, ui: &mut egui::Ui) {
         ui.checkbox(
             &mut self.spoof_dynamic_mac,
             t(self.ui_lang, Msg::ChkDynamicMac),
@@ -76,6 +88,17 @@ impl CenterApp {
             &mut self.spoof_disable_checkpoints,
             t(self.ui_lang, Msg::ChkDisableCkpt),
         );
+    }
+
+    fn spoof_options_body(&mut self, ui: &mut egui::Ui) {
+        ui.label(
+            RichText::new(t(self.ui_lang, Msg::SpoofBlurb))
+                .small()
+                .color(ui.visuals().widgets.inactive.text_color()),
+        );
+        ui.add_space(6.0);
+        self.spoof_target_vm_field(ui);
+        self.spoof_profile_checkboxes(ui);
     }
 
     fn spoof_actions_body(&mut self, ui: &mut egui::Ui) {

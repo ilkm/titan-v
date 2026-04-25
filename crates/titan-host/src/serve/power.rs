@@ -3,47 +3,62 @@ pub(crate) struct BatchReport {
     pub failures: Vec<String>,
 }
 
+#[cfg(windows)]
+fn batch_power_preflight_windows(start: bool) -> Option<BatchReport> {
+    if !titan_vmm::hyperv::gpu_pv::hyperv_ps_module_available_blocking() {
+        tracing::warn!(
+            start,
+            "batch_power skipped: Hyper-V PowerShell module not available"
+        );
+        return Some(BatchReport {
+            succeeded: 0,
+            failures: vec![
+                "Hyper-V PowerShell module not available (enable the Hyper-V role).".into(),
+            ],
+        });
+    }
+    None
+}
+
+#[cfg(target_os = "linux")]
+fn batch_power_preflight_linux(start: bool) -> Option<BatchReport> {
+    if !titan_vmm::platform_vm::linux_virsh_available_blocking() {
+        tracing::warn!(start, "batch_power skipped: virsh not on PATH");
+        return Some(BatchReport {
+            succeeded: 0,
+            failures: vec![
+                "virsh not available on PATH (install libvirt-client / virt-manager client tools)."
+                    .into(),
+            ],
+        });
+    }
+    None
+}
+
+#[cfg(all(not(windows), not(target_os = "linux")))]
+fn batch_power_preflight_other(start: bool) -> Option<BatchReport> {
+    tracing::warn!(start, "batch_power: macOS domain power not implemented");
+    Some(BatchReport {
+        succeeded: 0,
+        failures: vec![
+            "VM batch power is not implemented on macOS yet (Virtualization.framework path pending)."
+                .into(),
+        ],
+    })
+}
+
 fn batch_power_preflight(start: bool) -> Option<BatchReport> {
     #[cfg(windows)]
     {
-        if !titan_vmm::hyperv::gpu_pv::hyperv_ps_module_available_blocking() {
-            tracing::warn!(
-                start,
-                "batch_power skipped: Hyper-V PowerShell module not available"
-            );
-            return Some(BatchReport {
-                succeeded: 0,
-                failures: vec![
-                    "Hyper-V PowerShell module not available (enable the Hyper-V role).".into(),
-                ],
-            });
-        }
-        return None;
+        return batch_power_preflight_windows(start);
     }
     #[cfg(target_os = "linux")]
     {
-        if !titan_vmm::platform_vm::linux_virsh_available_blocking() {
-            tracing::warn!(start, "batch_power skipped: virsh not on PATH");
-            return Some(BatchReport {
-                succeeded: 0,
-                failures: vec![
-                    "virsh not available on PATH (install libvirt-client / virt-manager client tools)."
-                        .into(),
-                ],
-            });
-        }
-        return None;
+        return batch_power_preflight_linux(start);
     }
     #[cfg(all(not(windows), not(target_os = "linux")))]
     {
-        tracing::warn!(start, "batch_power: macOS domain power not implemented");
-        Some(BatchReport {
-            succeeded: 0,
-            failures: vec![
-                "VM batch power is not implemented on macOS yet (Virtualization.framework path pending)."
-                    .into(),
-            ],
-        })
+        batch_power_preflight_other(start)
     }
 }
 

@@ -1,13 +1,14 @@
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::mpsc as sync_mpsc;
 use std::sync::Arc;
 use std::time::Duration;
 
 use titan_common::{
     control_plane_quic_addr, control_plane_telemetry_addr, encode_control_host_frame,
     encode_telemetry_push_frame, telemetry_push_payload_fits, ControlHostFrame, ControlPush,
-    ControlResponse, HostRuntimeProbes,
+    ControlRequestFrame, ControlResponse, HostRuntimeProbes,
 };
 use tokio::io::AsyncWriteExt;
 use tokio::net::{TcpListener, TcpStream};
@@ -20,6 +21,7 @@ use dashmap::DashMap;
 use tokio::sync::Mutex as AsyncMutex;
 
 use crate::runtime::{self, SCRIPT_QUEUE_CAPACITY};
+use crate::ui_persist::HostUiPersist;
 
 use super::announce::{spawn_host_announce_background, HostAnnounceConfig};
 use super::dispatch::dispatch_request;
@@ -51,6 +53,7 @@ pub enum AgentBindingsSpec {
 async fn build_serve_state_inner(
     agents: Arc<AgentBindingTable>,
     host_notice: String,
+    persist_apply_tx: Option<sync_mpsc::Sender<HostUiPersist>>,
 ) -> Result<Arc<ServeState>, ServeError> {
     let host_notice = std::sync::Mutex::new(host_notice);
     let (gpu_partition_available, runtime_probes) = tokio::task::spawn_blocking(|| {
@@ -72,19 +75,26 @@ async fn build_serve_state_inner(
         script_tx,
         gpu_partition_available,
         runtime_probes,
+        persist_apply_tx,
     )))
 }
 
 async fn build_serve_state_from_spec(
     spec: &AgentBindingsSpec,
+    persist_apply_tx: Option<sync_mpsc::Sender<HostUiPersist>>,
 ) -> Result<Arc<ServeState>, ServeError> {
     match spec {
         AgentBindingsSpec::Path(path) => {
             let (table, bindings_notice) = crate::agent_bindings::load_or_empty(path.as_deref());
-            build_serve_state_inner(Arc::new(table), bindings_notice.unwrap_or_default()).await
+            build_serve_state_inner(
+                Arc::new(table),
+                bindings_notice.unwrap_or_default(),
+                persist_apply_tx,
+            )
+            .await
         }
         AgentBindingsSpec::Inline { agents, notice } => {
-            build_serve_state_inner(agents.clone(), notice.clone()).await
+            build_serve_state_inner(agents.clone(), notice.clone(), persist_apply_tx).await
         }
     }
 }
@@ -132,37 +142,67 @@ fn spawn_telemetry_resource_live_loop(tx: broadcast::Sender<ControlPush>) {
     });
 }
 
-/// Desktop JPEG over telemetry at ~3 FPS (device-card thumbnail scenario).
-fn spawn_telemetry_desktop_preview_loop(tx: broadcast::Sender<ControlPush>) {
-    const TICK: Duration = Duration::from_millis(333);
+async fn telemetry_desktop_preview_tick(tx: &broadcast::Sender<ControlPush>) {
     const MAX_W: u32 = 640;
     const MAX_H: u32 = 360;
     const JPEG_Q: u8 = 38;
+    if tx.receiver_count() == 0 {
+        return;
+    }
+    let cap_res = tokio::task::spawn_blocking(move || {
+        crate::desktop_snapshot::capture_primary_display_jpeg(MAX_W, MAX_H, JPEG_Q)
+    })
+    .await;
+    let Ok(Ok((jpeg_bytes, width_px, height_px))) = cap_res else {
+        return;
+    };
+    let push = ControlPush::HostDesktopPreviewJpeg {
+        jpeg_bytes,
+        width_px,
+        height_px,
+    };
+    if !telemetry_push_payload_fits(&push) {
+        return;
+    }
+    let _ = tx.send(push);
+}
 
+/// Desktop JPEG over telemetry at ~3 FPS (device-card thumbnail scenario).
+fn spawn_telemetry_desktop_preview_loop(tx: broadcast::Sender<ControlPush>) {
+    const TICK: Duration = Duration::from_millis(333);
     tokio::spawn(async move {
         let mut ticker = tokio::time::interval(TICK);
         ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
         loop {
             ticker.tick().await;
-            if tx.receiver_count() == 0 {
-                continue;
+            telemetry_desktop_preview_tick(&tx).await;
+        }
+    });
+}
+
+async fn telemetry_accept_one_client(
+    mut sock: TcpStream,
+    peer: SocketAddr,
+    state: Arc<ServeState>,
+) {
+    let _ = sock.set_nodelay(true);
+    let mut rx = state.telemetry_tx.subscribe();
+    tracing::info!(%peer, "telemetry subscriber connected");
+    if let Some(initial) = telemetry::build_telemetry_push(None).await {
+        let _ = write_telemetry_frame(&mut sock, &initial).await;
+        let _ = sock.flush().await;
+    }
+    tokio::spawn(async move {
+        loop {
+            match rx.recv().await {
+                Ok(push) => {
+                    if write_telemetry_frame(&mut sock, &push).await.is_err() {
+                        break;
+                    }
+                }
+                Err(broadcast::error::RecvError::Lagged(_)) => continue,
+                Err(broadcast::error::RecvError::Closed) => break,
             }
-            let cap_res = tokio::task::spawn_blocking(move || {
-                crate::desktop_snapshot::capture_primary_display_jpeg(MAX_W, MAX_H, JPEG_Q)
-            })
-            .await;
-            let Ok(Ok((jpeg_bytes, width_px, height_px))) = cap_res else {
-                continue;
-            };
-            let push = ControlPush::HostDesktopPreviewJpeg {
-                jpeg_bytes,
-                width_px,
-                height_px,
-            };
-            if !telemetry_push_payload_fits(&push) {
-                continue;
-            }
-            let _ = tx.send(push);
         }
     });
 }
@@ -171,27 +211,9 @@ fn spawn_telemetry_accept_loop(listener: TcpListener, state: Arc<ServeState>) {
     tokio::spawn(async move {
         loop {
             match listener.accept().await {
-                Ok((mut sock, peer)) => {
-                    let _ = sock.set_nodelay(true);
-                    let mut rx = state.telemetry_tx.subscribe();
-                    tracing::info!(%peer, "telemetry subscriber connected");
-                    if let Some(initial) = telemetry::build_telemetry_push(None).await {
-                        let _ = write_telemetry_frame(&mut sock, &initial).await;
-                        let _ = sock.flush().await;
-                    }
-                    tokio::spawn(async move {
-                        loop {
-                            match rx.recv().await {
-                                Ok(push) => {
-                                    if write_telemetry_frame(&mut sock, &push).await.is_err() {
-                                        break;
-                                    }
-                                }
-                                Err(broadcast::error::RecvError::Lagged(_)) => continue,
-                                Err(broadcast::error::RecvError::Closed) => break,
-                            }
-                        }
-                    });
+                Ok((sock, peer)) => {
+                    let st = state.clone();
+                    tokio::spawn(telemetry_accept_one_client(sock, peer, st));
                 }
                 Err(e) => tracing::warn!(error = %e, "telemetry accept"),
             }
@@ -208,8 +230,9 @@ pub async fn run_serve(
     agent_bindings: AgentBindingsSpec,
     announce: HostAnnounceConfig,
     shutdown: watch::Receiver<bool>,
+    persist_apply_tx: Option<sync_mpsc::Sender<HostUiPersist>>,
 ) -> Result<(), ServeError> {
-    let state = build_serve_state_from_spec(&agent_bindings).await?;
+    let state = build_serve_state_from_spec(&agent_bindings, persist_apply_tx).await?;
     let listener = tcp_listen_tokio(bind).map_err(ServeError::Io)?;
     let local = listener.local_addr().map_err(ServeError::Io)?;
     spawn_host_announce_background(announce, bind, local);
@@ -227,6 +250,19 @@ pub async fn run_serve(
     tracing::info!(%quic_bind, "fleet QUIC UDP (experimental) alongside TCP control plane");
 
     accept_loop(listener, state, shutdown).await
+}
+
+fn spawn_control_connection(sock: TcpStream, peer: SocketAddr, state: Arc<ServeState>) {
+    tokio::spawn(async move {
+        let conn_id = NEXT_CONN_ID.fetch_add(1, Ordering::Relaxed);
+        let span = tracing::info_span!("control_conn", conn_id, %peer);
+        let _enter = span.enter();
+        if let Err(e) = handle_connection(sock, DEFAULT_CONN_TIMEOUT, conn_id, state).await {
+            tracing::warn!(error = %e, "control connection closed with error");
+        } else {
+            tracing::info!("control connection closed");
+        }
+    });
 }
 
 async fn accept_loop(
@@ -248,17 +284,7 @@ async fn accept_loop(
             }
             accept_res = listener.accept() => {
                 let (sock, peer) = accept_res.map_err(ServeError::Io)?;
-                let st = state.clone();
-                tokio::spawn(async move {
-                    let conn_id = NEXT_CONN_ID.fetch_add(1, Ordering::Relaxed);
-                    let span = tracing::info_span!("control_conn", conn_id, %peer);
-                    let _enter = span.enter();
-                    if let Err(e) = handle_connection(sock, DEFAULT_CONN_TIMEOUT, conn_id, st).await {
-                        tracing::warn!(error = %e, "control connection closed with error");
-                    } else {
-                        tracing::info!("control connection closed");
-                    }
-                });
+                spawn_control_connection(sock, peer, state.clone());
             }
         }
     }
@@ -274,6 +300,30 @@ pub async fn handle_connection(
     timeout(session_deadline, session_loop(&mut sock, conn_id, &state))
         .await
         .map_err(|_| ServeError::Timeout)?
+}
+
+async fn session_dispatch_one(
+    sock: &mut TcpStream,
+    req: ControlRequestFrame,
+    state: &Arc<ServeState>,
+    conn_id: u64,
+    frame_seq: u64,
+) -> Result<(), ServeError> {
+    let request_id = format!("{conn_id}-{frame_seq}");
+    tracing::info!(%request_id, body = ?req.body, id = req.id, "control request");
+    let res = dispatch_request(req.body.clone(), &request_id, state).await?;
+    let reuse_vms = match &res {
+        ControlResponse::VmList { vms } => Some(vms.clone()),
+        _ => None,
+    };
+    let frame = encode_control_host_frame(&ControlHostFrame::Response {
+        id: req.id,
+        body: res.clone(),
+    })?;
+    sock.write_all(&frame).await?;
+    sock.flush().await?;
+    telemetry::publish_telemetry_after_dispatch(state, reuse_vms, &res);
+    Ok(())
 }
 
 async fn session_loop(
@@ -294,20 +344,7 @@ async fn session_loop(
             Err(_) => return Err(ServeError::Timeout),
         };
         frame_seq += 1;
-        let request_id = format!("{conn_id}-{frame_seq}");
-        tracing::info!(%request_id, body = ?req.body, id = req.id, "control request");
-        let res = dispatch_request(req.body.clone(), &request_id, state).await?;
-        let reuse_vms = match &res {
-            ControlResponse::VmList { vms } => Some(vms.clone()),
-            _ => None,
-        };
-        let frame = encode_control_host_frame(&ControlHostFrame::Response {
-            id: req.id,
-            body: res.clone(),
-        })?;
-        sock.write_all(&frame).await?;
-        sock.flush().await?;
-        telemetry::publish_telemetry_after_dispatch(state, reuse_vms, &res);
+        session_dispatch_one(sock, req, state, conn_id, frame_seq).await?;
     }
     Ok(())
 }

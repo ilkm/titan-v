@@ -4,17 +4,18 @@ use egui::ViewportBuilder;
 use titan_host::host_app::HostApp;
 use tracing_subscriber::EnvFilter;
 
-fn main() -> eframe::Result<()> {
+fn init_tracing() {
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_default_env())
         .init();
+}
 
-    let native_options = eframe::NativeOptions {
+fn host_native_options() -> eframe::NativeOptions {
+    eframe::NativeOptions {
         viewport: ViewportBuilder::default()
             .with_inner_size([720.0, 560.0])
             .with_min_inner_size([520.0, 420.0])
             .with_title("Titan Host"),
-        persistence_path: Some(std::path::PathBuf::from("titan-host")),
         // First-run window placement (Wayland 除外见 eframe 文档).
         centered: true,
         // Stale `window` RON in the same file as app JSON can restore a broken size; do not re-save it.
@@ -25,30 +26,35 @@ fn main() -> eframe::Result<()> {
                 .with_min_inner_size([520.0, 420.0])
         })),
         ..Default::default()
-    };
+    }
+}
 
+fn host_initial_tray(cc: &eframe::CreationContext<'_>) -> Option<titan_tray::TrayIcon> {
+    titan_tray::macos_ensure_regular_activation_for_egui_app();
+    titan_tray::register_host_tray_wakeup(&cc.egui_ctx);
+
+    #[cfg(target_os = "linux")]
+    {
+        titan_tray::spawn_linux_host_tray_thread();
+        None
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        match titan_tray::build_host_tray_icon() {
+            Ok(t) => Some(t),
+            Err(e) => {
+                tracing::warn!("system tray unavailable: {e}");
+                None
+            }
+        }
+    }
+}
+
+fn main() -> eframe::Result<()> {
+    init_tracing();
     eframe::run_native(
         "Titan Host",
-        native_options,
-        Box::new(|cc| {
-            titan_tray::macos_ensure_regular_activation_for_egui_app();
-            titan_tray::register_host_tray_wakeup(&cc.egui_ctx);
-
-            #[cfg(target_os = "linux")]
-            titan_tray::spawn_linux_host_tray_thread();
-
-            #[cfg(not(target_os = "linux"))]
-            let initial_tray = match titan_tray::build_host_tray_icon() {
-                Ok(t) => Some(t),
-                Err(e) => {
-                    tracing::warn!("system tray unavailable: {e}");
-                    None
-                }
-            };
-            #[cfg(target_os = "linux")]
-            let initial_tray: Option<titan_tray::TrayIcon> = None;
-
-            Ok(Box::new(HostApp::new(cc, initial_tray)))
-        }),
+        host_native_options(),
+        Box::new(|cc| Ok(Box::new(HostApp::new(cc, host_initial_tray(cc))))),
     )
 }

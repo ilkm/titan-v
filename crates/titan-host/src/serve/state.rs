@@ -1,3 +1,4 @@
+use std::sync::mpsc as sync_mpsc;
 use std::sync::{Arc, Mutex, OnceLock};
 
 use dashmap::DashMap;
@@ -9,6 +10,7 @@ use tokio::sync::Mutex as AsyncMutex;
 
 use crate::runtime;
 use crate::runtime::ScriptJob;
+use crate::ui_persist::HostUiPersist;
 
 use super::response::server_err;
 
@@ -32,7 +34,6 @@ fn host_capability_hint(caps: &Capabilities) -> &'static str {
 }
 
 /// Shared state for one `serve` process (agent bindings + script queue).
-#[derive(Debug)]
 pub struct ServeState {
     /// Event-driven telemetry fan-out (VM inventory + disk); dedicated TCP subscribers read this.
     pub(super) telemetry_tx: broadcast::Sender<ControlPush>,
@@ -42,6 +43,8 @@ pub struct ServeState {
     pub(super) script_tx: mpsc::Sender<ScriptJob>,
     pub(super) gpu_partition_available: bool,
     pub(super) runtime_probes: HostRuntimeProbes,
+    /// When set, control-plane may queue a full [`HostUiPersist`] for the egui thread to apply + restart serve.
+    pub(crate) persist_apply_tx: Option<sync_mpsc::Sender<HostUiPersist>>,
 }
 
 impl ServeState {
@@ -52,6 +55,7 @@ impl ServeState {
         script_tx: mpsc::Sender<ScriptJob>,
         gpu_partition_available: bool,
         runtime_probes: HostRuntimeProbes,
+        persist_apply_tx: Option<sync_mpsc::Sender<HostUiPersist>>,
     ) -> Self {
         let (telemetry_tx, _) = broadcast::channel(1024);
         Self {
@@ -61,6 +65,7 @@ impl ServeState {
             script_tx,
             gpu_partition_available,
             runtime_probes,
+            persist_apply_tx,
         }
     }
 
@@ -101,6 +106,7 @@ impl ServeState {
             script_tx: tx,
             gpu_partition_available: false,
             runtime_probes: HostRuntimeProbes::default(),
+            persist_apply_tx: None,
         })
     }
 }

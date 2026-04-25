@@ -10,6 +10,41 @@ use titan_host::serve::{handle_connection, ServeState};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 
+async fn read_one_control_response(client: &mut tokio::net::TcpStream) -> ControlResponse {
+    let mut hdr = [0u8; titan_common::FRAME_HEADER_LEN];
+    client.read_exact(&mut hdr).await.unwrap();
+    let (_, len) = parse_header(&hdr).unwrap();
+    let mut payload = vec![0u8; len as usize];
+    client.read_exact(&mut payload).await.unwrap();
+    let mut buf = Vec::new();
+    buf.extend_from_slice(&hdr);
+    buf.extend_from_slice(&payload);
+    match read_control_host_frame(&mut buf.as_slice()).unwrap() {
+        ControlHostFrame::Response { body, .. } => body,
+        other => panic!("unexpected control host frame: {other:?}"),
+    }
+}
+
+fn assert_apply_spoof_dry_run_response(res: ControlResponse) {
+    #[cfg(not(windows))]
+    match res {
+        ControlResponse::ServerError { code, message } => {
+            assert_eq!(code, 501);
+            assert!(
+                message.contains("Windows") || message.contains("Hyper-V"),
+                "{message}"
+            );
+        }
+        other => panic!("expected ServerError on non-Windows: {other:?}"),
+    }
+    #[cfg(windows)]
+    match res {
+        ControlResponse::SpoofApplyAck { dry_run, .. } => assert!(dry_run),
+        ControlResponse::ServerError { .. } => {}
+        other => panic!("unexpected response: {other:?}"),
+    }
+}
+
 #[tokio::test]
 async fn apply_spoof_profile_dry_run_roundtrip() {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -37,36 +72,8 @@ async fn apply_spoof_profile_dry_run_roundtrip() {
     .unwrap();
     client.write_all(&frame).await.unwrap();
 
-    let mut hdr = [0u8; titan_common::FRAME_HEADER_LEN];
-    client.read_exact(&mut hdr).await.unwrap();
-    let (_, len) = parse_header(&hdr).unwrap();
-    let mut payload = vec![0u8; len as usize];
-    client.read_exact(&mut payload).await.unwrap();
-    let mut buf = Vec::new();
-    buf.extend_from_slice(&hdr);
-    buf.extend_from_slice(&payload);
-
-    let res = match read_control_host_frame(&mut buf.as_slice()).unwrap() {
-        ControlHostFrame::Response { body, .. } => body,
-        other => panic!("unexpected control host frame: {other:?}"),
-    };
-    #[cfg(not(windows))]
-    match res {
-        ControlResponse::ServerError { code, message } => {
-            assert_eq!(code, 501);
-            assert!(
-                message.contains("Windows") || message.contains("Hyper-V"),
-                "{message}"
-            );
-        }
-        other => panic!("expected ServerError on non-Windows: {other:?}"),
-    }
-    #[cfg(windows)]
-    match res {
-        ControlResponse::SpoofApplyAck { dry_run, .. } => assert!(dry_run),
-        ControlResponse::ServerError { .. } => {}
-        other => panic!("unexpected response: {other:?}"),
-    }
+    let res = read_one_control_response(&mut client).await;
+    assert_apply_spoof_dry_run_response(res);
 
     drop(client);
     server.await.unwrap();

@@ -28,7 +28,7 @@ titan-driver = { path = "../titan-driver" }
 titan-scripts = { path = "../titan-scripts" }
 titan-vmm = { path = "../titan-vmm" }
 titan-tray = { path = "../titan-tray", features = ["egui"] }
-eframe = { version = "0.31", features = ["persistence"] }
+eframe = { version = "0.31" }
 egui = "0.31"
 fontdb = "0.23"
 if-addrs = "0.15"

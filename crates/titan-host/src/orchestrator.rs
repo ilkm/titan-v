@@ -61,6 +61,74 @@ impl Orchestrator {
         }
     }
 
+    fn post_maybe_gpu_assign(
+        orch: &Self,
+        vm: &str,
+        plan: &VmProvisionPlan,
+        fail_fast: bool,
+    ) -> Result<()> {
+        let Some(ref path) = plan.gpu_partition_instance_path else {
+            return Ok(());
+        };
+        let p = path.trim();
+        if p.is_empty() {
+            return Ok(());
+        }
+        let r = orch.gpu.assign(vm, p);
+        match &r {
+            Ok(()) => Self::log_post_step(vm, "gpu_assign", true, None),
+            Err(e) => Self::log_post_step(vm, "gpu_assign", false, Some(e.to_string())),
+        }
+        if r.is_err() && fail_fast {
+            return r;
+        }
+        Ok(())
+    }
+
+    fn post_maybe_power_start(
+        orch: &Self,
+        vm: &str,
+        plan: &VmProvisionPlan,
+        fail_fast: bool,
+    ) -> Result<()> {
+        if !plan.auto_start_after_provision {
+            tracing::info!(target: "titan_host::orchestrator", %vm, step = "power_start", skipped = true, "post-provision: auto_start_after_provision is false");
+            return Ok(());
+        }
+        let r = orch.hyperv.start(vm);
+        match &r {
+            Ok(()) => Self::log_post_step(vm, "power_start", true, None),
+            Err(e) => Self::log_post_step(vm, "power_start", false, Some(e.to_string())),
+        }
+        if r.is_err() && fail_fast {
+            return r;
+        }
+        Ok(())
+    }
+
+    fn post_log_identity_hints(vm: &str, plan: &VmProvisionPlan) {
+        if plan.identity != VmIdentityProfile::default() {
+            tracing::info!(
+                target: "titan_host::orchestrator",
+                %vm,
+                identity = ?plan.identity,
+                "VmIdentityProfile is non-default; align Capabilities / driver bridge with intent"
+            );
+        }
+        let Some(tag) = plan.spoof.guest_identity_tag.as_deref().map(str::trim) else {
+            return;
+        };
+        if tag.is_empty() {
+            return;
+        }
+        tracing::info!(
+            target: "titan_host::orchestrator",
+            %vm,
+            guest_identity_tag = %tag,
+            "Phase 2A: run guest `identity_ops` / artifact pull for this tag after agent binds (SetScriptArtifact + agent addr on host)"
+        );
+    }
+
     /// After `New-VM` succeeds: hardware → optional GPU-PV → optional start → stream precheck.
     ///
     /// When `fail_fast` is false, failures are logged and later steps still run where applicable.
@@ -77,41 +145,9 @@ impl Orchestrator {
             return r;
         }
 
-        if plan.identity != VmIdentityProfile::default() {
-            tracing::info!(
-                target: "titan_host::orchestrator",
-                %vm,
-                identity = ?plan.identity,
-                "VmIdentityProfile is non-default; align Capabilities / driver bridge with intent"
-            );
-        }
-
-        if let Some(ref path) = plan.gpu_partition_instance_path {
-            let p = path.trim();
-            if !p.is_empty() {
-                let r = orch.gpu.assign(vm, p);
-                match &r {
-                    Ok(()) => Self::log_post_step(vm, "gpu_assign", true, None),
-                    Err(e) => Self::log_post_step(vm, "gpu_assign", false, Some(e.to_string())),
-                }
-                if r.is_err() && fail_fast {
-                    return r;
-                }
-            }
-        }
-
-        if plan.auto_start_after_provision {
-            let r = orch.hyperv.start(vm);
-            match &r {
-                Ok(()) => Self::log_post_step(vm, "power_start", true, None),
-                Err(e) => Self::log_post_step(vm, "power_start", false, Some(e.to_string())),
-            }
-            if r.is_err() && fail_fast {
-                return r;
-            }
-        } else {
-            tracing::info!(target: "titan_host::orchestrator", %vm, step = "power_start", skipped = true, "post-provision: auto_start_after_provision is false");
-        }
+        Self::post_log_identity_hints(vm, plan);
+        Self::post_maybe_gpu_assign(&orch, vm, plan, fail_fast)?;
+        Self::post_maybe_power_start(&orch, vm, plan, fail_fast)?;
 
         let r = orch.stream.start_session(vm);
         match &r {
@@ -120,17 +156,6 @@ impl Orchestrator {
         }
         if r.is_err() && fail_fast {
             return r;
-        }
-
-        if let Some(tag) = plan.spoof.guest_identity_tag.as_deref().map(str::trim) {
-            if !tag.is_empty() {
-                tracing::info!(
-                    target: "titan_host::orchestrator",
-                    %vm,
-                    guest_identity_tag = %tag,
-                    "Phase 2A: run guest `identity_ops` / artifact pull for this tag after agent binds (SetScriptArtifact + agent addr on host)"
-                );
-            }
         }
 
         Ok(())

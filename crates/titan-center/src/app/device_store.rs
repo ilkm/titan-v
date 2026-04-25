@@ -1,12 +1,29 @@
 //! SQLite store for the registered host/device list (control-plane TCP addresses).
+//!
+//! File location: [`registration_db_path`] → `{dirs::data_local_dir()}/titan-center/devices.sqlite`
+//! (e.g. macOS `~/Library/Application Support/...`, Linux `~/.local/share/...`), **not** the git repo root.
+//! Settings JSON lives in `app_kv` under key [`super::constants::PERSIST_KEY`]; devices in `registered_devices`.
 
 use std::path::{Path, PathBuf};
 
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OptionalExtension};
 
+use super::constants::PERSIST_KEY;
 use super::persist_data::HostEndpoint;
 
 /// `device_id` is the primary key (OS machine id from host, or `legacy:<addr>` for manual rows).
+const SCHEMA_KV: &str = r#"
+CREATE TABLE IF NOT EXISTS app_kv (
+    key TEXT NOT NULL PRIMARY KEY,
+    value TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS host_managed_config (
+    device_id TEXT NOT NULL PRIMARY KEY,
+    config_json TEXT NOT NULL,
+    updated_at INTEGER NOT NULL
+);
+"#;
+
 const SCHEMA_V2: &str = r#"
 CREATE TABLE IF NOT EXISTS registered_devices (
     sort_order INTEGER NOT NULL,
@@ -20,6 +37,36 @@ CREATE TABLE IF NOT EXISTS registered_devices (
 );
 CREATE INDEX IF NOT EXISTS idx_registered_devices_sort ON registered_devices(sort_order);
 "#;
+
+const MIGRATE_TO_DEVICE_ID_PK: &str = r#"
+        BEGIN;
+        CREATE TABLE registered_devices_new (
+            sort_order INTEGER NOT NULL,
+            device_id TEXT NOT NULL PRIMARY KEY,
+            label TEXT NOT NULL,
+            addr TEXT NOT NULL,
+            last_caps TEXT NOT NULL DEFAULT '',
+            last_vm_count INTEGER NOT NULL DEFAULT 0,
+            last_known_online INTEGER NOT NULL DEFAULT 0,
+            remark TEXT NOT NULL DEFAULT ''
+        );
+        INSERT INTO registered_devices_new
+            (sort_order, device_id, label, addr, last_caps, last_vm_count, last_known_online, remark)
+        SELECT
+            sort_order,
+            device_id,
+            label,
+            addr,
+            last_caps,
+            last_vm_count,
+            last_known_online,
+            remark
+        FROM registered_devices;
+        DROP TABLE registered_devices;
+        ALTER TABLE registered_devices_new RENAME TO registered_devices;
+        CREATE INDEX IF NOT EXISTS idx_registered_devices_sort ON registered_devices(sort_order);
+        COMMIT;
+        "#;
 
 /// User-local SQLite path (alongside other `titan-center` app data).
 pub fn registration_db_path() -> PathBuf {
@@ -71,10 +118,36 @@ fn ensure_remark_column(conn: &Connection) -> rusqlite::Result<()> {
     Ok(())
 }
 
+fn add_device_id_column_when_missing(conn: &Connection) -> rusqlite::Result<()> {
+    let cols = registered_devices_column_names(conn)?;
+    if cols.iter().any(|c| c == "device_id") {
+        return Ok(());
+    }
+    conn.execute(
+        "ALTER TABLE registered_devices ADD COLUMN device_id TEXT NOT NULL DEFAULT ''",
+        [],
+    )?;
+    Ok(())
+}
+
+fn backfill_empty_device_ids(conn: &Connection) -> rusqlite::Result<()> {
+    conn.execute(
+        "UPDATE registered_devices SET device_id = ('legacy:' || addr) WHERE trim(device_id) = ''",
+        [],
+    )?;
+    Ok(())
+}
+
+fn rebuild_registered_devices_device_id_pk(conn: &Connection) -> rusqlite::Result<()> {
+    conn.execute_batch(MIGRATE_TO_DEVICE_ID_PK)?;
+    Ok(())
+}
+
 /// Migrates legacy `addr`-primary-key tables to `device_id` primary key.
 fn ensure_device_id_pk_schema(conn: &Connection) -> rusqlite::Result<()> {
     if !table_exists(conn, "registered_devices")? {
         conn.execute_batch(SCHEMA_V2)?;
+        ensure_kv_schema(conn)?;
         return Ok(());
     }
 
@@ -85,49 +158,14 @@ fn ensure_device_id_pk_schema(conn: &Connection) -> rusqlite::Result<()> {
         return Ok(());
     }
 
-    let cols = registered_devices_column_names(conn)?;
-    if !cols.iter().any(|c| c == "device_id") {
-        conn.execute(
-            "ALTER TABLE registered_devices ADD COLUMN device_id TEXT NOT NULL DEFAULT ''",
-            [],
-        )?;
-    }
-    conn.execute(
-        "UPDATE registered_devices SET device_id = ('legacy:' || addr) WHERE trim(device_id) = ''",
-        [],
-    )?;
+    add_device_id_column_when_missing(conn)?;
+    backfill_empty_device_ids(conn)?;
+    rebuild_registered_devices_device_id_pk(conn)?;
+    Ok(())
+}
 
-    conn.execute_batch(
-        r#"
-        BEGIN;
-        CREATE TABLE registered_devices_new (
-            sort_order INTEGER NOT NULL,
-            device_id TEXT NOT NULL PRIMARY KEY,
-            label TEXT NOT NULL,
-            addr TEXT NOT NULL,
-            last_caps TEXT NOT NULL DEFAULT '',
-            last_vm_count INTEGER NOT NULL DEFAULT 0,
-            last_known_online INTEGER NOT NULL DEFAULT 0,
-            remark TEXT NOT NULL DEFAULT ''
-        );
-        INSERT INTO registered_devices_new
-            (sort_order, device_id, label, addr, last_caps, last_vm_count, last_known_online, remark)
-        SELECT
-            sort_order,
-            device_id,
-            label,
-            addr,
-            last_caps,
-            last_vm_count,
-            last_known_online,
-            remark
-        FROM registered_devices;
-        DROP TABLE registered_devices;
-        ALTER TABLE registered_devices_new RENAME TO registered_devices;
-        CREATE INDEX IF NOT EXISTS idx_registered_devices_sort ON registered_devices(sort_order);
-        COMMIT;
-        "#,
-    )?;
+fn ensure_kv_schema(conn: &Connection) -> rusqlite::Result<()> {
+    conn.execute_batch(SCHEMA_KV)?;
     Ok(())
 }
 
@@ -140,9 +178,11 @@ fn open(path: &Path) -> rusqlite::Result<Connection> {
     let conn = Connection::open(path)?;
     if !table_exists(&conn, "registered_devices")? {
         conn.execute_batch(SCHEMA_V2)?;
+        ensure_kv_schema(&conn)?;
         return Ok(conn);
     }
     ensure_device_id_pk_schema(&conn)?;
+    ensure_kv_schema(&conn)?;
     Ok(conn)
 }
 
@@ -202,6 +242,83 @@ pub fn save_registered_devices(path: &Path, devices: &[HostEndpoint]) -> rusqlit
 }
 
 /// Reads `endpoints` from a legacy `titan_center_state_v1` JSON blob (before SQLite split).
+/// Loads serialized [`super::persist_data::CenterPersist`] JSON from SQLite (canonical store).
+pub fn load_center_persist_json(path: &Path) -> rusqlite::Result<Option<String>> {
+    if !path.exists() {
+        return Ok(None);
+    }
+    let conn = open(path)?;
+    let v: Option<String> = conn
+        .query_row(
+            "SELECT value FROM app_kv WHERE key = ?1",
+            [PERSIST_KEY],
+            |row| row.get(0),
+        )
+        .optional()?;
+    Ok(v)
+}
+
+/// Persists center UI settings JSON (same key as legacy eframe `PERSIST_KEY`).
+pub fn save_center_persist_json(path: &Path, json: &str) -> rusqlite::Result<()> {
+    let conn = open(path)?;
+    conn.execute(
+        "INSERT INTO app_kv (key, value) VALUES (?1, ?2) \
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        params![PERSIST_KEY, json],
+    )?;
+    Ok(())
+}
+
+/// Saves a host UI JSON draft (same schema as Titan Host `titan_host_ui_v1`) for push from Center or CLI.
+pub fn upsert_host_managed_config(
+    path: &Path,
+    device_id: &str,
+    json: &str,
+) -> rusqlite::Result<()> {
+    let conn = open(path)?;
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
+    conn.execute(
+        "INSERT INTO host_managed_config (device_id, config_json, updated_at) VALUES (?1, ?2, ?3) \
+         ON CONFLICT(device_id) DO UPDATE SET config_json = excluded.config_json, \
+         updated_at = excluded.updated_at",
+        params![device_id, json, now],
+    )?;
+    Ok(())
+}
+
+pub fn load_host_managed_config(path: &Path, device_id: &str) -> rusqlite::Result<Option<String>> {
+    if !path.exists() {
+        return Ok(None);
+    }
+    let conn = open(path)?;
+    let v: Option<String> = conn
+        .query_row(
+            "SELECT config_json FROM host_managed_config WHERE device_id = ?1",
+            [device_id],
+            |row| row.get(0),
+        )
+        .optional()?;
+    Ok(v)
+}
+
+pub fn addr_for_device_id(path: &Path, device_id: &str) -> rusqlite::Result<Option<String>> {
+    if !path.exists() {
+        return Ok(None);
+    }
+    let conn = open(path)?;
+    let v: Option<String> = conn
+        .query_row(
+            "SELECT addr FROM registered_devices WHERE device_id = ?1",
+            [device_id],
+            |row| row.get(0),
+        )
+        .optional()?;
+    Ok(v)
+}
+
 pub fn legacy_endpoints_from_center_json(json: &str) -> Option<Vec<HostEndpoint>> {
     let v: serde_json::Value = serde_json::from_str(json).ok()?;
     let arr = v.get("endpoints")?.as_array()?;
@@ -215,12 +332,8 @@ pub fn legacy_endpoints_from_center_json(json: &str) -> Option<Vec<HostEndpoint>
 mod tests {
     use super::*;
 
-    #[test]
-    fn roundtrip_registered_devices() {
-        let mut tmp = std::env::temp_dir();
-        tmp.push("titan-center-test-devices.sqlite");
-        let _ = std::fs::remove_file(&tmp);
-        let devs = vec![
+    fn sample_two_host_endpoints() -> Vec<HostEndpoint> {
+        vec![
             HostEndpoint {
                 label: "a".into(),
                 addr: "127.0.0.1:1".into(),
@@ -239,9 +352,10 @@ mod tests {
                 last_vm_count: 0,
                 last_known_online: false,
             },
-        ];
-        save_registered_devices(&tmp, &devs).unwrap();
-        let got = load_registered_devices(&tmp).unwrap();
+        ]
+    }
+
+    fn assert_host_endpoints_equal(got: &[HostEndpoint], devs: &[HostEndpoint]) {
         assert_eq!(got.len(), devs.len());
         for (a, b) in got.iter().zip(devs.iter()) {
             assert_eq!(a.label, b.label);
@@ -252,6 +366,17 @@ mod tests {
             assert_eq!(a.last_vm_count, b.last_vm_count);
             assert_eq!(a.last_known_online, b.last_known_online);
         }
+    }
+
+    #[test]
+    fn roundtrip_registered_devices() {
+        let mut tmp = std::env::temp_dir();
+        tmp.push("titan-center-test-devices.sqlite");
+        let _ = std::fs::remove_file(&tmp);
+        let devs = sample_two_host_endpoints();
+        save_registered_devices(&tmp, &devs).unwrap();
+        let got = load_registered_devices(&tmp).unwrap();
+        assert_host_endpoints_equal(&got, &devs);
         let _ = std::fs::remove_file(&tmp);
     }
 

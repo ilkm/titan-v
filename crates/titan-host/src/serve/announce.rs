@@ -94,6 +94,20 @@ fn spawn_periodic_announce(interval: Duration, center_register_udp_port: u16, pa
     });
 }
 
+fn center_poll_try_reply(sock: &UdpSocket, buf: &[u8], n: usize, peer: SocketAddr, payload: &[u8]) {
+    let poll: CenterPollBeacon = match from_slice(&buf[..n]) {
+        Ok(b) => b,
+        Err(_) => return,
+    };
+    if poll.validate().is_err() {
+        return;
+    }
+    let dest = SocketAddr::new(peer.ip(), poll.register_udp_port);
+    if let Err(e) = sock.send_to(payload, dest) {
+        tracing::debug!(error = %e, %dest, "host announce: poll reply send_to failed");
+    }
+}
+
 fn spawn_center_poll_responder(listen_port: u16, payload: Vec<u8>) {
     thread::spawn(move || {
         let sock = match UdpSocket::bind(("0.0.0.0", listen_port)) {
@@ -117,25 +131,37 @@ fn spawn_center_poll_responder(listen_port: u16, payload: Vec<u8>) {
         let mut buf = vec![0u8; 4096];
         loop {
             match sock.recv_from(&mut buf) {
-                Ok((n, peer)) => {
-                    let poll: CenterPollBeacon = match from_slice(&buf[..n]) {
-                        Ok(b) => b,
-                        Err(_) => continue,
-                    };
-                    if poll.validate().is_err() {
-                        continue;
-                    }
-                    let dest = SocketAddr::new(peer.ip(), poll.register_udp_port);
-                    if let Err(e) = sock.send_to(&payload, dest) {
-                        tracing::debug!(error = %e, %dest, "host announce: poll reply send_to failed");
-                    }
-                }
-                Err(e) => {
-                    tracing::debug!(error = %e, "host announce: poll recv");
-                }
+                Ok((n, peer)) => center_poll_try_reply(&sock, &buf, n, peer, &payload),
+                Err(e) => tracing::debug!(error = %e, "host announce: poll recv"),
             }
         }
     });
+}
+
+fn host_announce_payload(
+    cfg: &HostAnnounceConfig,
+    bind_request: SocketAddr,
+    local: SocketAddr,
+) -> Option<(String, String, String, Vec<u8>)> {
+    let public =
+        resolve_public_control_addr(bind_request, local, cfg.public_addr_override.as_deref());
+    let label = cfg.label_override.clone().unwrap_or_else(|| {
+        whoami::fallible::hostname().unwrap_or_else(|_| "unknown-host".to_string())
+    });
+    let device_id = crate::host_device_id::host_device_id_string();
+    let payload = build_announce_payload(&public, &label, &device_id)?;
+    Some((public, label, device_id, payload))
+}
+
+fn start_announce_sidecars(cfg: &HostAnnounceConfig, payload: Vec<u8>) {
+    if cfg.center_poll_listen_port > 0 {
+        spawn_center_poll_responder(cfg.center_poll_listen_port, payload.clone());
+    }
+    if let Some(iv) = cfg.periodic_interval {
+        if !iv.is_zero() {
+            spawn_periodic_announce(iv, cfg.center_register_udp_port, payload);
+        }
+    }
 }
 
 pub fn spawn_host_announce_background(
@@ -146,13 +172,9 @@ pub fn spawn_host_announce_background(
     if !cfg.enabled {
         return;
     }
-    let public =
-        resolve_public_control_addr(bind_request, local, cfg.public_addr_override.as_deref());
-    let label = cfg.label_override.clone().unwrap_or_else(|| {
-        whoami::fallible::hostname().unwrap_or_else(|_| "unknown-host".to_string())
-    });
-    let device_id = crate::host_device_id::host_device_id_string();
-    let Some(payload) = build_announce_payload(&public, &label, &device_id) else {
+    let Some((public, label, device_id, payload)) =
+        host_announce_payload(&cfg, bind_request, local)
+    else {
         tracing::warn!("host announce: JSON encode failed");
         return;
     };
@@ -166,14 +188,5 @@ pub fn spawn_host_announce_background(
         periodic = ?cfg.periodic_interval,
         "host announce: LAN registration (center poll + optional periodic)"
     );
-
-    if cfg.center_poll_listen_port > 0 {
-        spawn_center_poll_responder(cfg.center_poll_listen_port, payload.clone());
-    }
-
-    if let Some(iv) = cfg.periodic_interval {
-        if !iv.is_zero() {
-            spawn_periodic_announce(iv, cfg.center_register_udp_port, payload);
-        }
-    }
+    start_announce_sidecars(&cfg, payload);
 }

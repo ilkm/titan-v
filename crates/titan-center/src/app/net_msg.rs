@@ -77,5 +77,10 @@ pub enum NetUiMsg {
     },
     /// Fleet fan-out worker finished (clears [`CenterApp::fleet_busy`]).
     FleetOpDone,
+    /// Background `ApplyHostUiPersistJson` push to one host finished.
+    HostUiPushDone {
+        ok: bool,
+        detail: String,
+    },
     Error(String),
 }

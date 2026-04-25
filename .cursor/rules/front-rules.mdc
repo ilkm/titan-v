@@ -42,12 +42,12 @@ alwaysApply: true
 ## 代码规模（强制，与 `general.mdc` / `backend-rules.mdc` 一致）
 
 - **禁止**：单文件无限增长；单 `update` / `show_*` 堆叠全部 UI 与业务；**单 `.rs` 代码行超过 400**；**单个函数/方法代码行超过 30**（自 `fn` 至对应闭合 `}` 区间内计；口径见 `general.mdc`「Rust 行数硬上限（400 / 30）」）。
-- **正确**：**单一职责**：按面板拆 **`mod`** 或 `impl App { fn show_xxx(&mut self, ui: &mut Ui) }`，视图与状态投递分层；**单 `.rs` ≤400 代码行**、**单方法 ≤30 代码行**，超出拆子模块或提取纯函数后再交付。
+- **正确**：**单一职责**：按面板拆 **`mod`** 或 `impl App { fn show_xxx(&mut self, ui: &mut Ui) }`，视图与状态投递分层；**单 `.rs` ≤400 代码行**、**单方法 ≤30 代码行**，超出拆子模块或提取纯函数后再交付。声明式 UI（`ui.horizontal`、长 `match` 等）**不得**靠大面积 `allow` 绕过：通过**抽具名 `fn`**、子模块或拆 `impl` 到多文件满足行数；社区阅读舒适区见 `general.mdc`「社区阅读习惯」，**硬上限不变**。**egui 高 arity**：`rustfmt` 拆开的**多行 `fn` 签名会计入 30 代码行**；优先拆函数或模块内小 `struct` 收参，**`#[rustfmt::skip]` 仅作最后手段**且须注释理由，详见 `general.mdc`「满足 30 行的最佳实践」与「30 行硬上限与 rustfmt 多行签名」。
 
 ## 依赖与质量
 
 - **禁止**：随意 `unwrap` 加载字体/图标资源；禁用 `clippy` 而不修。
-- **正确**：资源加载失败有降级 UI；提交前 **`cargo fmt` + `cargo clippy -- -D warnings`**。
+- **正确**：资源加载失败有降级 UI；提交前 **`cargo fmt` + `cargo clippy -- -D warnings` + `python3 tools/check_fn_code_lines.py`（退出码 0）**。
 
 ## 自检 Checklist（新窗口或大改）
 
@@ -55,3 +55,4 @@ alwaysApply: true
 - [ ] 列表/网格是否会在千级以上卡顿？是否需要虚拟化或分页？
 - [ ] 视频纹理更新是否在后台？失败是否有 UI 反馈？
 - [ ] 危险操作是否有确认与可撤销或明确影响范围说明？
+- [ ] 是否已执行 `python3 tools/check_fn_code_lines.py` 且退出码为 0？

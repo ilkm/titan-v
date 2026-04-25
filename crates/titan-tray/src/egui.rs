@@ -11,12 +11,7 @@ use tray_icon::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIc
 static PENDING_MENU_IDS: Mutex<VecDeque<MenuId>> = Mutex::new(VecDeque::new());
 static TRAY_HANDLERS_REGISTERED: AtomicBool = AtomicBool::new(false);
 
-fn register_tray_wakeup_impl(ctx: &egui::Context, product: DesktopProduct) {
-    if TRAY_HANDLERS_REGISTERED.swap(true, Ordering::SeqCst) {
-        return;
-    }
-
-    let show_id = product.show_menu_id();
+fn register_menu_repaint_handler(ctx: &egui::Context) {
     let ctx_menu = ctx.clone();
     MenuEvent::set_event_handler(Some(move |ev: MenuEvent| {
         let id = ev.id.clone();
@@ -25,28 +20,36 @@ fn register_tray_wakeup_impl(ctx: &egui::Context, product: DesktopProduct) {
         }
         ctx_menu.request_repaint();
     }));
+}
 
-    #[cfg(not(target_os = "linux"))]
-    {
-        let ctx_tray = ctx.clone();
-        TrayIconEvent::set_event_handler(Some(move |ev| {
-            if let TrayIconEvent::Click {
-                button: MouseButton::Left,
-                button_state: MouseButtonState::Down,
-                ..
-            } = ev
-            {
-                ctx_tray.send_viewport_cmd_to(
-                    egui::ViewportId::ROOT,
-                    egui::ViewportCommand::Visible(true),
-                );
-                if let Ok(mut q) = PENDING_MENU_IDS.lock() {
-                    q.push_back(show_id.clone());
-                }
+#[cfg(not(target_os = "linux"))]
+fn register_tray_icon_show_handler(ctx: &egui::Context, show_id: MenuId) {
+    let ctx_tray = ctx.clone();
+    TrayIconEvent::set_event_handler(Some(move |ev| {
+        if let TrayIconEvent::Click {
+            button: MouseButton::Left,
+            button_state: MouseButtonState::Down,
+            ..
+        } = ev
+        {
+            ctx_tray
+                .send_viewport_cmd_to(egui::ViewportId::ROOT, egui::ViewportCommand::Visible(true));
+            if let Ok(mut q) = PENDING_MENU_IDS.lock() {
+                q.push_back(show_id.clone());
             }
-            ctx_tray.request_repaint();
-        }));
+        }
+        ctx_tray.request_repaint();
+    }));
+}
+
+fn register_tray_wakeup_impl(ctx: &egui::Context, product: DesktopProduct) {
+    if TRAY_HANDLERS_REGISTERED.swap(true, Ordering::SeqCst) {
+        return;
     }
+    let show_id = product.show_menu_id();
+    register_menu_repaint_handler(ctx);
+    #[cfg(not(target_os = "linux"))]
+    register_tray_icon_show_handler(ctx, show_id);
 }
 
 /// Install global tray/menu hooks for **Titan Center** (same as [`register_tray_wakeup_impl`] with Center ids).

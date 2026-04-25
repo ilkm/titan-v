@@ -9,12 +9,13 @@ pub mod config;
 pub mod desktop_snapshot;
 pub mod driver_bridge;
 pub mod host_app;
-mod host_font;
 pub mod host_device_id;
+mod host_font;
 pub mod host_resources;
 pub mod host_runtime_probes;
 pub mod orchestrator;
 pub mod tcp_tune;
+pub mod ui_persist;
 pub mod driver {
     pub use titan_driver::*;
 }

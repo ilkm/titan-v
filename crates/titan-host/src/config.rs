@@ -61,6 +61,45 @@ fn index_pad_width(count: u32) -> usize {
     ((count - 1).ilog10() as usize + 1).max(2)
 }
 
+fn expand_vm_group(g: &VmGroup, out: &mut Vec<VmProvisionPlan>) -> anyhow::Result<()> {
+    if g.count == 0 || g.count > MAX_VM_GROUP_COUNT {
+        anyhow::bail!(
+            "vm_group count must be 1..={MAX_VM_GROUP_COUNT} (got {})",
+            g.count
+        );
+    }
+    let width = index_pad_width(g.count);
+    for i in 0..g.count {
+        let vm_name = format!("{}{:0width$}", g.name_prefix, i, width = width);
+        let plan = VmProvisionPlan {
+            parent_vhdx: g.parent_vhdx.clone(),
+            diff_dir: g.diff_dir.clone(),
+            vm_name,
+            memory_bytes: g.memory_bytes,
+            generation: g.generation,
+            switch_name: g.switch_name.clone(),
+            gpu_partition_instance_path: g.gpu_partition_instance_path.clone(),
+            auto_start_after_provision: g.auto_start_after_provision,
+            spoof: g.spoof.clone(),
+            identity: g.identity.clone(),
+        };
+        plan.validate()
+            .map_err(|e| anyhow::anyhow!("vm_group entry invalid: {e}"))?;
+        out.push(plan);
+    }
+    Ok(())
+}
+
+fn assert_unique_vm_names(plans: &[VmProvisionPlan]) -> anyhow::Result<()> {
+    let mut seen = HashSet::new();
+    for p in plans {
+        if !seen.insert(p.vm_name.clone()) {
+            anyhow::bail!("duplicate vm_name after expansion: {}", p.vm_name);
+        }
+    }
+    Ok(())
+}
+
 /// Merges explicit `vm` entries with expanded `vm_group` templates; checks uniqueness (same rules as TOML config).
 pub fn expand_vm_plans(
     vm: &[VmProvisionPlan],
@@ -68,40 +107,9 @@ pub fn expand_vm_plans(
 ) -> anyhow::Result<Vec<VmProvisionPlan>> {
     let mut out: Vec<VmProvisionPlan> = vm.to_vec();
     for g in vm_group {
-        if g.count == 0 || g.count > MAX_VM_GROUP_COUNT {
-            anyhow::bail!(
-                "vm_group count must be 1..={MAX_VM_GROUP_COUNT} (got {})",
-                g.count
-            );
-        }
-        let width = index_pad_width(g.count);
-        for i in 0..g.count {
-            let vm_name = format!("{}{:0width$}", g.name_prefix, i, width = width);
-            let plan = VmProvisionPlan {
-                parent_vhdx: g.parent_vhdx.clone(),
-                diff_dir: g.diff_dir.clone(),
-                vm_name,
-                memory_bytes: g.memory_bytes,
-                generation: g.generation,
-                switch_name: g.switch_name.clone(),
-                gpu_partition_instance_path: g.gpu_partition_instance_path.clone(),
-                auto_start_after_provision: g.auto_start_after_provision,
-                spoof: g.spoof.clone(),
-                identity: g.identity.clone(),
-            };
-            plan.validate()
-                .map_err(|e| anyhow::anyhow!("vm_group entry invalid: {e}"))?;
-            out.push(plan);
-        }
+        expand_vm_group(g, &mut out)?;
     }
-
-    let mut seen = HashSet::new();
-    for p in &out {
-        if !seen.insert(p.vm_name.clone()) {
-            anyhow::bail!("duplicate vm_name after expansion: {}", p.vm_name);
-        }
-    }
-
+    assert_unique_vm_names(&out)?;
     Ok(out)
 }
 

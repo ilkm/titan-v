@@ -39,11 +39,7 @@ impl CenterApp {
 
     pub(super) fn panel_virtual_slots(&self, ui: &mut egui::Ui) {
         section_card(ui, t(self.ui_lang, Msg::SlotGridTitle), |ui| {
-            let host_label = self
-                .endpoints
-                .get(self.selected_host)
-                .map(|e| e.label.as_str())
-                .unwrap_or(t(self.ui_lang, Msg::NoHost));
+            let host_label = self.virtual_slots_host_label();
             ui.label(
                 RichText::new(fmt_slot_grid_header(
                     self.ui_lang,
@@ -54,28 +50,33 @@ impl CenterApp {
                 .color(ui.visuals().widgets.inactive.text_color()),
             );
             ui.add_space(6.0);
-            let row_h = 18.0;
-            egui::ScrollArea::vertical()
-                .id_salt("virtual_slots_grid")
-                .max_height(220.0)
-                .auto_shrink([false, false])
-                .show_rows(ui, row_h, VIRTUAL_SLOTS, |ui, range| {
-                    for i in range {
-                        let label = self.inventory_slice().get(i).map_or_else(
-                            || fmt_slot_line_empty(self.ui_lang, host_label, i),
-                            |v| {
-                                fmt_slot_line_vm(
-                                    self.ui_lang,
-                                    host_label,
-                                    i,
-                                    &v.name,
-                                    &format!("{:?}", v.state),
-                                )
-                            },
-                        );
-                        ui.label(RichText::new(label).small().monospace());
-                    }
-                });
+            show_virtual_slots_scroll(ui, self, host_label);
         });
     }
+
+    fn virtual_slots_host_label(&self) -> &str {
+        self.endpoints
+            .get(self.selected_host)
+            .map(|e| e.label.as_str())
+            .unwrap_or(t(self.ui_lang, Msg::NoHost))
+    }
+}
+
+fn show_virtual_slots_scroll(ui: &mut egui::Ui, app: &CenterApp, host_label: &str) {
+    let row_h = 18.0;
+    let lang = app.ui_lang;
+    let inv = app.inventory_slice();
+    egui::ScrollArea::vertical()
+        .id_salt("virtual_slots_grid")
+        .max_height(220.0)
+        .auto_shrink([false, false])
+        .show_rows(ui, row_h, VIRTUAL_SLOTS, |ui, range| {
+            for i in range {
+                let label = inv.get(i).map_or_else(
+                    || fmt_slot_line_empty(lang, host_label, i),
+                    |v| fmt_slot_line_vm(lang, host_label, i, &v.name, &format!("{:?}", v.state)),
+                );
+                ui.label(RichText::new(label).small().monospace());
+            }
+        });
 }

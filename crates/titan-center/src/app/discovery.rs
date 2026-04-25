@@ -137,6 +137,88 @@ fn resolve_broadcast_dest(bind: Ipv4Addr, udp_port: u16) -> SocketAddr {
     SocketAddr::from((dest_ip, udp_port))
 }
 
+use std::net::UdpSocket;
+
+fn udp_push_wildcard_broadcast(
+    out: &mut Vec<(UdpSocket, SocketAddr)>,
+    dest_port: u16,
+    ctx: &'static str,
+) -> bool {
+    let sock = match UdpSocket::bind("0.0.0.0:0") {
+        Ok(s) => s,
+        Err(e) => {
+            tracing::warn!(error = %e, "{ctx}: UDP bind 0.0.0.0:0 failed");
+            return false;
+        }
+    };
+    if let Err(e) = sock.set_broadcast(true) {
+        tracing::warn!(error = %e, "{ctx}: set_broadcast failed");
+    }
+    let Ok(dest) = format!("255.255.255.255:{dest_port}").parse::<SocketAddr>() else {
+        return false;
+    };
+    out.push((sock, dest));
+    true
+}
+
+fn udp_try_push_iface_bind(
+    out: &mut Vec<(UdpSocket, SocketAddr)>,
+    bind_s: &str,
+    dest_port: u16,
+    ctx: &'static str,
+) {
+    let bind_ip: Ipv4Addr = match bind_s.parse() {
+        Ok(ip) => ip,
+        Err(_) => {
+            tracing::warn!(%bind_s, "{ctx}: skip invalid IPv4 in bind list");
+            return;
+        }
+    };
+    let sock = match UdpSocket::bind((bind_ip, 0)) {
+        Ok(s) => s,
+        Err(e) => {
+            tracing::warn!(error = %e, %bind_ip, "{ctx}: UDP bind on interface IP failed");
+            return;
+        }
+    };
+    if let Err(e) = sock.set_broadcast(true) {
+        tracing::warn!(error = %e, %bind_ip, "{ctx}: set_broadcast failed");
+    }
+    let dest = resolve_broadcast_dest(bind_ip, dest_port);
+    out.push((sock, dest));
+}
+
+fn open_udp_broadcast_pairs(
+    bind_ipv4s: &[String],
+    dest_port: u16,
+    ctx: &'static str,
+) -> Option<Vec<(UdpSocket, SocketAddr)>> {
+    let mut sockets = Vec::new();
+    if bind_ipv4s.is_empty() {
+        return udp_push_wildcard_broadcast(&mut sockets, dest_port, ctx).then_some(sockets);
+    }
+    for s in bind_ipv4s {
+        udp_try_push_iface_bind(&mut sockets, s, dest_port, ctx);
+    }
+    if sockets.is_empty() {
+        tracing::warn!("{ctx}: no usable bind sockets; falling back to 0.0.0.0");
+        let _ = udp_push_wildcard_broadcast(&mut sockets, dest_port, ctx);
+    }
+    if sockets.is_empty() {
+        None
+    } else {
+        Some(sockets)
+    }
+}
+
+fn udp_send_payload_to_all(sockets: &[(UdpSocket, SocketAddr)], payload: &[u8], ctx: &'static str) {
+    for (sock, dest) in sockets {
+        if let Err(e) = sock.send_to(payload, *dest) {
+            tracing::debug!(error = %e, %dest, "{ctx}: send_to failed");
+        }
+    }
+}
+
 pub fn discovery_udp_loop(
     my_gen: u64,
     gen: Arc<AtomicU64>,
@@ -145,62 +227,11 @@ pub fn discovery_udp_loop(
     host_control: String,
     bind_ipv4s: Vec<String>,
 ) {
-    use std::net::UdpSocket;
     use std::thread;
 
-    let mut sockets: Vec<(UdpSocket, SocketAddr)> = Vec::new();
-    if bind_ipv4s.is_empty() {
-        let sock = match UdpSocket::bind("0.0.0.0:0") {
-            Ok(s) => s,
-            Err(e) => {
-                tracing::warn!(error = %e, "discovery: UDP bind 0.0.0.0:0 failed");
-                return;
-            }
-        };
-        if let Err(e) = sock.set_broadcast(true) {
-            tracing::warn!(error = %e, "discovery: set_broadcast failed");
-        }
-        let dest: SocketAddr = match format!("255.255.255.255:{udp_port}").parse() {
-            Ok(a) => a,
-            Err(_) => return,
-        };
-        sockets.push((sock, dest));
-    } else {
-        for s in &bind_ipv4s {
-            let bind_ip: Ipv4Addr = match s.parse() {
-                Ok(ip) => ip,
-                Err(_) => {
-                    tracing::warn!(%s, "discovery: skip invalid IPv4 in bind list");
-                    continue;
-                }
-            };
-            let sock = match UdpSocket::bind((bind_ip, 0)) {
-                Ok(s) => s,
-                Err(e) => {
-                    tracing::warn!(error = %e, %bind_ip, "discovery: UDP bind on interface IP failed");
-                    continue;
-                }
-            };
-            if let Err(e) = sock.set_broadcast(true) {
-                tracing::warn!(error = %e, %bind_ip, "discovery: set_broadcast failed");
-            }
-            let dest = resolve_broadcast_dest(bind_ip, udp_port);
-            sockets.push((sock, dest));
-        }
-        if sockets.is_empty() {
-            tracing::warn!("discovery: no usable bind sockets; falling back to 0.0.0.0");
-            if let Ok(sock) = UdpSocket::bind("0.0.0.0:0") {
-                let _ = sock.set_broadcast(true);
-                if let Ok(dest) = format!("255.255.255.255:{udp_port}").parse() {
-                    sockets.push((sock, dest));
-                }
-            }
-        }
-        if sockets.is_empty() {
-            return;
-        }
-    }
-
+    let Some(sockets) = open_udp_broadcast_pairs(&bind_ipv4s, udp_port, "discovery") else {
+        return;
+    };
     let beacon = DiscoveryBeacon::new(host_control.clone());
     let payload = match serde_json::to_vec(&beacon) {
         Ok(p) => p,
@@ -215,14 +246,30 @@ pub fn discovery_udp_loop(
             break;
         }
         if !host_control.trim().is_empty() {
-            for (sock, dest) in &sockets {
-                if let Err(e) = sock.send_to(&payload, *dest) {
-                    tracing::debug!(error = %e, %dest, "discovery: send_to failed");
-                }
-            }
+            udp_send_payload_to_all(&sockets, &payload, "discovery");
         }
         thread::sleep(interval);
     }
+}
+
+fn host_collect_poll_payload(register_port: u16) -> Option<Vec<u8>> {
+    let beacon = CenterPollBeacon::new(register_port);
+    match serde_json::to_vec(&beacon) {
+        Ok(p) => Some(p),
+        Err(e) => {
+            tracing::warn!(error = %e, "host_collect: JSON encode failed");
+            None
+        }
+    }
+}
+
+fn host_collect_log_startup(poll_port: u16, register_port: u16, interval: Duration) {
+    tracing::info!(
+        poll_port,
+        register_port,
+        interval_secs = interval.as_secs(),
+        "host_collect: LAN poll for host self-registration (UDP)"
+    );
 }
 
 /// Periodically broadcasts [`CenterPollBeacon`] so `titan-host serve` nodes reply with [`HostAnnounceBeacon`].
@@ -234,87 +281,21 @@ pub fn center_host_collect_udp_loop(
     register_port: u16,
     bind_ipv4s: Vec<String>,
 ) {
-    use std::net::UdpSocket;
     use std::thread;
 
-    let mut sockets: Vec<(UdpSocket, SocketAddr)> = Vec::new();
-    if bind_ipv4s.is_empty() {
-        let sock = match UdpSocket::bind("0.0.0.0:0") {
-            Ok(s) => s,
-            Err(e) => {
-                tracing::warn!(error = %e, "host_collect: UDP bind 0.0.0.0:0 failed");
-                return;
-            }
-        };
-        if let Err(e) = sock.set_broadcast(true) {
-            tracing::warn!(error = %e, "host_collect: set_broadcast failed");
-        }
-        let dest: SocketAddr = match format!("255.255.255.255:{poll_port}").parse() {
-            Ok(a) => a,
-            Err(_) => return,
-        };
-        sockets.push((sock, dest));
-    } else {
-        for s in &bind_ipv4s {
-            let bind_ip: Ipv4Addr = match s.parse() {
-                Ok(ip) => ip,
-                Err(_) => {
-                    tracing::warn!(%s, "host_collect: skip invalid IPv4 in bind list");
-                    continue;
-                }
-            };
-            let sock = match UdpSocket::bind((bind_ip, 0)) {
-                Ok(s) => s,
-                Err(e) => {
-                    tracing::warn!(error = %e, %bind_ip, "host_collect: UDP bind on interface IP failed");
-                    continue;
-                }
-            };
-            if let Err(e) = sock.set_broadcast(true) {
-                tracing::warn!(error = %e, %bind_ip, "host_collect: set_broadcast failed");
-            }
-            let dest = resolve_broadcast_dest(bind_ip, poll_port);
-            sockets.push((sock, dest));
-        }
-        if sockets.is_empty() {
-            tracing::warn!("host_collect: no usable bind sockets; falling back to 0.0.0.0");
-            if let Ok(sock) = UdpSocket::bind("0.0.0.0:0") {
-                let _ = sock.set_broadcast(true);
-                if let Ok(dest) = format!("255.255.255.255:{poll_port}").parse() {
-                    sockets.push((sock, dest));
-                }
-            }
-        }
-        if sockets.is_empty() {
-            return;
-        }
-    }
-
-    let beacon = CenterPollBeacon::new(register_port);
-    let payload = match serde_json::to_vec(&beacon) {
-        Ok(p) => p,
-        Err(e) => {
-            tracing::warn!(error = %e, "host_collect: JSON encode failed");
-            return;
-        }
+    let Some(sockets) = open_udp_broadcast_pairs(&bind_ipv4s, poll_port, "host_collect") else {
+        return;
     };
-
-    tracing::info!(
-        poll_port,
-        register_port,
-        interval_secs = interval.as_secs(),
-        "host_collect: LAN poll for host self-registration (UDP)"
-    );
+    let Some(payload) = host_collect_poll_payload(register_port) else {
+        return;
+    };
+    host_collect_log_startup(poll_port, register_port, interval);
 
     loop {
         if gen.load(Ordering::SeqCst) != my_gen {
             break;
         }
-        for (sock, dest) in &sockets {
-            if let Err(e) = sock.send_to(&payload, *dest) {
-                tracing::debug!(error = %e, %dest, "host_collect: send_to failed");
-            }
-        }
+        udp_send_payload_to_all(&sockets, &payload, "host_collect");
         thread::sleep(interval);
     }
 }

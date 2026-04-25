@@ -34,36 +34,46 @@ enum Commands {
     },
 }
 
+fn run_status() {
+    println!("{}", titan_offline_spoof::offline_spoof_status());
+}
+
+fn run_golden_prepare(
+    vhdx: std::path::PathBuf,
+    out_json: std::path::PathBuf,
+) -> anyhow::Result<()> {
+    let plan = serde_json::json!({
+        "schema": "titan.offline_spoof.golden_prepare.v1",
+        "vhdx": vhdx.display().to_string(),
+        "offline_hive_feature": cfg!(feature = "offline-hive"),
+        "note": "Mount VHDX → offline SYSTEM/SOFTWARE keys → unmount; implement under offline-hive + admin approval.",
+    });
+    let text = serde_json::to_string_pretty(&plan).context("serialize plan")?;
+    if out_json.as_os_str() == "-" {
+        println!("{text}");
+    } else {
+        std::fs::write(&out_json, &text)
+            .with_context(|| format!("write {}", out_json.display()))?;
+    }
+    Ok(())
+}
+
+fn run_stamp(vhdx: std::path::PathBuf, seed_hex: String) -> anyhow::Result<()> {
+    let rec = serde_json::json!({
+        "schema": "titan.offline_spoof.stamp.v1",
+        "vhdx": vhdx.display().to_string(),
+        "seed_hex": seed_hex.trim(),
+        "status": "placeholder_no_hive_mutation",
+    });
+    println!("{}", serde_json::to_string_pretty(&rec)?);
+    Ok(())
+}
+
 fn main() -> anyhow::Result<()> {
-    let cli = Cli::parse();
-    match cli.command {
-        Commands::Status => {
-            println!("{}", titan_offline_spoof::offline_spoof_status());
-        }
-        Commands::GoldenPrepare { vhdx, out_json } => {
-            let plan = serde_json::json!({
-                "schema": "titan.offline_spoof.golden_prepare.v1",
-                "vhdx": vhdx.display().to_string(),
-                "offline_hive_feature": cfg!(feature = "offline-hive"),
-                "note": "Mount VHDX → offline SYSTEM/SOFTWARE keys → unmount; implement under offline-hive + admin approval.",
-            });
-            let text = serde_json::to_string_pretty(&plan).context("serialize plan")?;
-            if out_json.as_os_str() == "-" {
-                println!("{text}");
-            } else {
-                std::fs::write(&out_json, &text)
-                    .with_context(|| format!("write {}", out_json.display()))?;
-            }
-        }
-        Commands::Stamp { vhdx, seed_hex } => {
-            let rec = serde_json::json!({
-                "schema": "titan.offline_spoof.stamp.v1",
-                "vhdx": vhdx.display().to_string(),
-                "seed_hex": seed_hex.trim(),
-                "status": "placeholder_no_hive_mutation",
-            });
-            println!("{}", serde_json::to_string_pretty(&rec)?);
-        }
+    match Cli::parse().command {
+        Commands::Status => run_status(),
+        Commands::GoldenPrepare { vhdx, out_json } => run_golden_prepare(vhdx, out_json)?,
+        Commands::Stamp { vhdx, seed_hex } => run_stamp(vhdx, seed_hex)?,
     }
     Ok(())
 }

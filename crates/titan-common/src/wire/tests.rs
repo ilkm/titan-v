@@ -176,6 +176,30 @@ fn host_resource_snapshot_request_roundtrip() {
 }
 
 #[test]
+fn apply_host_ui_persist_json_roundtrip() {
+    let req = ControlRequest::ApplyHostUiPersistJson {
+        json: r#"{"listen":"127.0.0.1:1","announce_enabled":false}"#.into(),
+    };
+    let frame = encode_request_frame(&req).unwrap();
+    let out = read_control_request_frame(&mut frame.as_slice()).unwrap();
+    assert!(matches!(
+        out.body,
+        ControlRequest::ApplyHostUiPersistJson { .. }
+    ));
+}
+
+#[test]
+fn host_ui_persist_ack_roundtrip() {
+    let res = ControlResponse::HostUiPersistAck {
+        ok: true,
+        detail: "ok".into(),
+    };
+    let frame = encode_response_frame(&res).unwrap();
+    let out = read_response_frame(&mut frame.as_slice()).unwrap();
+    assert_eq!(out, res);
+}
+
+#[test]
 fn host_resource_snapshot_response_roundtrip() {
     let res = ControlResponse::HostResourceSnapshot {
         stats: HostResourceStats {

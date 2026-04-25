@@ -69,13 +69,14 @@ impl TcpWirePingClient {
     pub fn new(addr: SocketAddr) -> Self {
         Self { addr }
     }
-}
 
-impl GrpcControlPlane for TcpWirePingClient {
-    fn ping(&self) -> Result<()> {
-        let mut stream = TcpStream::connect(self.addr).map_err(|e| Error::HyperVRejected {
+    fn connect_tcp(&self) -> Result<TcpStream> {
+        TcpStream::connect(self.addr).map_err(|e| Error::HyperVRejected {
             message: format!("tcp wire ping connect {}: {e}", self.addr),
-        })?;
+        })
+    }
+
+    fn write_ping_frame(stream: &mut TcpStream) -> Result<()> {
         let frame = encode_control_request_frame(&ControlRequestFrame {
             id: 1,
             body: ControlRequest::Ping,
@@ -85,6 +86,10 @@ impl GrpcControlPlane for TcpWirePingClient {
         })?;
         stream.write_all(&frame).map_err(Error::Io)?;
         stream.flush().map_err(Error::Io)?;
+        Ok(())
+    }
+
+    fn read_host_frame(stream: &mut TcpStream) -> Result<ControlHostFrame> {
         let mut hdr = [0u8; FRAME_HEADER_LEN];
         stream.read_exact(&mut hdr).map_err(Error::Io)?;
         let (_, len) = parse_header(&hdr).map_err(|e| Error::HyperVRejected {
@@ -92,9 +97,12 @@ impl GrpcControlPlane for TcpWirePingClient {
         })?;
         let mut payload = vec![0u8; len as usize];
         stream.read_exact(&mut payload).map_err(Error::Io)?;
-        let host = decode_control_host_payload(&payload).map_err(|e| Error::HyperVRejected {
+        decode_control_host_payload(&payload).map_err(|e| Error::HyperVRejected {
             message: format!("decode control host frame: {e}"),
-        })?;
+        })
+    }
+
+    fn expect_pong_response(host: ControlHostFrame) -> Result<()> {
         match host {
             ControlHostFrame::Response {
                 id: 1,
@@ -110,6 +118,15 @@ impl GrpcControlPlane for TcpWirePingClient {
                 message: "unexpected control response to Ping".into(),
             }),
         }
+    }
+}
+
+impl GrpcControlPlane for TcpWirePingClient {
+    fn ping(&self) -> Result<()> {
+        let mut stream = self.connect_tcp()?;
+        Self::write_ping_frame(&mut stream)?;
+        let host = Self::read_host_frame(&mut stream)?;
+        Self::expect_pong_response(host)
     }
 }
 

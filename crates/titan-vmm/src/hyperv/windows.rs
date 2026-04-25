@@ -97,14 +97,28 @@ Import-Module Hyper-V
 Get-VM | ForEach-Object { [Console]::WriteLine(("{0}|{1}" -f $_.Name, $_.State)) }
 "#;
 
-/// Lists `(name, power_state)` via Hyper-V PowerShell (blocking).
-pub fn list_vms() -> Result<Vec<(String, VmPowerState)>> {
-    if !hyperv_ps_module_available_blocking() {
-        tracing::warn!(
-            "list_vms: Hyper-V module not available; returning empty VM list for control plane"
-        );
-        return Ok(Vec::new());
+fn list_vms_parse_stdout(text: &str) -> Vec<(String, VmPowerState)> {
+    let mut vms = Vec::new();
+    for line in text.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        let Some((name, state_raw)) = line.split_once('|') else {
+            continue;
+        };
+        let state = match state_raw.trim() {
+            "Running" => VmPowerState::Running,
+            "Off" => VmPowerState::Off,
+            "Paused" => VmPowerState::Paused,
+            _ => VmPowerState::Unknown,
+        };
+        vms.push((name.trim().to_string(), state));
     }
+    vms
+}
+
+fn list_vms_powershell_stdout() -> Result<String> {
     let mut cmd = Command::new("powershell.exe");
     cmd.arg("-NoProfile")
         .arg("-NonInteractive")
@@ -123,25 +137,19 @@ pub fn list_vms() -> Result<Vec<(String, VmPowerState)>> {
         });
     }
 
-    let text = String::from_utf8_lossy(&out.stdout);
-    let mut vms = Vec::new();
-    for line in text.lines() {
-        let line = line.trim();
-        if line.is_empty() {
-            continue;
-        }
-        let Some((name, state_raw)) = line.split_once('|') else {
-            continue;
-        };
-        let state = match state_raw.trim() {
-            "Running" => VmPowerState::Running,
-            "Off" => VmPowerState::Off,
-            "Paused" => VmPowerState::Paused,
-            _ => VmPowerState::Unknown,
-        };
-        vms.push((name.trim().to_string(), state));
+    Ok(String::from_utf8_lossy(&out.stdout).into_owned())
+}
+
+/// Lists `(name, power_state)` via Hyper-V PowerShell (blocking).
+pub fn list_vms() -> Result<Vec<(String, VmPowerState)>> {
+    if !hyperv_ps_module_available_blocking() {
+        tracing::warn!(
+            "list_vms: Hyper-V module not available; returning empty VM list for control plane"
+        );
+        return Ok(Vec::new());
     }
-    Ok(vms)
+    let text = list_vms_powershell_stdout()?;
+    Ok(list_vms_parse_stdout(&text))
 }
 
 const PS_VM_EXISTS: &str = r#"

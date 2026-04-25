@@ -8,6 +8,32 @@ use image::ImageEncoder;
 use image::{DynamicImage, ExtendedColorType, RgbaImage};
 use screenshots::Screen;
 
+fn map_screen_list_error(e: impl std::fmt::Display) -> String {
+    #[cfg(target_os = "macos")]
+    {
+        format!(
+            "{e} (macOS: enable Screen Recording for titan-host in System Settings → Privacy & Security)"
+        )
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        format!("{e}")
+    }
+}
+
+fn map_screen_capture_error(e: impl std::fmt::Display) -> String {
+    #[cfg(target_os = "macos")]
+    {
+        format!(
+            "{e} (macOS: Screen Recording permission required for desktop preview; check Privacy & Security)"
+        )
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        format!("{e}")
+    }
+}
+
 /// Encode a downscaled RGBA buffer as baseline JPEG (`image` crate JPEG does not accept `Rgba8`).
 pub(crate) fn rgba_image_to_jpeg(
     rgba: &RgbaImage,
@@ -30,34 +56,12 @@ pub fn capture_primary_display_jpeg(
     max_height: u32,
     jpeg_quality: u8,
 ) -> Result<(Vec<u8>, u32, u32), String> {
-    let screens = Screen::all().map_err(|e| {
-        #[cfg(target_os = "macos")]
-        {
-            format!(
-                "{e} (macOS: enable Screen Recording for titan-host in System Settings → Privacy & Security)"
-            )
-        }
-        #[cfg(not(target_os = "macos"))]
-        {
-            e.to_string()
-        }
-    })?;
+    let screens = Screen::all().map_err(map_screen_list_error)?;
     let screen = screens
         .into_iter()
         .next()
         .ok_or_else(|| "no displays found".to_string())?;
-    let shot = screen.capture().map_err(|e| {
-        #[cfg(target_os = "macos")]
-        {
-            format!(
-                "{e} (macOS: Screen Recording permission required for desktop preview; check Privacy & Security)"
-            )
-        }
-        #[cfg(not(target_os = "macos"))]
-        {
-            e.to_string()
-        }
-    })?;
+    let shot = screen.capture().map_err(map_screen_capture_error)?;
     let w = shot.width();
     let h = shot.height();
     let raw = shot.into_raw();

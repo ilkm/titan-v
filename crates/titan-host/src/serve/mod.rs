@@ -1,6 +1,7 @@
 //! TCP control plane: framed requests / responses with **multi-frame sessions**.
 
 mod announce;
+mod apply_host_ui;
 mod dispatch;
 mod errors;
 mod io;

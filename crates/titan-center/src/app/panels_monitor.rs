@@ -13,52 +13,87 @@ impl CenterApp {
         let inner = ui.available_width();
         let gap = CONTENT_COLUMN_GAP;
         let half = ((inner - gap).max(0.0)) * 0.5;
+        let dev = self.monitor_device_totals();
+        let win = self.monitor_window_totals();
+        paint_monitor_stat_columns(ui, self.ui_lang, inner, gap, half, dev, win);
+    }
 
-        let dev_total = self.endpoints.len();
-        let dev_on = self
+    fn monitor_device_totals(&self) -> (usize, usize, usize) {
+        let total = self.endpoints.len();
+        let on = self
             .endpoints
             .iter()
             .filter(|e| e.last_known_online)
             .count();
-        let dev_off = dev_total.saturating_sub(dev_on);
+        (total, on, total.saturating_sub(on))
+    }
 
-        let win_total = self.inventory_slice().len();
-        let win_on = self
-            .inventory_slice()
+    fn monitor_window_totals(&self) -> (usize, usize, usize) {
+        let slice = self.inventory_slice();
+        let total = slice.len();
+        let on = slice
             .iter()
             .filter(|v| v.state == VmPowerState::Running)
             .count();
-        let win_off = win_total.saturating_sub(win_on);
-
-        ui.horizontal(|ui| {
-            ui.set_min_width(inner);
-            ui.vertical(|ui| {
-                ui.set_width(half);
-                monitor_stat_card(
-                    ui,
-                    self.ui_lang,
-                    t(self.ui_lang, Msg::MonitorCardDevices),
-                    dev_total,
-                    dev_on,
-                    dev_off,
-                    Some(t(self.ui_lang, Msg::MonitorDevicesScopeHint)),
-                );
-            });
-            ui.add_space(gap);
-            ui.vertical(|ui| {
-                ui.set_width(half);
-                monitor_stat_card(
-                    ui,
-                    self.ui_lang,
-                    t(self.ui_lang, Msg::MonitorCardWindows),
-                    win_total,
-                    win_on,
-                    win_off,
-                    Some(t(self.ui_lang, Msg::MonitorWindowsScopeHint)),
-                );
-            });
-        });
+        (total, on, total.saturating_sub(on))
     }
+}
+
+fn paint_monitor_device_column(
+    ui: &mut egui::Ui,
+    lang: UiLang,
+    half: f32,
+    dev: (usize, usize, usize),
+) {
+    ui.vertical(|ui| {
+        ui.set_width(half);
+        monitor_stat_card(
+            ui,
+            lang,
+            t(lang, Msg::MonitorCardDevices),
+            dev.0,
+            dev.1,
+            dev.2,
+            Some(t(lang, Msg::MonitorDevicesScopeHint)),
+        );
+    });
+}
+
+fn paint_monitor_windows_column(
+    ui: &mut egui::Ui,
+    lang: UiLang,
+    half: f32,
+    win: (usize, usize, usize),
+) {
+    ui.vertical(|ui| {
+        ui.set_width(half);
+        monitor_stat_card(
+            ui,
+            lang,
+            t(lang, Msg::MonitorCardWindows),
+            win.0,
+            win.1,
+            win.2,
+            Some(t(lang, Msg::MonitorWindowsScopeHint)),
+        );
+    });
+}
+
+fn paint_monitor_stat_columns(
+    ui: &mut egui::Ui,
+    lang: UiLang,
+    inner: f32,
+    gap: f32,
+    half: f32,
+    dev: (usize, usize, usize),
+    win: (usize, usize, usize),
+) {
+    ui.horizontal(|ui| {
+        ui.set_min_width(inner);
+        paint_monitor_device_column(ui, lang, half, dev);
+        ui.add_space(gap);
+        paint_monitor_windows_column(ui, lang, half, win);
+    });
 }
 
 fn monitor_stat_card(

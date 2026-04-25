@@ -32,163 +32,187 @@ impl CenterApp {
     }
 
     fn settings_discovery_section(&mut self, ui: &mut egui::Ui) {
-        section_card(ui, t(self.ui_lang, Msg::DiscoveryTitle), |ui| {
-            ui.label(
-                RichText::new(t(self.ui_lang, Msg::DiscoveryUdpBlurb))
-                    .small()
-                    .color(ui.visuals().widgets.inactive.text_color()),
-            );
-            ui.add_space(6.0);
-            ui.checkbox(
-                &mut self.discovery_broadcast,
-                t(self.ui_lang, Msg::DiscoveryCheckbox),
-            );
-            form_field_row(
-                ui,
-                RichText::new(t(self.ui_lang, Msg::IntervalLabel)).small(),
-                |ui| {
-                    ui.add(egui::DragValue::new(&mut self.discovery_interval_secs).range(1..=600));
-                },
-            );
-            form_field_row(
-                ui,
-                RichText::new(t(self.ui_lang, Msg::UdpPortLabel)).small(),
-                |ui| {
-                    ui.add(egui::DragValue::new(&mut self.discovery_udp_port).range(1..=65535));
-                },
-            );
+        let lang = self.ui_lang;
+        section_card(ui, t(lang, Msg::DiscoveryTitle), |ui| {
+            self.settings_discovery_udp_controls(ui, lang);
             ui.add_space(10.0);
             ui.separator();
             ui.add_space(8.0);
-            ui.label(
-                RichText::new(t(self.ui_lang, Msg::DiscoveryBindBlurb))
-                    .small()
-                    .color(ui.visuals().widgets.inactive.text_color()),
-            );
-            ui.add_space(6.0);
-            ui.horizontal(|ui| {
-                if subtle_button(ui, t(self.ui_lang, Msg::DiscoveryRefreshIfaces), true).clicked() {
-                    self.discovery_if_rows = super::discovery::list_lan_ipv4_rows();
-                    self.discovery_if_scan_secs = ui.ctx().input(|i| i.time);
-                }
-                if subtle_button(
-                    ui,
-                    t(self.ui_lang, Msg::DiscoveryClearBindIps),
-                    !self.discovery_bind_ipv4s.is_empty(),
-                )
-                .clicked()
-                {
-                    self.discovery_bind_ipv4s.clear();
-                }
-            });
-            ui.add_space(4.0);
-            egui::ComboBox::from_id_salt("discovery_ipv4_quick_add")
-                .selected_text(t(self.ui_lang, Msg::DiscoveryBindQuickAdd))
-                .show_ui(ui, |ui| {
-                    if self.discovery_if_rows.is_empty() {
-                        ui.weak(t(self.ui_lang, Msg::DiscoveryNoIpv4Ifaces));
-                    }
-                    for row in &self.discovery_if_rows {
-                        let ip_s = row.ip.to_string();
-                        let label = format!(
-                            "{} — {}{}",
-                            row.ip,
-                            row.iface,
-                            if self.discovery_bind_ipv4s.contains(&ip_s) {
-                                "  ✓"
-                            } else {
-                                ""
-                            }
-                        );
-                        if ui.button(label).clicked() && !self.discovery_bind_ipv4s.contains(&ip_s)
-                        {
-                            self.discovery_bind_ipv4s.push(ip_s);
-                        }
-                    }
-                });
-            ui.add_space(6.0);
-            ui.label(
-                RichText::new(t(self.ui_lang, Msg::DiscoveryBindScrollHint))
-                    .small()
-                    .strong(),
-            );
-            if self.discovery_if_rows.is_empty() {
-                ui.add_space(4.0);
-                ui.label(
-                    RichText::new(t(self.ui_lang, Msg::DiscoveryNoIpv4Ifaces))
-                        .small()
-                        .color(ui.visuals().widgets.inactive.text_color()),
-                );
-            } else {
-                ui.add_space(4.0);
-                ScrollArea::vertical()
-                    .id_salt("discovery_bind_ipv4_list")
-                    .max_height(160.0)
-                    .auto_shrink([false; 2])
-                    .show(ui, |ui| {
-                        for row in &self.discovery_if_rows {
-                            let ip_s = row.ip.to_string();
-                            let mut on = self.discovery_bind_ipv4s.contains(&ip_s);
-                            let label = format!("{} — {}", row.ip, row.iface);
-                            if ui.checkbox(&mut on, label).changed() {
-                                if on {
-                                    if !self.discovery_bind_ipv4s.contains(&ip_s) {
-                                        self.discovery_bind_ipv4s.push(ip_s);
-                                    }
-                                } else {
-                                    self.discovery_bind_ipv4s.retain(|x| x != &ip_s);
-                                }
-                            }
-                        }
-                    });
+            self.settings_discovery_bind_block(ui, lang);
+        });
+    }
+
+    fn settings_discovery_udp_controls(&mut self, ui: &mut egui::Ui, lang: super::i18n::UiLang) {
+        ui.label(
+            RichText::new(t(lang, Msg::DiscoveryUdpBlurb))
+                .small()
+                .color(ui.visuals().widgets.inactive.text_color()),
+        );
+        ui.add_space(6.0);
+        ui.checkbox(
+            &mut self.discovery_broadcast,
+            t(lang, Msg::DiscoveryCheckbox),
+        );
+        form_field_row(
+            ui,
+            RichText::new(t(lang, Msg::IntervalLabel)).small(),
+            |ui| {
+                ui.add(egui::DragValue::new(&mut self.discovery_interval_secs).range(1..=600));
+            },
+        );
+        form_field_row(
+            ui,
+            RichText::new(t(lang, Msg::UdpPortLabel)).small(),
+            |ui| {
+                ui.add(egui::DragValue::new(&mut self.discovery_udp_port).range(1..=65535));
+            },
+        );
+    }
+
+    fn settings_discovery_bind_block(&mut self, ui: &mut egui::Ui, lang: super::i18n::UiLang) {
+        ui.label(
+            RichText::new(t(lang, Msg::DiscoveryBindBlurb))
+                .small()
+                .color(ui.visuals().widgets.inactive.text_color()),
+        );
+        ui.add_space(6.0);
+        self.settings_discovery_bind_toolbar(ui, lang);
+        ui.add_space(4.0);
+        self.settings_discovery_quick_add_combo(ui, lang);
+        ui.add_space(6.0);
+        ui.label(
+            RichText::new(t(lang, Msg::DiscoveryBindScrollHint))
+                .small()
+                .strong(),
+        );
+        self.settings_discovery_bind_list(ui, lang);
+    }
+
+    fn settings_discovery_bind_toolbar(&mut self, ui: &mut egui::Ui, lang: super::i18n::UiLang) {
+        ui.horizontal(|ui| {
+            if subtle_button(ui, t(lang, Msg::DiscoveryRefreshIfaces), true).clicked() {
+                self.discovery_if_rows = super::discovery::list_lan_ipv4_rows();
+                self.discovery_if_scan_secs = ui.ctx().input(|i| i.time);
+            }
+            if subtle_button(
+                ui,
+                t(lang, Msg::DiscoveryClearBindIps),
+                !self.discovery_bind_ipv4s.is_empty(),
+            )
+            .clicked()
+            {
+                self.discovery_bind_ipv4s.clear();
             }
         });
     }
 
-    fn settings_host_collect_section(&mut self, ui: &mut egui::Ui) {
-        section_card(ui, t(self.ui_lang, Msg::HostCollectTitle), |ui| {
+    fn settings_discovery_quick_add_combo(&mut self, ui: &mut egui::Ui, lang: super::i18n::UiLang) {
+        egui::ComboBox::from_id_salt("discovery_ipv4_quick_add")
+            .selected_text(t(lang, Msg::DiscoveryBindQuickAdd))
+            .show_ui(ui, |ui| {
+                if self.discovery_if_rows.is_empty() {
+                    ui.weak(t(lang, Msg::DiscoveryNoIpv4Ifaces));
+                }
+                for row in &self.discovery_if_rows {
+                    let ip_s = row.ip.to_string();
+                    let label = format!(
+                        "{} — {}{}",
+                        row.ip,
+                        row.iface,
+                        if self.discovery_bind_ipv4s.contains(&ip_s) {
+                            "  ✓"
+                        } else {
+                            ""
+                        }
+                    );
+                    if ui.button(label).clicked() && !self.discovery_bind_ipv4s.contains(&ip_s) {
+                        self.discovery_bind_ipv4s.push(ip_s);
+                    }
+                }
+            });
+    }
+
+    fn settings_discovery_bind_list(&mut self, ui: &mut egui::Ui, lang: super::i18n::UiLang) {
+        if self.discovery_if_rows.is_empty() {
+            ui.add_space(4.0);
             ui.label(
-                RichText::new(t(self.ui_lang, Msg::HostCollectBlurb))
+                RichText::new(t(lang, Msg::DiscoveryNoIpv4Ifaces))
+                    .small()
+                    .color(ui.visuals().widgets.inactive.text_color()),
+            );
+            return;
+        }
+        ui.add_space(4.0);
+        ScrollArea::vertical()
+            .id_salt("discovery_bind_ipv4_list")
+            .max_height(160.0)
+            .auto_shrink([false; 2])
+            .show(ui, |ui| {
+                for row in &self.discovery_if_rows {
+                    let ip_s = row.ip.to_string();
+                    let mut on = self.discovery_bind_ipv4s.contains(&ip_s);
+                    let label = format!("{} — {}", row.ip, row.iface);
+                    if ui.checkbox(&mut on, label).changed() {
+                        Self::discovery_toggle_bind_ip(&mut self.discovery_bind_ipv4s, &ip_s, on);
+                    }
+                }
+            });
+    }
+
+    fn discovery_toggle_bind_ip(bind_ips: &mut Vec<String>, ip_s: &str, on: bool) {
+        if on {
+            if !bind_ips.iter().any(|e| e == ip_s) {
+                bind_ips.push(ip_s.to_string());
+            }
+        } else {
+            bind_ips.retain(|x| x != ip_s);
+        }
+    }
+
+    fn settings_host_collect_section(&mut self, ui: &mut egui::Ui) {
+        let lang = self.ui_lang;
+        section_card(ui, t(lang, Msg::HostCollectTitle), |ui| {
+            ui.label(
+                RichText::new(t(lang, Msg::HostCollectBlurb))
                     .small()
                     .color(ui.visuals().widgets.inactive.text_color()),
             );
             ui.add_space(6.0);
             ui.checkbox(
                 &mut self.host_collect_broadcast,
-                t(self.ui_lang, Msg::HostCollectCheckbox),
+                t(lang, Msg::HostCollectCheckbox),
             );
             ui.add_space(8.0);
             ui.separator();
             ui.add_space(8.0);
-            form_field_row(
-                ui,
-                RichText::new(t(self.ui_lang, Msg::HostCollectIntervalLabel)).small(),
-                |ui| {
-                    ui.add(
-                        egui::DragValue::new(&mut self.host_collect_interval_secs).range(1..=600),
-                    );
-                },
-            );
-            form_field_row(
-                ui,
-                RichText::new(t(self.ui_lang, Msg::HostCollectPollPortLabel)).small(),
-                |ui| {
-                    ui.add(
-                        egui::DragValue::new(&mut self.host_collect_poll_udp_port).range(1..=65535),
-                    );
-                },
-            );
-            form_field_row(
-                ui,
-                RichText::new(t(self.ui_lang, Msg::HostCollectRegisterPortLabel)).small(),
-                |ui| {
-                    ui.add(
-                        egui::DragValue::new(&mut self.host_collect_register_udp_port)
-                            .range(1..=65535),
-                    );
-                },
-            );
+            self.settings_host_collect_port_fields(ui, lang);
         });
+    }
+
+    fn settings_host_collect_port_fields(&mut self, ui: &mut egui::Ui, lang: super::i18n::UiLang) {
+        form_field_row(
+            ui,
+            RichText::new(t(lang, Msg::HostCollectIntervalLabel)).small(),
+            |ui| {
+                ui.add(egui::DragValue::new(&mut self.host_collect_interval_secs).range(1..=600));
+            },
+        );
+        form_field_row(
+            ui,
+            RichText::new(t(lang, Msg::HostCollectPollPortLabel)).small(),
+            |ui| {
+                ui.add(egui::DragValue::new(&mut self.host_collect_poll_udp_port).range(1..=65535));
+            },
+        );
+        form_field_row(
+            ui,
+            RichText::new(t(lang, Msg::HostCollectRegisterPortLabel)).small(),
+            |ui| {
+                ui.add(
+                    egui::DragValue::new(&mut self.host_collect_register_udp_port).range(1..=65535),
+                );
+            },
+        );
     }
 
     /// Settings: LAN discovery + LAN host registration only.

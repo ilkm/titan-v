@@ -76,16 +76,8 @@ pub(crate) struct AgentResponse {
     error: Option<String>,
 }
 
-/// Sends one framed request and reads one framed response (blocking).
-pub(crate) fn roundtrip(
-    addr: &SocketAddr,
-    vm_id: &str,
-    op: &str,
-    payload: serde_json::Value,
-    request_id: &str,
-    read_timeout: Duration,
-) -> Result<AgentResponse> {
-    let mut stream =
+fn agent_connect(addr: &SocketAddr, read_timeout: Duration) -> Result<TcpStream> {
+    let stream =
         TcpStream::connect_timeout(addr, read_timeout).map_err(|e| Error::HyperVRejected {
             message: format!("guest agent connect {addr}: {e}"),
         })?;
@@ -95,7 +87,15 @@ pub(crate) fn roundtrip(
     stream
         .set_write_timeout(Some(read_timeout))
         .map_err(Error::Io)?;
+    Ok(stream)
+}
 
+fn agent_encode_framed_request(
+    vm_id: &str,
+    op: &str,
+    payload: serde_json::Value,
+    request_id: &str,
+) -> Result<Vec<u8>> {
     let req = AgentRequest {
         v: PROTO_V1,
         op,
@@ -117,8 +117,10 @@ pub(crate) fn roundtrip(
     let mut frame = Vec::with_capacity(4 + body.len());
     frame.extend_from_slice(&len.to_be_bytes());
     frame.extend_from_slice(&body);
-    stream.write_all(&frame).map_err(Error::Io)?;
+    Ok(frame)
+}
 
+fn agent_read_framed_response(stream: &mut TcpStream, request_id: &str) -> Result<AgentResponse> {
     let mut len_buf = [0u8; 4];
     stream
         .read_exact(&mut len_buf)
@@ -149,6 +151,47 @@ pub(crate) fn roundtrip(
     Ok(resp)
 }
 
+/// Sends one framed request and reads one framed response (blocking).
+pub(crate) fn roundtrip(
+    addr: &SocketAddr,
+    vm_id: &str,
+    op: &str,
+    payload: serde_json::Value,
+    request_id: &str,
+    read_timeout: Duration,
+) -> Result<AgentResponse> {
+    let mut stream = agent_connect(addr, read_timeout)?;
+    let frame = agent_encode_framed_request(vm_id, op, payload, request_id)?;
+    stream.write_all(&frame).map_err(Error::Io)?;
+    agent_read_framed_response(&mut stream, request_id)
+}
+
+fn guest_u64_coerce_value_text(v: serde_json::Value) -> Result<String> {
+    match v {
+        serde_json::Value::String(s) => Ok(s),
+        serde_json::Value::Number(n) => Ok(n.to_string()),
+        _ => Err(Error::HyperVRejected {
+            message: "guest agent read_u64 value not string/number".into(),
+        }),
+    }
+}
+
+fn parse_u64_from_agent_text(s: &str) -> Result<u64> {
+    let trimmed = s.trim();
+    let n = if let Some(hex) = trimmed
+        .strip_prefix("0x")
+        .or_else(|| trimmed.strip_prefix("0X"))
+    {
+        u64::from_str_radix(hex, 16)
+    } else {
+        trimmed.parse::<u64>()
+    }
+    .map_err(|e| Error::HyperVRejected {
+        message: format!("guest agent read_u64 parse value: {e}"),
+    })?;
+    Ok(n)
+}
+
 /// Reads a `u64` from the guest agent at `addr` for VM `vm_id`.
 pub fn read_guest_u64(
     addr: &SocketAddr,
@@ -171,28 +214,8 @@ pub fn read_guest_u64(
     let v = resp.value.ok_or_else(|| Error::HyperVRejected {
         message: "guest agent read_u64 missing value".into(),
     })?;
-    let s = match v {
-        serde_json::Value::String(s) => s,
-        serde_json::Value::Number(n) => n.to_string(),
-        _ => {
-            return Err(Error::HyperVRejected {
-                message: "guest agent read_u64 value not string/number".into(),
-            })
-        }
-    };
-    let trimmed = s.trim();
-    let n = if let Some(hex) = trimmed
-        .strip_prefix("0x")
-        .or_else(|| trimmed.strip_prefix("0X"))
-    {
-        u64::from_str_radix(hex, 16)
-    } else {
-        trimmed.parse::<u64>()
-    }
-    .map_err(|e| Error::HyperVRejected {
-        message: format!("guest agent read_u64 parse value: {e}"),
-    })?;
-    Ok(n)
+    let s = guest_u64_coerce_value_text(v)?;
+    parse_u64_from_agent_text(&s)
 }
 
 /// Phase 2A hook: cooperative **identity / health** echo (guest must implement `op` = `identity_echo`).
@@ -269,9 +292,18 @@ pub fn mouse_move(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Write;
     use std::net::TcpListener;
     use std::sync::mpsc;
     use std::thread;
+
+    fn write_json_frame(w: &mut impl Write, body: &serde_json::Value) {
+        let out = serde_json::to_vec(body).unwrap();
+        let mut frame = Vec::new();
+        frame.extend_from_slice(&(out.len() as u32).to_be_bytes());
+        frame.extend_from_slice(&out);
+        w.write_all(&frame).unwrap();
+    }
 
     fn read_frame(mut r: impl Read) -> Vec<u8> {
         let mut h = [0u8; 4];
@@ -348,11 +380,7 @@ mod tests {
                 "id": req["id"],
                 "value": { "action": "echo", "vm_id": req["vm_id"] }
             });
-            let out = serde_json::to_vec(&body).unwrap();
-            let mut frame = Vec::new();
-            frame.extend_from_slice(&(out.len() as u32).to_be_bytes());
-            frame.extend_from_slice(&out);
-            sock.write_all(&frame).unwrap();
+            write_json_frame(&mut sock, &body);
         });
         let v = identity_ops(
             &addr,

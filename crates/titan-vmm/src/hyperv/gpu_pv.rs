@@ -124,34 +124,43 @@ Import-Module Hyper-V -ErrorAction Stop
     }
 }
 
+#[cfg(windows)]
+fn powershell_probe_output(cmd: &str) -> Option<std::process::Output> {
+    Command::new("powershell.exe")
+        .arg("-NoProfile")
+        .arg("-NonInteractive")
+        .arg("-Command")
+        .arg(cmd)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+        .ok()
+}
+
+#[cfg(windows)]
+fn gpu_partition_cmdlets_probe_success() -> bool {
+    const PS_PROBE: &str = r#"
+$ErrorActionPreference = 'Stop'
+if (-not (Get-Module -ListAvailable -Name Hyper-V)) { 'false'; exit 0 }
+Import-Module Hyper-V
+if (Get-Command Add-VMGpuPartitionAdapter -ErrorAction SilentlyContinue) { 'true' } else { 'false' }
+"#;
+    let Some(out) = powershell_probe_output(PS_PROBE) else {
+        return false;
+    };
+    if !out.status.success() {
+        return false;
+    }
+    String::from_utf8_lossy(&out.stdout).trim() == "true"
+}
+
 /// Returns whether `Add-VMGpuPartitionAdapter` is available (Hyper-V PowerShell module present).
 ///
 /// Used for capability bits only; does not prove DDA-capable hardware.
 pub fn gpu_partition_cmdlets_available_blocking() -> bool {
     #[cfg(windows)]
     {
-        const PS_PROBE: &str = r#"
-$ErrorActionPreference = 'Stop'
-if (-not (Get-Module -ListAvailable -Name Hyper-V)) { 'false'; exit 0 }
-Import-Module Hyper-V
-if (Get-Command Add-VMGpuPartitionAdapter -ErrorAction SilentlyContinue) { 'true' } else { 'false' }
-"#;
-        let out = match Command::new("powershell.exe")
-            .arg("-NoProfile")
-            .arg("-NonInteractive")
-            .arg("-Command")
-            .arg(PS_PROBE)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .output()
-        {
-            Ok(o) => o,
-            Err(_) => return false,
-        };
-        if !out.status.success() {
-            return false;
-        }
-        String::from_utf8_lossy(&out.stdout).trim() == "true"
+        gpu_partition_cmdlets_probe_success()
     }
     #[cfg(not(windows))]
     {

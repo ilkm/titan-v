@@ -7,11 +7,8 @@ use fontdb::{Database, Family, Query};
 
 const CJK_FONT_ID: &str = "titan_host_cjk_system";
 
-fn system_cjk_font() -> Option<(Vec<u8>, u32)> {
-    let mut db = Database::new();
-    db.load_system_fonts();
-
-    const NAMES: &[&str] = &[
+fn cjk_font_family_names() -> &'static [&'static str] {
+    &[
         "PingFang SC",
         "PingFang TC",
         "Heiti SC",
@@ -25,25 +22,27 @@ fn system_cjk_font() -> Option<(Vec<u8>, u32)> {
         "Source Han Sans SC",
         "WenQuanYi Micro Hei",
         "Noto Sans CJK JP",
-    ];
+    ]
+}
 
-    for &name in NAMES {
-        let query = Query {
-            families: &[Family::Name(name)],
-            ..Default::default()
-        };
-        let Some(id) = db.query(&query) else {
-            continue;
-        };
-        if let Some((bytes, face_index)) =
-            db.with_face_data(id, |data, face_index| (data.to_vec(), face_index))
-        {
-            if !bytes.is_empty() {
-                return Some((bytes, face_index));
-            }
+fn query_named_font_bytes(db: &Database, name: &str) -> Option<(Vec<u8>, u32)> {
+    let query = Query {
+        families: &[Family::Name(name)],
+        ..Default::default()
+    };
+    let id = db.query(&query)?;
+    db.with_face_data(id, |data, face_index| (data.to_vec(), face_index))
+        .filter(|(bytes, _)| !bytes.is_empty())
+}
+
+fn system_cjk_font() -> Option<(Vec<u8>, u32)> {
+    let mut db = Database::new();
+    db.load_system_fonts();
+    for &name in cjk_font_family_names() {
+        if let Some(out) = query_named_font_bytes(&db, name) {
+            return Some(out);
         }
     }
-
     None
 }
 

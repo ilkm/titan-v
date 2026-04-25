@@ -48,4 +48,4 @@ pub use wire::{
 };
 
 /// Wire protocol / capability negotiation version (center ↔ host).
-pub const PROTOCOL_VERSION: u32 = 11;
+pub const PROTOCOL_VERSION: u32 = 12;

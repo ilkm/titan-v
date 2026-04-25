@@ -103,43 +103,63 @@ impl Default for VmSpoofProfile {
     }
 }
 
+fn validate_spoof_processor_count(n: Option<u32>) -> Result<()> {
+    if let Some(0) = n {
+        return Err(Error::InvalidPlan(
+            "spoof.processor_count must be > 0 when set".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn validate_spoof_vlan_access(v: Option<u16>) -> Result<()> {
+    if let Some(v) = v {
+        if v == 0 || v > 4094 {
+            return Err(Error::InvalidPlan(
+                "spoof.vlan_id_access must be 1..=4094 when set".into(),
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn validate_spoof_static_mac_pool_path(p: &Option<String>) -> Result<()> {
+    let Some(ref path) = p else {
+        return Ok(());
+    };
+    let t = path.trim();
+    if t.is_empty() {
+        return Err(Error::InvalidPlan(
+            "spoof.static_mac_pool_file must not be empty when set".into(),
+        ));
+    }
+    if !Path::new(t).is_file() {
+        return Err(Error::InvalidPlan(format!(
+            "spoof.static_mac_pool_file is not a readable file: {t}"
+        )));
+    }
+    Ok(())
+}
+
+fn validate_spoof_secure_boot_non_empty(t: &Option<String>) -> Result<()> {
+    let Some(t) = t else {
+        return Ok(());
+    };
+    if t.trim().is_empty() {
+        return Err(Error::InvalidPlan(
+            "spoof.secure_boot_template must not be empty when set".into(),
+        ));
+    }
+    Ok(())
+}
+
 impl VmSpoofProfile {
     /// Validates spoof fields that can be checked without Hyper-V.
     pub fn validate(&self) -> Result<()> {
-        if let Some(n) = self.processor_count {
-            if n == 0 {
-                return Err(Error::InvalidPlan(
-                    "spoof.processor_count must be > 0 when set".into(),
-                ));
-            }
-        }
-        if let Some(v) = self.vlan_id_access {
-            if v == 0 || v > 4094 {
-                return Err(Error::InvalidPlan(
-                    "spoof.vlan_id_access must be 1..=4094 when set".into(),
-                ));
-            }
-        }
-        if let Some(ref p) = self.static_mac_pool_file {
-            let t = p.trim();
-            if t.is_empty() {
-                return Err(Error::InvalidPlan(
-                    "spoof.static_mac_pool_file must not be empty when set".into(),
-                ));
-            }
-            if !Path::new(t).is_file() {
-                return Err(Error::InvalidPlan(format!(
-                    "spoof.static_mac_pool_file is not a readable file: {t}"
-                )));
-            }
-        }
-        if let Some(ref t) = self.secure_boot_template {
-            if t.trim().is_empty() {
-                return Err(Error::InvalidPlan(
-                    "spoof.secure_boot_template must not be empty when set".into(),
-                ));
-            }
-        }
+        validate_spoof_processor_count(self.processor_count)?;
+        validate_spoof_vlan_access(self.vlan_id_access)?;
+        validate_spoof_static_mac_pool_path(&self.static_mac_pool_file)?;
+        validate_spoof_secure_boot_non_empty(&self.secure_boot_template)?;
         Ok(())
     }
 }
@@ -172,42 +192,62 @@ pub struct VmProvisionPlan {
     pub identity: VmIdentityProfile,
 }
 
+fn validate_provision_nonempty_paths(plan: &VmProvisionPlan) -> Result<()> {
+    if plan.parent_vhdx.trim().is_empty() {
+        return Err(Error::InvalidPlan("parent_vhdx must not be empty".into()));
+    }
+    if plan.diff_dir.trim().is_empty() {
+        return Err(Error::InvalidPlan("diff_dir must not be empty".into()));
+    }
+    if plan.vm_name.trim().is_empty() {
+        return Err(Error::InvalidPlan("vm_name must not be empty".into()));
+    }
+    Ok(())
+}
+
+fn validate_provision_memory_and_gen(plan: &VmProvisionPlan) -> Result<()> {
+    if plan.memory_bytes == 0 {
+        return Err(Error::InvalidPlan("memory_bytes must be > 0".into()));
+    }
+    if plan.generation != 2 {
+        return Err(Error::InvalidPlan(format!(
+            "only generation 2 is supported (got {})",
+            plan.generation
+        )));
+    }
+    Ok(())
+}
+
+fn validate_provision_vm_name_tokens(vm_name: &str) -> Result<()> {
+    for label in ["..", "/", "\\"] {
+        if vm_name.contains(label) {
+            return Err(Error::InvalidPlan(format!(
+                "vm_name must not contain {:?}",
+                label
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn validate_gpu_partition_path_when_set(p: &Option<String>) -> Result<()> {
+    if let Some(ref path) = p {
+        if path.trim().is_empty() {
+            return Err(Error::InvalidPlan(
+                "gpu_partition_instance_path must not be empty when set".into(),
+            ));
+        }
+    }
+    Ok(())
+}
+
 impl VmProvisionPlan {
     /// Validates fields that can be checked without touching the filesystem.
     pub fn validate(&self) -> Result<()> {
-        if self.parent_vhdx.trim().is_empty() {
-            return Err(Error::InvalidPlan("parent_vhdx must not be empty".into()));
-        }
-        if self.diff_dir.trim().is_empty() {
-            return Err(Error::InvalidPlan("diff_dir must not be empty".into()));
-        }
-        if self.vm_name.trim().is_empty() {
-            return Err(Error::InvalidPlan("vm_name must not be empty".into()));
-        }
-        if self.memory_bytes == 0 {
-            return Err(Error::InvalidPlan("memory_bytes must be > 0".into()));
-        }
-        if self.generation != 2 {
-            return Err(Error::InvalidPlan(format!(
-                "only generation 2 is supported (got {})",
-                self.generation
-            )));
-        }
-        for label in ["..", "/", "\\"] {
-            if self.vm_name.contains(label) {
-                return Err(Error::InvalidPlan(format!(
-                    "vm_name must not contain {:?}",
-                    label
-                )));
-            }
-        }
-        if let Some(ref p) = self.gpu_partition_instance_path {
-            if p.trim().is_empty() {
-                return Err(Error::InvalidPlan(
-                    "gpu_partition_instance_path must not be empty when set".into(),
-                ));
-            }
-        }
+        validate_provision_nonempty_paths(self)?;
+        validate_provision_memory_and_gen(self)?;
+        validate_provision_vm_name_tokens(&self.vm_name)?;
+        validate_gpu_partition_path_when_set(&self.gpu_partition_instance_path)?;
         self.spoof.validate()?;
         self.identity.validate()?;
         Ok(())

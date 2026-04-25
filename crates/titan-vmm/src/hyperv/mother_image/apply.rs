@@ -186,13 +186,14 @@ fn apply_vtpm(
 }
 
 #[cfg(windows)]
-fn apply_profile_windows(vm: &str, profile: &VmSpoofProfile, dry_run: bool) -> Result<Vec<String>> {
-    let state = get_vm_power_state_blocking(vm)?;
-    tracing::info!(%vm, ?state, "spoof: VM power state");
-    let audit = audit_path_from(profile);
-    let mut steps_out = Vec::new();
-    let ap = audit.as_deref();
-
+fn apply_profile_checkpoint_processor_ve(
+    vm: &str,
+    profile: &VmSpoofProfile,
+    state: VmPowerState,
+    dry_run: bool,
+    ap: Option<&std::path::Path>,
+    steps_out: &mut Vec<String>,
+) -> Result<()> {
     if profile.disable_checkpoints {
         run_or_record(
             vm,
@@ -200,26 +201,49 @@ fn apply_profile_windows(vm: &str, profile: &VmSpoofProfile, dry_run: bool) -> R
             &checkpoint_disabled_job_script(),
             dry_run,
             ap,
-            &mut steps_out,
+            steps_out,
         )?;
     }
     if let Some(n) = profile.processor_count {
-        apply_processor_count(vm, state, n, dry_run, ap, &mut steps_out)?;
+        apply_processor_count(vm, state, n, dry_run, ap, steps_out)?;
     }
     if let Some(on) = profile.expose_virtualization_extensions {
-        apply_expose_ve(vm, on, dry_run, ap, &mut steps_out)?;
+        apply_expose_ve(vm, on, dry_run, ap, steps_out)?;
     }
+    Ok(())
+}
+
+#[cfg(windows)]
+fn apply_profile_vlan_static_mac(
+    vm: &str,
+    profile: &VmSpoofProfile,
+    dry_run: bool,
+    ap: Option<&std::path::Path>,
+    steps_out: &mut Vec<String>,
+) -> Result<()> {
     if let Some(vlan) = profile.vlan_id_access {
-        apply_vlan(vm, vlan, dry_run, ap, &mut steps_out)?;
+        apply_vlan(vm, vlan, dry_run, ap, steps_out)?;
     }
     if let Some(ref pool) = profile.static_mac_pool_file {
-        apply_static_mac(vm, pool.trim(), dry_run, ap, &mut steps_out)?;
+        apply_static_mac(vm, pool.trim(), dry_run, ap, steps_out)?;
     }
+    Ok(())
+}
+
+#[cfg(windows)]
+fn apply_profile_firmware_mac_tail(
+    vm: &str,
+    profile: &VmSpoofProfile,
+    state: VmPowerState,
+    dry_run: bool,
+    ap: Option<&std::path::Path>,
+    steps_out: &mut Vec<String>,
+) -> Result<()> {
     if let Some(ref t) = profile.secure_boot_template {
-        apply_secure_boot_template(vm, state, t, dry_run, ap, &mut steps_out)?;
+        apply_secure_boot_template(vm, state, t, dry_run, ap, steps_out)?;
     }
     if let Some(en) = profile.enable_vtpm {
-        apply_vtpm(vm, en, dry_run, ap, &mut steps_out)?;
+        apply_vtpm(vm, en, dry_run, ap, steps_out)?;
     }
     if profile.dynamic_mac {
         run_or_record(
@@ -228,9 +252,22 @@ fn apply_profile_windows(vm: &str, profile: &VmSpoofProfile, dry_run: bool) -> R
             &dynamic_mac_job_script(),
             dry_run,
             ap,
-            &mut steps_out,
+            steps_out,
         )?;
     }
+    Ok(())
+}
+
+#[cfg(windows)]
+fn apply_profile_windows(vm: &str, profile: &VmSpoofProfile, dry_run: bool) -> Result<Vec<String>> {
+    let state = get_vm_power_state_blocking(vm)?;
+    tracing::info!(%vm, ?state, "spoof: VM power state");
+    let audit = audit_path_from(profile);
+    let mut steps_out = Vec::new();
+    let ap = audit.as_deref();
+    apply_profile_checkpoint_processor_ve(vm, profile, state, dry_run, ap, &mut steps_out)?;
+    apply_profile_vlan_static_mac(vm, profile, dry_run, ap, &mut steps_out)?;
+    apply_profile_firmware_mac_tail(vm, profile, state, dry_run, ap, &mut steps_out)?;
     Ok(steps_out)
 }
 

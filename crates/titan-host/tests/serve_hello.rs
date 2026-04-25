@@ -8,13 +8,12 @@ use titan_common::{
 };
 use titan_host::serve::{handle_connection, ServeState};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::TcpListener;
+use tokio::net::{TcpListener, TcpStream};
+use tokio::task::JoinHandle;
 
-#[tokio::test]
-async fn hello_hello_ack_over_tcp() {
+async fn spawn_hello_server() -> (std::net::SocketAddr, JoinHandle<()>) {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
-
     let server = tokio::spawn(async move {
         let (sock, _) = listener.accept().await.unwrap();
         let st = ServeState::for_test();
@@ -22,11 +21,10 @@ async fn hello_hello_ack_over_tcp() {
             .await
             .unwrap();
     });
+    (addr, server)
+}
 
-    let mut client = tokio::net::TcpStream::connect(addr).await.unwrap();
-    let frame = encode_request_frame(&ControlRequest::Hello).unwrap();
-    client.write_all(&frame).await.unwrap();
-
+async fn assert_hello_ack(client: &mut TcpStream) {
     let mut hdr = [0u8; titan_common::FRAME_HEADER_LEN];
     client.read_exact(&mut hdr).await.unwrap();
     let (_, len) = parse_header(&hdr).unwrap();
@@ -35,7 +33,6 @@ async fn hello_hello_ack_over_tcp() {
     let mut buf = Vec::new();
     buf.extend_from_slice(&hdr);
     buf.extend_from_slice(&payload);
-
     let res = match read_control_host_frame(&mut buf.as_slice()).unwrap() {
         ControlHostFrame::Response { body, .. } => body,
         other => panic!("unexpected control host frame: {other:?}"),
@@ -44,7 +41,15 @@ async fn hello_hello_ack_over_tcp() {
         ControlResponse::HelloAck { .. } => {}
         other => panic!("unexpected response: {other:?}"),
     }
+}
 
+#[tokio::test]
+async fn hello_hello_ack_over_tcp() {
+    let (addr, server) = spawn_hello_server().await;
+    let mut client = TcpStream::connect(addr).await.unwrap();
+    let frame = encode_request_frame(&ControlRequest::Hello).unwrap();
+    client.write_all(&frame).await.unwrap();
+    assert_hello_ack(&mut client).await;
     drop(client);
     server.await.unwrap();
 }

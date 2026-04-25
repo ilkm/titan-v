@@ -8,13 +8,12 @@ use titan_common::{
 };
 use titan_host::serve::{handle_connection, ServeState};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::TcpListener;
+use tokio::net::{TcpListener, TcpStream};
+use tokio::task::JoinHandle;
 
-#[tokio::test]
-async fn ping_pong_over_tcp() {
+async fn spawn_test_server() -> (std::net::SocketAddr, JoinHandle<()>) {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
-
     let server = tokio::spawn(async move {
         let (sock, _) = listener.accept().await.unwrap();
         let st = ServeState::for_test();
@@ -22,11 +21,10 @@ async fn ping_pong_over_tcp() {
             .await
             .unwrap();
     });
+    (addr, server)
+}
 
-    let mut client = tokio::net::TcpStream::connect(addr).await.unwrap();
-    let frame = encode_request_frame(&ControlRequest::Ping).unwrap();
-    client.write_all(&frame).await.unwrap();
-
+async fn read_pong_capabilities(client: &mut TcpStream) -> titan_common::Capabilities {
     let mut buf = Vec::new();
     let mut hdr = [0u8; titan_common::FRAME_HEADER_LEN];
     client.read_exact(&mut hdr).await.unwrap();
@@ -35,19 +33,25 @@ async fn ping_pong_over_tcp() {
     client.read_exact(&mut payload).await.unwrap();
     buf.extend_from_slice(&hdr);
     buf.extend_from_slice(&payload);
-
     let res = match read_control_host_frame(&mut buf.as_slice()).unwrap() {
         ControlHostFrame::Response { body, .. } => body,
         other => panic!("unexpected control host frame: {other:?}"),
     };
     match res {
-        ControlResponse::Pong { capabilities } => {
-            assert!(!capabilities.gpu_partition);
-        }
+        ControlResponse::Pong { capabilities } => capabilities,
         ControlResponse::ServerError { .. } => panic!("unexpected ServerError"),
         _ => panic!("unexpected response variant"),
     }
+}
 
+#[tokio::test]
+async fn ping_pong_over_tcp() {
+    let (addr, server) = spawn_test_server().await;
+    let mut client = TcpStream::connect(addr).await.unwrap();
+    let frame = encode_request_frame(&ControlRequest::Ping).unwrap();
+    client.write_all(&frame).await.unwrap();
+    let caps = read_pong_capabilities(&mut client).await;
+    assert!(!caps.gpu_partition);
     drop(client);
     server.await.unwrap();
 }

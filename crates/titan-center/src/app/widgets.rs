@@ -170,7 +170,6 @@ pub fn confirm_dialog_frame(ui: &egui::Ui) -> Frame {
 }
 
 /// Opaque modal frame (solid white) for small dialogs.
-#[must_use]
 pub fn opaque_dialog_frame(ui: &egui::Ui) -> Frame {
     Frame::NONE
         .fill(Color32::WHITE)
@@ -187,19 +186,18 @@ const UNDERLINE_IDLE: Color32 = Color32::from_rgb(148, 163, 184);
 ///
 /// `gap_below_underline`: extra vertical space after the rule (e.g. `8.0` between dialog fields;
 /// use `0.0` for inline rows where layout height must not grow on focus).
-pub fn dialog_underline_text_row_gap(
-    ui: &mut egui::Ui,
-    add_textedit: impl FnOnce(&mut egui::Ui) -> TextEditOutput,
-    gap_below_underline: f32,
-) -> Response {
-    let output = add_textedit(ui);
+fn dialog_underline_response_after_focus_caret(ui: &egui::Ui, output: TextEditOutput) -> Response {
     let r = output.response;
     if r.gained_focus() {
         let cursor_end = CursorRange::one(output.galley.end());
-        let mut state = output.state;
-        state.cursor.set_range(Some(cursor_end));
-        state.store(ui.ctx(), r.id);
+        let mut st = output.state;
+        st.cursor.set_range(Some(cursor_end));
+        st.store(ui.ctx(), r.id);
     }
+    r
+}
+
+fn dialog_underline_paint_rule(ui: &mut egui::Ui, r: &Response, gap_below_underline: f32) {
     let y = r.rect.bottom() + 1.0;
     let color = if r.has_focus() {
         ACCENT
@@ -223,6 +221,16 @@ pub fn dialog_underline_text_row_gap(
     if gap_below_underline > 0.0 {
         ui.add_space(gap_below_underline);
     }
+}
+
+pub fn dialog_underline_text_row_gap(
+    ui: &mut egui::Ui,
+    add_textedit: impl FnOnce(&mut egui::Ui) -> TextEditOutput,
+    gap_below_underline: f32,
+) -> Response {
+    let output = add_textedit(ui);
+    let r = dialog_underline_response_after_focus_caret(ui, output);
+    dialog_underline_paint_rule(ui, &r, gap_below_underline);
     r
 }
 

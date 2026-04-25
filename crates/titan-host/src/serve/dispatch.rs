@@ -100,6 +100,35 @@ fn spoof_apply_notes(dry_run: bool) -> String {
     }
 }
 
+#[cfg(windows)]
+async fn handle_apply_spoof_profile_windows(
+    vm_name: String,
+    dry_run: bool,
+    spoof: VmSpoofProfile,
+) -> Result<ControlResponse, ServeError> {
+    if let Err(e) = spoof.validate() {
+        return Ok(server_err(400, format!("invalid VmSpoofProfile: {e}")));
+    }
+    let vm = vm_name.clone();
+    let profile = spoof;
+    let join = tokio::task::spawn_blocking(move || {
+        titan_vmm::hyperv::mother_image::apply_host_spoof_profile_with_options(
+            &vm, &profile, dry_run,
+        )
+    })
+    .await
+    .map_err(|e| join_io(format!("join: {e}")))?;
+    match join {
+        Ok(steps) => Ok(ControlResponse::SpoofApplyAck {
+            vm_name,
+            dry_run,
+            steps_executed: steps,
+            notes: spoof_apply_notes(dry_run),
+        }),
+        Err(e) => Ok(server_err(500, e.to_string())),
+    }
+}
+
 async fn handle_apply_spoof_profile(
     vm_name: String,
     dry_run: bool,
@@ -118,27 +147,38 @@ async fn handle_apply_spoof_profile(
     }
     #[cfg(windows)]
     {
-        if let Err(e) = spoof.validate() {
-            return Ok(server_err(400, format!("invalid VmSpoofProfile: {e}")));
-        }
-        let vm = vm_name.clone();
-        let profile = spoof;
-        let join = tokio::task::spawn_blocking(move || {
-            titan_vmm::hyperv::mother_image::apply_host_spoof_profile_with_options(
-                &vm, &profile, dry_run,
-            )
-        })
-        .await
-        .map_err(|e| join_io(format!("join: {e}")))?;
-        match join {
-            Ok(steps) => Ok(ControlResponse::SpoofApplyAck {
-                vm_name,
-                dry_run,
-                steps_executed: steps,
-                notes: spoof_apply_notes(dry_run),
-            }),
-            Err(e) => Ok(server_err(500, e.to_string())),
-        }
+        handle_apply_spoof_profile_windows(vm_name, dry_run, spoof).await
+    }
+}
+
+#[cfg(windows)]
+async fn handle_apply_spoof_step_windows(
+    vm_name: String,
+    step_id: String,
+    dry_run: bool,
+) -> Result<ControlResponse, ServeError> {
+    let vm = vm_name.clone();
+    let sid = step_id.clone();
+    let join = tokio::task::spawn_blocking(move || {
+        titan_vmm::hyperv::mother_image::apply_spoof_step(&vm, &sid, dry_run)
+    })
+    .await
+    .map_err(|e| join_io(format!("join: {e}")))?;
+    match join {
+        Ok(ok) => Ok(ControlResponse::SpoofStepAck {
+            vm_name,
+            step_id,
+            dry_run,
+            ok,
+            detail: "ok".into(),
+        }),
+        Err(e) => Ok(ControlResponse::SpoofStepAck {
+            vm_name,
+            step_id,
+            dry_run,
+            ok: false,
+            detail: e.to_string(),
+        }),
     }
 }
 
@@ -160,41 +200,16 @@ async fn handle_apply_spoof_step(
     }
     #[cfg(windows)]
     {
-        let vm = vm_name.clone();
-        let sid = step_id.clone();
-        let join = tokio::task::spawn_blocking(move || {
-            titan_vmm::hyperv::mother_image::apply_spoof_step(&vm, &sid, dry_run)
-        })
-        .await
-        .map_err(|e| join_io(format!("join: {e}")))?;
-        match join {
-            Ok(ok) => Ok(ControlResponse::SpoofStepAck {
-                vm_name,
-                step_id,
-                dry_run,
-                ok,
-                detail: "ok".into(),
-            }),
-            Err(e) => Ok(ControlResponse::SpoofStepAck {
-                vm_name,
-                step_id,
-                dry_run,
-                ok: false,
-                detail: e.to_string(),
-            }),
-        }
+        handle_apply_spoof_step_windows(vm_name, step_id, dry_run).await
     }
 }
 
-pub(super) async fn dispatch_request(
+async fn dispatch_vm_requests(
     req: ControlRequest,
     request_id: &str,
     state: &ServeState,
 ) -> Result<ControlResponse, ServeError> {
-    let caps = state.capabilities();
     match req {
-        ControlRequest::Ping => Ok(ControlResponse::Pong { capabilities: caps }),
-        ControlRequest::Hello => Ok(ControlResponse::HelloAck { capabilities: caps }),
         ControlRequest::ListVms => handle_list_vms().await,
         ControlRequest::StartVmGroup { vm_names } => handle_start_vm_group(vm_names).await,
         ControlRequest::StopVmGroup { vm_names } => handle_stop_vm_group(vm_names).await,
@@ -205,6 +220,14 @@ pub(super) async fn dispatch_request(
         ControlRequest::LoadScriptVm { vm_name, source } => {
             handle_load_script_vm(request_id, state, vm_name, source)
         }
+        _ => Err(ServeError::Io(std::io::Error::other(
+            "internal: dispatch_vm_requests",
+        ))),
+    }
+}
+
+async fn dispatch_spoof_host_requests(req: ControlRequest) -> Result<ControlResponse, ServeError> {
+    match req {
         ControlRequest::ApplySpoofProfile {
             vm_name,
             dry_run,
@@ -221,6 +244,46 @@ pub(super) async fn dispatch_request(
             jpeg_quality,
         } => handle_host_desktop_snapshot(max_width, max_height, jpeg_quality).await,
         ControlRequest::HostResourceSnapshot => handle_host_resource_snapshot().await,
+        _ => Err(ServeError::Io(std::io::Error::other(
+            "internal: dispatch_spoof_host_requests",
+        ))),
+    }
+}
+
+async fn dispatch_request_rest(
+    req: ControlRequest,
+    request_id: &str,
+    state: &ServeState,
+) -> Result<ControlResponse, ServeError> {
+    match req {
+        ControlRequest::ApplyHostUiPersistJson { json } => {
+            super::apply_host_ui::handle_apply_host_ui_persist_json(json, state).await
+        }
+        ControlRequest::Ping | ControlRequest::Hello => Err(ServeError::Io(std::io::Error::other(
+            "internal: dispatch_request_rest received Ping/Hello",
+        ))),
+        ControlRequest::ListVms
+        | ControlRequest::StartVmGroup { .. }
+        | ControlRequest::StopVmGroup { .. }
+        | ControlRequest::SetScriptArtifact { .. }
+        | ControlRequest::LoadScriptVm { .. } => dispatch_vm_requests(req, request_id, state).await,
+        ControlRequest::ApplySpoofProfile { .. }
+        | ControlRequest::ApplySpoofStep { .. }
+        | ControlRequest::HostDesktopSnapshot { .. }
+        | ControlRequest::HostResourceSnapshot => dispatch_spoof_host_requests(req).await,
+    }
+}
+
+pub(super) async fn dispatch_request(
+    req: ControlRequest,
+    request_id: &str,
+    state: &ServeState,
+) -> Result<ControlResponse, ServeError> {
+    let caps = state.capabilities();
+    match req {
+        ControlRequest::Ping => Ok(ControlResponse::Pong { capabilities: caps }),
+        ControlRequest::Hello => Ok(ControlResponse::HelloAck { capabilities: caps }),
+        other => dispatch_request_rest(other, request_id, state).await,
     }
 }
 
@@ -229,6 +292,29 @@ async fn handle_host_resource_snapshot() -> Result<ControlResponse, ServeError> 
         .await
         .map_err(|e| join_io(format!("join: {e}")))?;
     Ok(ControlResponse::HostResourceSnapshot { stats: join })
+}
+
+fn desktop_jpeg_response_or_limit(
+    jpeg_bytes: Vec<u8>,
+    width_px: u32,
+    height_px: u32,
+) -> Result<ControlResponse, ServeError> {
+    let max = titan_common::MAX_PAYLOAD_BYTES as usize;
+    if jpeg_bytes.len() > max.saturating_sub(512) {
+        return Ok(server_err(
+            413,
+            format!(
+                "desktop JPEG {} bytes exceeds wire limit (~{} bytes); lower resolution or quality",
+                jpeg_bytes.len(),
+                max
+            ),
+        ));
+    }
+    Ok(ControlResponse::DesktopSnapshotJpeg {
+        jpeg_bytes,
+        width_px,
+        height_px,
+    })
 }
 
 async fn handle_host_desktop_snapshot(
@@ -246,22 +332,7 @@ async fn handle_host_desktop_snapshot(
     .map_err(|e| join_io(format!("join: {e}")))?;
     match join {
         Ok((jpeg_bytes, width_px, height_px)) => {
-            let max = titan_common::MAX_PAYLOAD_BYTES as usize;
-            if jpeg_bytes.len() > max.saturating_sub(512) {
-                return Ok(server_err(
-                    413,
-                    format!(
-                        "desktop JPEG {} bytes exceeds wire limit (~{} bytes); lower resolution or quality",
-                        jpeg_bytes.len(),
-                        max
-                    ),
-                ));
-            }
-            Ok(ControlResponse::DesktopSnapshotJpeg {
-                jpeg_bytes,
-                width_px,
-                height_px,
-            })
+            desktop_jpeg_response_or_limit(jpeg_bytes, width_px, height_px)
         }
         Err(e) => Ok(server_err(500, e)),
     }

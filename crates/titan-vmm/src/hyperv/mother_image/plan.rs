@@ -23,8 +23,8 @@ struct PlanStep {
     detail: String,
 }
 
-fn default_plan_steps() -> Vec<PlanStep> {
-    vec![
+fn plan_steps_manual_review() -> [PlanStep; 2] {
+    [
         PlanStep {
             id: "review_eula",
             status: "manual",
@@ -41,6 +41,11 @@ fn default_plan_steps() -> Vec<PlanStep> {
             rollback_hint: "Restore golden from backup",
             detail: "Golden image: Sysprep / generalize per your deployment guide.".into(),
         },
+    ]
+}
+
+fn plan_steps_hyperv_compute() -> [PlanStep; 2] {
+    [
         PlanStep {
             id: "hyperv_checkpoint_policy",
             status: "automatable",
@@ -59,6 +64,11 @@ fn default_plan_steps() -> Vec<PlanStep> {
             rollback_hint: "Set-VM -ProcessorCount to previous value",
             detail: "Optional: Set-VM -ProcessorCount (VmSpoofProfile.processor_count).".into(),
         },
+    ]
+}
+
+fn plan_steps_hyperv_network() -> [PlanStep; 2] {
+    [
         PlanStep {
             id: "hyperv_network_mac",
             status: "automatable",
@@ -77,6 +87,11 @@ fn default_plan_steps() -> Vec<PlanStep> {
             detail: "Optional: access VLAN on synthetic NICs (VmSpoofProfile.vlan_id_access)."
                 .into(),
         },
+    ]
+}
+
+fn plan_steps_firmware_identity() -> [PlanStep; 2] {
+    [
         PlanStep {
             id: "hyperv_firmware_vtpm",
             status: "automatable",
@@ -95,6 +110,15 @@ fn default_plan_steps() -> Vec<PlanStep> {
                 .into(),
         },
     ]
+}
+
+fn default_plan_steps() -> Vec<PlanStep> {
+    plan_steps_manual_review()
+        .into_iter()
+        .chain(plan_steps_hyperv_compute())
+        .chain(plan_steps_hyperv_network())
+        .chain(plan_steps_firmware_identity())
+        .collect()
 }
 
 /// Writes a JSON checklist for operators (audit trail). Does **not** imply all steps ran.

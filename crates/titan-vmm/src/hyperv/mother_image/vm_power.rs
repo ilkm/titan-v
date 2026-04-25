@@ -6,6 +6,43 @@ use std::process::{Command, Stdio};
 use titan_common::state::VmPowerState;
 use titan_common::{Error, Result};
 
+#[cfg(windows)]
+fn parse_vm_state_stdout(stdout: &[u8]) -> VmPowerState {
+    let s = String::from_utf8_lossy(stdout).trim().to_ascii_lowercase();
+    match s.as_str() {
+        "off" => VmPowerState::Off,
+        "running" => VmPowerState::Running,
+        "paused" | "saved" => VmPowerState::Paused,
+        _ => VmPowerState::Unknown,
+    }
+}
+
+#[cfg(windows)]
+fn get_vm_power_state_windows(vm: &str) -> Result<VmPowerState> {
+    let esc = vm.replace('\'', "''");
+    let script = format!(
+        r#"$ErrorActionPreference = 'Stop'
+Import-Module Hyper-V
+(Get-VM -Name '{esc}' -ErrorAction Stop).State.ToString()"#
+    );
+    let mut cmd = Command::new("powershell.exe");
+    cmd.arg("-NoProfile")
+        .arg("-NonInteractive")
+        .arg("-Command")
+        .arg(&script)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    let out = cmd.output().map_err(|e| Error::HyperVRejected {
+        message: format!("powershell: {e}"),
+    })?;
+    if !out.status.success() {
+        return Err(Error::HyperVRejected {
+            message: super::ps::format_ps(out.status.code(), &out.stdout, &out.stderr),
+        });
+    }
+    Ok(parse_vm_state_stdout(&out.stdout))
+}
+
 /// Returns VM power state from Hyper-V (`Get-VM`).
 pub fn get_vm_power_state_blocking(vm_name: &str) -> Result<VmPowerState> {
     let vm = vm_name.trim();
@@ -16,36 +53,7 @@ pub fn get_vm_power_state_blocking(vm_name: &str) -> Result<VmPowerState> {
     }
     #[cfg(windows)]
     {
-        let esc = vm.replace('\'', "''");
-        let script = format!(
-            r#"$ErrorActionPreference = 'Stop'
-Import-Module Hyper-V
-(Get-VM -Name '{esc}' -ErrorAction Stop).State.ToString()"#
-        );
-        let mut cmd = Command::new("powershell.exe");
-        cmd.arg("-NoProfile")
-            .arg("-NonInteractive")
-            .arg("-Command")
-            .arg(&script)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
-        let out = cmd.output().map_err(|e| Error::HyperVRejected {
-            message: format!("powershell: {e}"),
-        })?;
-        if !out.status.success() {
-            return Err(Error::HyperVRejected {
-                message: super::ps::format_ps(out.status.code(), &out.stdout, &out.stderr),
-            });
-        }
-        let s = String::from_utf8_lossy(&out.stdout)
-            .trim()
-            .to_ascii_lowercase();
-        Ok(match s.as_str() {
-            "off" => VmPowerState::Off,
-            "running" => VmPowerState::Running,
-            "paused" | "saved" => VmPowerState::Paused,
-            _ => VmPowerState::Unknown,
-        })
+        get_vm_power_state_windows(vm)
     }
     #[cfg(not(windows))]
     {

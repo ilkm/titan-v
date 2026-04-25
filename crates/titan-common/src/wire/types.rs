@@ -55,6 +55,8 @@ pub enum ControlRequest {
     },
     /// One-shot host machine CPU / memory / network throughput snapshot.
     HostResourceSnapshot,
+    /// Replace host UI / serve binding JSON (same JSON key as `titan_host_ui_v1` in Titan Host persistence).
+    ApplyHostUiPersistJson { json: String },
 }
 
 /// One row in a [`ControlResponse::VmList`] payload.
@@ -124,6 +126,11 @@ pub enum ControlResponse {
     /// Answer to [`ControlRequest::HostResourceSnapshot`].
     HostResourceSnapshot {
         stats: HostResourceStats,
+    },
+    /// Result of [`ControlRequest::ApplyHostUiPersistJson`].
+    HostUiPersistAck {
+        ok: bool,
+        detail: String,
     },
 }
 

@@ -3,7 +3,8 @@ name = "titan-center"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Center manager desktop app (egui); no CLI."
+description = "Center manager desktop app (egui) + SQLite-backed config and `titan-center-ctl` CLI."
+default-run = "titan-center"
 
 # macOS: `cargo packager --release --manifest-path crates/titan-center/Cargo.toml --formats dmg`
 # Windows (NSIS): same with `--formats nsis` — requires NSIS (`makensis`) on PATH.
@@ -12,14 +13,23 @@ description = "Center manager desktop app (egui); no CLI."
 product-name = "Titan Center"
 identifier = "dev.titanv.center"
 
+[lib]
+name = "titan_center"
+path = "src/lib.rs"
+
 [[bin]]
 name = "titan-center"
 path = "src/main.rs"
 
+[[bin]]
+name = "titan-center-ctl"
+path = "src/bin/center_ctl.rs"
+
 [dependencies]
+clap = { version = "4", features = ["derive"] }
 titan-common = { path = "../titan-common" }
 anyhow = "1.0"
-eframe = { version = "0.31", features = ["persistence"] }
+eframe = { version = "0.31" }
 egui = "0.31"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"

@@ -15,9 +15,7 @@ struct SpoofProbeJson {
     vm_vtpm: bool,
 }
 
-/// Probes which host-side spoof PowerShell surfaces exist (single short PS invocation on Windows).
-pub fn probe_spoof_host_caps_blocking() -> HypervSpoofHostCaps {
-    const PS_PROBE: &str = r#"
+const PS_SPOOF_PROBE: &str = r#"
 $ErrorActionPreference = 'Stop'
 $n=$false;$c=$false;$p=$false;$v=$false;$e=$false;$f=$false;$t=$false
 try {
@@ -31,20 +29,9 @@ try {
 } catch {}
 @{ network_identity=$n; vm_checkpoint_policy=$c; vm_processor_count=$p; vm_vlan_config=$v; vm_expose_virtualization_extensions=$e; vm_firmware_secure_boot=$f; vm_vtpm=$t } | ConvertTo-Json -Compress
 "#;
-    let out = match Command::new("powershell.exe")
-        .arg("-NoProfile")
-        .arg("-NonInteractive")
-        .arg("-Command")
-        .arg(PS_PROBE)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .output()
-    {
-        Ok(o) if o.status.success() => o,
-        _ => return HypervSpoofHostCaps::default(),
-    };
-    let line = String::from_utf8_lossy(&out.stdout).trim().to_string();
-    serde_json::from_str::<SpoofProbeJson>(&line)
+
+fn spoof_probe_caps_from_json_line(line: &str) -> HypervSpoofHostCaps {
+    serde_json::from_str::<SpoofProbeJson>(line)
         .map(|j| HypervSpoofHostCaps {
             network_identity: j.network_identity,
             vm_checkpoint_policy: j.vm_checkpoint_policy,
@@ -55,4 +42,22 @@ try {
             vm_vtpm: j.vm_vtpm,
         })
         .unwrap_or_default()
+}
+
+/// Probes which host-side spoof PowerShell surfaces exist (single short PS invocation on Windows).
+pub fn probe_spoof_host_caps_blocking() -> HypervSpoofHostCaps {
+    let out = match Command::new("powershell.exe")
+        .arg("-NoProfile")
+        .arg("-NonInteractive")
+        .arg("-Command")
+        .arg(PS_SPOOF_PROBE)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+    {
+        Ok(o) if o.status.success() => o,
+        _ => return HypervSpoofHostCaps::default(),
+    };
+    let line = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    spoof_probe_caps_from_json_line(&line)
 }

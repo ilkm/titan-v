@@ -1,8 +1,6 @@
 //! Titan-v center manager: egui shell + control-plane client (Hello/Ping over framed TCP).
 
-mod app;
-
-use app::CenterApp;
+use titan_center::app::CenterApp;
 use tracing_subscriber::EnvFilter;
 
 fn main() -> eframe::Result<()> {
@@ -15,7 +13,6 @@ fn main() -> eframe::Result<()> {
             .with_inner_size([1120.0, 720.0])
             .with_min_inner_size([920.0, 560.0])
             .with_title("Titan Center"),
-        persistence_path: Some(std::path::PathBuf::from("titan-center")),
         ..Default::default()
     };
 

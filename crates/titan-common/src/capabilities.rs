@@ -138,46 +138,72 @@ impl Capabilities {
     ) -> Self {
         #[cfg(windows)]
         {
-            let hv = probes.hyperv_ps_module_available;
-            let mut c = Capabilities {
-                hyperv: hv,
-                streaming_precheck: hv,
-                gpu_partition: gpu_partition_cmdlets_available,
-                hardware_spoof: probes.spoof_host.network_identity,
-                hyperv_spoof_host: probes.spoof_host.clone(),
-                kernel_driver_ipc: probes.kernel_driver_ipc,
-                winhv_guest_memory: probes.winhv_guest_memory,
-                vmbus_hid: probes.vmbus_hid,
-                streaming_nvenc: probes.streaming_nvenc,
-                streaming_webrtc: probes.streaming_webrtc,
-                windivert_forward: probes.windivert_forward,
-                linux_virsh_inventory: false,
-                ..Self::default()
-            };
-            if agent_configured {
-                c.guest_agent = true;
-                c.vmbus_input = true;
-            }
-            c
+            Self::from_host_runtime_probes_windows(
+                agent_configured,
+                gpu_partition_cmdlets_available,
+                probes,
+            )
         }
         #[cfg(not(windows))]
         {
-            Capabilities {
-                hyperv: probes.hyperv_ps_module_available,
-                guest_agent: agent_configured,
-                vmbus_input: agent_configured,
-                gpu_partition: gpu_partition_cmdlets_available,
-                hardware_spoof: probes.spoof_host.network_identity,
-                hyperv_spoof_host: probes.spoof_host.clone(),
-                kernel_driver_ipc: probes.kernel_driver_ipc,
-                winhv_guest_memory: probes.winhv_guest_memory,
-                vmbus_hid: probes.vmbus_hid,
-                streaming_nvenc: probes.streaming_nvenc,
-                streaming_webrtc: probes.streaming_webrtc,
-                windivert_forward: probes.windivert_forward,
-                linux_virsh_inventory: probes.linux_virsh_available,
-                ..Default::default()
-            }
+            Self::from_host_runtime_probes_non_windows(
+                agent_configured,
+                gpu_partition_cmdlets_available,
+                probes,
+            )
+        }
+    }
+
+    #[cfg(windows)]
+    fn from_host_runtime_probes_windows(
+        agent_configured: bool,
+        gpu_partition_cmdlets_available: bool,
+        probes: &HostRuntimeProbes,
+    ) -> Self {
+        let hv = probes.hyperv_ps_module_available;
+        let mut c = Capabilities {
+            hyperv: hv,
+            streaming_precheck: hv,
+            gpu_partition: gpu_partition_cmdlets_available,
+            hardware_spoof: probes.spoof_host.network_identity,
+            hyperv_spoof_host: probes.spoof_host.clone(),
+            kernel_driver_ipc: probes.kernel_driver_ipc,
+            winhv_guest_memory: probes.winhv_guest_memory,
+            vmbus_hid: probes.vmbus_hid,
+            streaming_nvenc: probes.streaming_nvenc,
+            streaming_webrtc: probes.streaming_webrtc,
+            windivert_forward: probes.windivert_forward,
+            linux_virsh_inventory: false,
+            ..Self::default()
+        };
+        if agent_configured {
+            c.guest_agent = true;
+            c.vmbus_input = true;
+        }
+        c
+    }
+
+    #[cfg(not(windows))]
+    fn from_host_runtime_probes_non_windows(
+        agent_configured: bool,
+        gpu_partition_cmdlets_available: bool,
+        probes: &HostRuntimeProbes,
+    ) -> Self {
+        Capabilities {
+            hyperv: probes.hyperv_ps_module_available,
+            guest_agent: agent_configured,
+            vmbus_input: agent_configured,
+            gpu_partition: gpu_partition_cmdlets_available,
+            hardware_spoof: probes.spoof_host.network_identity,
+            hyperv_spoof_host: probes.spoof_host.clone(),
+            kernel_driver_ipc: probes.kernel_driver_ipc,
+            winhv_guest_memory: probes.winhv_guest_memory,
+            vmbus_hid: probes.vmbus_hid,
+            streaming_nvenc: probes.streaming_nvenc,
+            streaming_webrtc: probes.streaming_webrtc,
+            windivert_forward: probes.windivert_forward,
+            linux_virsh_inventory: probes.linux_virsh_available,
+            ..Default::default()
         }
     }
 }
