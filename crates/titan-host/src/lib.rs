@@ -19,7 +19,19 @@ pub mod ui_persist;
 pub mod driver {
     pub use titan_driver::*;
 }
+/// Offline mother-disk tooling (Phase 2B); consumed only by the host stack.
+pub mod offline_spoof {
+    pub use titan_offline_spoof::*;
+}
 pub mod runtime;
 pub mod serve;
 pub use serve::ServeState;
 pub mod windivert;
+/// VM / hypervisor automation surface used by the host (Hyper-V on Windows, stubs elsewhere).
+pub mod vmm {
+    pub use titan_vmm::*;
+}
+/// Lua script engine surface used by the host orchestration path.
+pub mod scripts {
+    pub use titan_scripts::*;
+}

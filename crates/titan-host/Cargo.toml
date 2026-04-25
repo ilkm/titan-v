@@ -25,6 +25,7 @@ path = "src/main.rs"
 [dependencies]
 titan-common = { path = "../titan-common" }
 titan-driver = { path = "../titan-driver" }
+titan-offline-spoof = { path = "../titan-offline-spoof" }
 titan-scripts = { path = "../titan-scripts" }
 titan-vmm = { path = "../titan-vmm" }
 titan-tray = { path = "../titan-tray", features = ["egui"] }
