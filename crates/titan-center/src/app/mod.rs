@@ -141,7 +141,7 @@ pub struct CenterApp {
     pub(crate) really_quitting: bool,
     /// Main window was hidden to the tray; used to keep egui repainting in the background.
     pub(crate) hidden_to_tray: bool,
-    /// Owns the tray icon on Windows/macOS (Linux uses `titan_tray::spawn_linux_tray_thread`).
+    /// Owns the tray icon when `tray-icon` successfully builds (platform-dependent).
     pub(crate) _tray: Option<titan_tray::TrayIcon>,
     /// macOS/Winit: tray must be created after the event loop has started (`StartCause::Init`); see tray-icon docs.
     tray_icon_init_attempted: bool,

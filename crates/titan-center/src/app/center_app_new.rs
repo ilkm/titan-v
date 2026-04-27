@@ -28,12 +28,6 @@ impl CenterApp {
         }
         self.tray_icon_init_attempted = true;
 
-        #[cfg(target_os = "linux")]
-        {
-            return;
-        }
-
-        #[cfg(not(target_os = "linux"))]
         match titan_tray::build_tray_icon() {
             Ok(t) => self._tray = Some(t),
             Err(e) => tracing::warn!("system tray unavailable: {e}"),

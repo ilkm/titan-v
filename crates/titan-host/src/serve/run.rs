@@ -103,7 +103,6 @@ fn log_runtime_probes(gpu_partition_available: bool, runtime_probes: &HostRuntim
     let caps = &runtime_probes.spoof_host;
     tracing::info!(
         hyperv_ps_module = runtime_probes.hyperv_ps_module_available,
-        linux_virsh = runtime_probes.linux_virsh_available,
         gpu_partition_cmdlets = gpu_partition_available,
         spoof_network = caps.network_identity,
         spoof_checkpoint = caps.vm_checkpoint_policy,

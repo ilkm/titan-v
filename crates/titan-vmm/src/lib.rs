@@ -1,14 +1,11 @@
 //! Virtual machine monitor abstraction.
 //!
-//! **Platforms**: [`hyperv`] for Windows (M1 provisioning + future VMBus paths). [`kvm`] for
-//! Linux/KVM + virtio (placeholder). [`hvf`] for Apple host virtualization (placeholder).
-//! [`platform_vm`] routes ListVms / domain power for `titan-host`.
+//! **Production path**: [`hyperv`] on Windows (M1 provisioning + future VMBus paths).
+//! [`platform_vm`] routes ListVms / domain power for `titan-host` on Windows to `hyperv`.
 
 #![forbid(unsafe_code)]
 
-pub mod hvf;
 pub mod hyperv;
-pub mod kvm;
 pub mod platform_vm;
 
 mod traits;

@@ -15,6 +15,5 @@ pub fn probe_host_runtime_blocking() -> HostRuntimeProbes {
         streaming_nvenc: false,
         streaming_webrtc: false,
         windivert_forward: false,
-        linux_virsh_available: titan_vmm::platform_vm::linux_virsh_available_blocking(),
     }
 }

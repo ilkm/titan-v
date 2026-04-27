@@ -21,16 +21,8 @@ fn host_capability_hint(caps: &Capabilities) -> &'static str {
         }
         return "hyperv: Hyper-V role / PowerShell module not detected on this Windows host.";
     }
-    if cfg!(target_os = "linux") {
-        if caps.linux_virsh_inventory {
-            return "linux: VM list and batch power use virsh (libvirt shell); Hyper-V is N/A on Linux.";
-        }
-        return "linux: virsh not on PATH — ListVms returns empty and batch power is unavailable until libvirt client tools are installed.";
-    }
-    if cfg!(target_os = "macos") {
-        return "macos: VM inventory and batch power are not implemented yet (Virtualization.framework path pending).";
-    }
-    ""
+    let _ = caps;
+    "non-Windows: VM inventory and batch power require a Windows host with Hyper-V (stub build)."
 }
 
 /// Shared state for one `serve` process (agent bindings + script queue).

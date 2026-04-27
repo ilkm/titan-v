@@ -19,8 +19,7 @@ pub use menu::{build_tray_menu, DesktopProduct};
 pub use egui::{
     apply_close_hides_to_tray, build_host_tray_icon, build_tray_icon,
     macos_ensure_regular_activation_for_egui_app, poll_tray_for_egui, poll_tray_for_egui_product,
-    register_center_tray_wakeup, register_host_tray_wakeup, spawn_linux_host_tray_thread,
-    spawn_linux_tray_thread,
+    register_center_tray_wakeup, register_host_tray_wakeup,
 };
 
 #[cfg(feature = "tokio")]

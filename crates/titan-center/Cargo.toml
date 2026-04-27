@@ -6,9 +6,8 @@ license.workspace = true
 description = "Center manager desktop app (egui) with SQLite-backed config."
 default-run = "titan-center"
 
-# macOS: `cargo packager --release --manifest-path crates/titan-center/Cargo.toml --formats dmg`
-# Windows (NSIS): same with `--formats nsis` — requires NSIS (`makensis`) on PATH.
-# Linux: use plain `cargo build --release -p titan-center` (no packager).
+# Primary packaging: Windows (NSIS) — `cargo packager ... --formats nsis` (requires `makensis` on PATH).
+# Optional: macOS `... --formats dmg`. Linux: `cargo build --release -p titan-center` (tray depends on DE; no packager recipe here).
 [package.metadata.packager]
 product-name = "Titan Center"
 identifier = "dev.titanv.center"

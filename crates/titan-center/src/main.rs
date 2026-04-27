@@ -22,9 +22,6 @@ fn main() -> eframe::Result<()> {
         Box::new(|cc| {
             titan_tray::register_center_tray_wakeup(&cc.egui_ctx);
 
-            #[cfg(target_os = "linux")]
-            titan_tray::spawn_linux_tray_thread();
-
             let app = CenterApp::new(cc);
             Ok(Box::new(app))
         }),

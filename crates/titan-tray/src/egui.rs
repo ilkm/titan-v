@@ -22,7 +22,6 @@ fn register_menu_repaint_handler(ctx: &egui::Context) {
     }));
 }
 
-#[cfg(not(target_os = "linux"))]
 fn register_tray_icon_show_handler(ctx: &egui::Context, show_id: MenuId) {
     let ctx_tray = ctx.clone();
     TrayIconEvent::set_event_handler(Some(move |ev| {
@@ -48,7 +47,6 @@ fn register_tray_wakeup_impl(ctx: &egui::Context, product: DesktopProduct) {
     }
     let show_id = product.show_menu_id();
     register_menu_repaint_handler(ctx);
-    #[cfg(not(target_os = "linux"))]
     register_tray_icon_show_handler(ctx, show_id);
 }
 
@@ -86,68 +84,6 @@ fn build_tray_icon_for(product: DesktopProduct, tooltip: &str) -> tray_icon::Res
     };
     builder.build()
 }
-
-/// No-op off Linux (call sites may still `cfg` this; kept for simpler imports).
-#[cfg(not(target_os = "linux"))]
-pub fn spawn_linux_tray_thread() {}
-
-#[cfg(target_os = "linux")]
-pub fn spawn_linux_tray_thread() {
-    std::thread::spawn(|| {
-        if gtk::init().is_err() {
-            tracing::warn!("tray: gtk::init failed; system tray disabled on Linux");
-            return;
-        }
-        let menu = match menu::build_tray_menu(DesktopProduct::Center) {
-            Ok(m) => m,
-            Err(e) => {
-                tracing::warn!("tray: menu build failed: {e}");
-                return;
-            }
-        };
-        match TrayIconBuilder::new()
-            .with_menu(Box::new(menu))
-            .with_menu_on_left_click(false)
-            .with_tooltip("Titan Center")
-            .with_icon(crate::icon::tray_icon_for(DesktopProduct::Center))
-            .build()
-        {
-            Ok(_keep_alive) => gtk::main(),
-            Err(e) => tracing::warn!("tray: failed to build tray icon on Linux: {e}"),
-        }
-    });
-}
-
-/// Linux GTK thread for **Titan Host** tray (distinct menu ids from Center).
-#[cfg(target_os = "linux")]
-pub fn spawn_linux_host_tray_thread() {
-    std::thread::spawn(|| {
-        if gtk::init().is_err() {
-            tracing::warn!("tray: gtk::init failed; system tray disabled on Linux");
-            return;
-        }
-        let menu = match menu::build_tray_menu(DesktopProduct::Host) {
-            Ok(m) => m,
-            Err(e) => {
-                tracing::warn!("tray: menu build failed: {e}");
-                return;
-            }
-        };
-        match TrayIconBuilder::new()
-            .with_menu(Box::new(menu))
-            .with_menu_on_left_click(false)
-            .with_tooltip("Titan Host")
-            .with_icon(crate::icon::tray_icon_for(DesktopProduct::Host))
-            .build()
-        {
-            Ok(_keep_alive) => gtk::main(),
-            Err(e) => tracing::warn!("tray: failed to build host tray icon on Linux: {e}"),
-        }
-    });
-}
-
-#[cfg(not(target_os = "linux"))]
-pub fn spawn_linux_host_tray_thread() {}
 
 /// Drain tray-queued menu actions (handlers call [`egui::Context::request_repaint`]).
 ///

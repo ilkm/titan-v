@@ -10,7 +10,7 @@ use titan_vmm::hyperv::{
 };
 use titan_vmm::PowerControl;
 
-/// Holds concrete Hyper-V subsystems after differencing-disk provisioning (kvm/mac unchanged).
+/// Holds concrete Hyper-V subsystems after differencing-disk provisioning.
 pub struct Orchestrator {
     /// Power + provisioning entry (`New-VM` / `Start-VM` paths).
     pub hyperv: HypervBackend,

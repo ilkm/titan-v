@@ -1,7 +1,7 @@
 //! Primary-display capture for [`titan_common::ControlRequest::HostDesktopSnapshot`] (JPEG).
 //!
-//! **macOS**: grant **Screen Recording** (and often **Accessibility**) to the `titan-host` binary
-//! in *System Settings → Privacy & Security*; capture may return errors until permission is granted.
+//! Production **`titan-host`** targets Windows; this module may still compile on other OSes for
+//! workspace checks. Capture errors surface as plain strings.
 
 use image::codecs::jpeg::JpegEncoder;
 use image::ImageEncoder;
@@ -9,29 +9,11 @@ use image::{DynamicImage, ExtendedColorType, RgbaImage};
 use screenshots::Screen;
 
 fn map_screen_list_error(e: impl std::fmt::Display) -> String {
-    #[cfg(target_os = "macos")]
-    {
-        format!(
-            "{e} (macOS: enable Screen Recording for titan-host in System Settings → Privacy & Security)"
-        )
-    }
-    #[cfg(not(target_os = "macos"))]
-    {
-        format!("{e}")
-    }
+    format!("{e}")
 }
 
 fn map_screen_capture_error(e: impl std::fmt::Display) -> String {
-    #[cfg(target_os = "macos")]
-    {
-        format!(
-            "{e} (macOS: Screen Recording permission required for desktop preview; check Privacy & Security)"
-        )
-    }
-    #[cfg(not(target_os = "macos"))]
-    {
-        format!("{e}")
-    }
+    format!("{e}")
 }
 
 /// Encode a downscaled RGBA buffer as baseline JPEG (`image` crate JPEG does not accept `Rgba8`).

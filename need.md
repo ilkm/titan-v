@@ -16,23 +16,19 @@
 
 在「约 200 台物理机、单宿主机约 40 VM、合计约 8000 窗口」一类规模下：中控做全局调度与代理池视图，宿主侧做差分盘批量克隆、多路 Lua、按 VM 的网络策略。具体数字随硬件与后端可调；需求以**元能力**与**控制面契约**为主。
 
-## 宿主虚拟化后端矩阵
+## 宿主虚拟化后端
 
-| 宿主 OS | 后端 | 存储形态（目标） | 仓库状态 |
-|---------|------|------------------|----------|
-| Windows | Hyper-V | 母盘（只读）+ 差分 VHDX | **主实作轨**：`crates/titan-vmm::hyperv`、宿主 provision / 电源 / GPU-PV 可选路径 |
-| Linux | KVM | 按后端惯例（镜像 / COW 等，产品化时细化） | **占位**：`crates/titan-vmm::kvm`，Phase 3 前不进入 DoD |
-| macOS | Hypervisor.framework | 按 Apple 虚拟化惯例 | **占位**：`crates/titan-vmm::hvf`，Phase 3 前不进入 DoD |
+**产品路径**：宿主 OS **仅 Windows**，虚拟化后端 **Hyper-V**，存储目标为母盘（只读）+ 差分 VHDX；实作轨为 `crates/titan-vmm::hyperv`、宿主 provision / 电源 / GPU-PV 可选路径。`titan-center` 可在其他桌面 OS 上运行以连接 Windows 宿主。
 
 中控与宿主之间的**默认控制面**为带版本号的二进制帧（`crates/titan-common` 中 `wire` / `PROTOCOL_VERSION`）；能力协商见 `Capabilities` 与宿主启动探测。
 
-扩写与分层说明见 `docs/host-cross-platform-architecture.md`。
+分层与演进说明见 `docs/host-windows-architecture.md`。
 
 ---
 
 ## titan-host 元能力（宿主侧抽象 API）
 
-以下名称为**产品/契约层**意图；Windows 轨下列出主要底层落点。Linux / Mac 轨在对应后端落地时再做等价实现或子集声明。**并非**所有调用都会或应该以 TCP `ControlRequest` 暴露（调试与 orchestrator 内部路径见 `need_mapping.rs` 对照表）。
+以下名称为**产品/契约层**意图；下列出 **Windows / Hyper-V** 主要底层落点。**并非**所有调用都会或应该以 TCP `ControlRequest` 暴露（调试与 orchestrator 内部路径见 `need_mapping.rs` 对照表）。
 
 ### 一、内存操控元能力（Memory Sovereignty）
 
@@ -112,5 +108,5 @@
 |------|------|
 | `crates/titan-common/src/need_mapping.rs` | Phase 1 DoD、Phase 2+ 列表、主题 → crate 对照 |
 | `docs/requirements-traceability.md` | 元能力 / API → 实现轨 / 代码锚点 / 测试 |
-| `docs/host-cross-platform-architecture.md` | titan-host 跨宿主 OS 分层、后端矩阵扩写、WHP 与 Hyper-V 关系、Capabilities/Lua 约束与演进里程碑（路线图） |
+| `docs/host-windows-architecture.md` | titan-host Windows 分层、Hyper-V 与 WHP 关系、Capabilities/Lua 约束 |
 | `docs/hyperv-secure-boot-matrix.md` | **仅 Windows / Hyper-V 轨** 的宿主/来宾 SB 与驱动矩阵 |

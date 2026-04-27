@@ -1,24 +1,17 @@
-//! Cross-OS **ListVms** and **domain power** entry points for `titan-host` (single owner per OS path).
+//! **ListVms** and **domain power** for `titan-host`. On Windows this delegates to Hyper-V;
+//! off-Windows, stubs exist so workspace crates can type-check on CI / dev machines.
 
-use titan_common::{state::VmPowerState, Result};
+use titan_common::{state::VmPowerState, Error, Result};
 
-/// Lists VMs for the control plane / telemetry. macOS returns an empty list until backed.
+/// Lists VMs for the control plane / telemetry.
 pub fn list_vms_blocking() -> Result<Vec<(String, VmPowerState)>> {
     #[cfg(windows)]
     {
         return crate::hyperv::list_vms_blocking();
     }
-    #[cfg(target_os = "linux")]
+    #[cfg(not(windows))]
     {
-        if !crate::kvm::virsh_shell::virsh_version_available_blocking() {
-            tracing::debug!("platform_vm list: virsh not on PATH; returning empty VM list");
-            return Ok(Vec::new());
-        }
-        return crate::kvm::virsh_shell::list_domains_blocking();
-    }
-    #[cfg(all(not(windows), not(target_os = "linux")))]
-    {
-        tracing::debug!("platform_vm list: macOS placeholder; empty VM list");
+        tracing::debug!("platform_vm list: non-Windows build; empty VM list");
         Ok(Vec::new())
     }
 }
@@ -35,41 +28,11 @@ pub fn domain_set_power_blocking(vm_name: &str, start: bool) -> Result<()> {
             b.stop(vm_name)
         };
     }
-    #[cfg(target_os = "linux")]
-    {
-        return crate::kvm::virsh_shell::domain_set_power_blocking(vm_name, start);
-    }
-    #[cfg(all(not(windows), not(target_os = "linux")))]
+    #[cfg(not(windows))]
     {
         let _ = (vm_name, start);
-        Err(titan_common::Error::NotImplemented {
-            feature: "macOS domain power (Virtualization.framework path pending)",
+        Err(Error::NotImplemented {
+            feature: "VM power (Hyper-V only; non-Windows stub build)",
         })
-    }
-}
-
-/// Linux only: whether `virsh` is usable for inventory / power.
-#[must_use]
-pub fn linux_virsh_available_blocking() -> bool {
-    #[cfg(target_os = "linux")]
-    {
-        crate::kvm::virsh_shell::virsh_version_available_blocking()
-    }
-    #[cfg(not(target_os = "linux"))]
-    {
-        false
-    }
-}
-
-#[cfg(all(test, target_os = "linux"))]
-mod linux_tests {
-    use super::*;
-
-    #[test]
-    fn list_without_virsh_is_empty_ok() {
-        if crate::kvm::virsh_shell::virsh_version_available_blocking() {
-            return;
-        }
-        assert!(list_vms_blocking().unwrap().is_empty());
     }
 }

@@ -33,19 +33,11 @@ fn host_initial_tray(cc: &eframe::CreationContext<'_>) -> Option<titan_tray::Tra
     titan_tray::macos_ensure_regular_activation_for_egui_app();
     titan_tray::register_host_tray_wakeup(&cc.egui_ctx);
 
-    #[cfg(target_os = "linux")]
-    {
-        titan_tray::spawn_linux_host_tray_thread();
-        None
-    }
-    #[cfg(not(target_os = "linux"))]
-    {
-        match titan_tray::build_host_tray_icon() {
-            Ok(t) => Some(t),
-            Err(e) => {
-                tracing::warn!("system tray unavailable: {e}");
-                None
-            }
+    match titan_tray::build_host_tray_icon() {
+        Ok(t) => Some(t),
+        Err(e) => {
+            tracing::warn!("system tray unavailable: {e}");
+            None
         }
     }
 }

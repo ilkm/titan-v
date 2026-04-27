@@ -1,18 +1,18 @@
 //! Tray for `titan-host serve`: no main window — only **Quit** stops the listener via a watch flag.
 
-#[cfg(all(not(target_os = "linux"), not(target_os = "macos")))]
+#[cfg(not(target_os = "macos"))]
 use std::time::Duration;
 
 use tokio::sync::watch;
 use tray_icon::menu::{MenuEvent, MenuId};
 use tray_icon::TrayIconBuilder;
 
-#[cfg(all(not(target_os = "linux"), not(target_os = "macos")))]
+#[cfg(not(target_os = "macos"))]
 use tray_icon::TrayIconEvent;
 
 use crate::menu::{self, DesktopProduct, MENU_HOST_QUIT};
 
-#[cfg(all(not(target_os = "linux"), not(target_os = "macos")))]
+#[cfg(not(target_os = "macos"))]
 fn poll_host_tray_until_quit(shutdown_tx: &watch::Sender<bool>, quit_id: &MenuId) {
     loop {
         while let Ok(ev) = MenuEvent::receiver().try_recv() {
@@ -26,8 +26,8 @@ fn poll_host_tray_until_quit(shutdown_tx: &watch::Sender<bool>, quit_id: &MenuId
     }
 }
 
-#[cfg(all(not(target_os = "linux"), not(target_os = "macos")))]
-fn windows_tray_host_thread(shutdown_tx: watch::Sender<bool>, tooltip: String) {
+#[cfg(not(target_os = "macos"))]
+fn non_macos_tray_host_thread(shutdown_tx: watch::Sender<bool>, tooltip: String) {
     let menu = match menu::build_tray_menu(DesktopProduct::Host) {
         Ok(m) => m,
         Err(e) => {
@@ -61,26 +61,13 @@ fn host_tooltip(tooltip: &str) -> String {
     }
 }
 
-#[cfg(target_os = "linux")]
-fn linux_build_host_tray(tooltip: &str) -> Result<tray_icon::TrayIcon, String> {
-    let menu = menu::build_tray_menu(DesktopProduct::Host).map_err(|e| e.to_string())?;
-    let icon = crate::icon::tray_icon_for(DesktopProduct::Host);
-    TrayIconBuilder::new()
-        .with_menu(Box::new(menu))
-        .with_menu_on_left_click(false)
-        .with_tooltip(tooltip)
-        .with_icon(icon)
-        .build()
-        .map_err(|e| e.to_string())
-}
-
-/// Windows (and other non-macOS desktops except Linux): tray thread polls [`MenuEvent`].
-#[cfg(all(not(target_os = "linux"), not(target_os = "macos")))]
+/// Windows / Linux: tray thread polls [`MenuEvent`] (when the platform supports `tray-icon`).
+#[cfg(not(target_os = "macos"))]
 pub fn spawn_tray_shutdown_for_serve(shutdown_tx: watch::Sender<bool>, tooltip: String) {
     let tooltip = host_tooltip(&tooltip);
     std::thread::Builder::new()
         .name("titan-tray-host".to_string())
-        .spawn(move || windows_tray_host_thread(shutdown_tx, tooltip))
+        .spawn(move || non_macos_tray_host_thread(shutdown_tx, tooltip))
         .expect("spawn titan-tray-host thread");
 }
 
@@ -146,41 +133,4 @@ pub fn spawn_tray_shutdown_for_serve(shutdown_tx: watch::Sender<bool>, tooltip: 
     if let Err(e) = res {
         tracing::warn!("system tray unavailable: {e}");
     }
-}
-
-#[cfg(target_os = "linux")]
-fn linux_gtk_host_tray_main(shutdown_tx: watch::Sender<bool>, tooltip: String) {
-    if gtk::init().is_err() {
-        tracing::warn!("tray: gtk::init failed; system tray disabled on Linux");
-        return;
-    }
-    let _tray = match linux_build_host_tray(&tooltip) {
-        Ok(t) => t,
-        Err(e) => {
-            tracing::warn!("system tray unavailable: {e}");
-            return;
-        }
-    };
-    let shutdown_cb = shutdown_tx.clone();
-    let quit_id = MenuId::new(MENU_HOST_QUIT);
-    MenuEvent::set_event_handler(Some(move |ev| {
-        if ev.id == quit_id {
-            let _ = shutdown_cb.send(true);
-            gtk::main_quit();
-        }
-    }));
-    gtk::main();
-    MenuEvent::set_event_handler(None::<fn(MenuEvent)>);
-    let _ = _tray;
-}
-
-/// Linux: GTK thread + [`MenuEvent::set_event_handler`] so Quit does not contend with a second
-/// [`MenuEvent::receiver`] (GTK menu runs on the GTK thread).
-#[cfg(target_os = "linux")]
-pub fn spawn_tray_shutdown_for_serve(shutdown_tx: watch::Sender<bool>, tooltip: String) {
-    let tooltip = host_tooltip(&tooltip);
-    std::thread::Builder::new()
-        .name("titan-tray-host".to_string())
-        .spawn(move || linux_gtk_host_tray_main(shutdown_tx, tooltip))
-        .expect("spawn titan-tray-host thread");
 }

@@ -91,9 +91,6 @@ pub struct Capabilities {
     /// WinDivert kernel forward path (not implemented until R5c).
     #[serde(default)]
     pub windivert_forward: bool,
-    /// Linux: `virsh` on PATH for optional list / batch power (libvirt shell; not full QEMU parity).
-    #[serde(default)]
-    pub linux_virsh_inventory: bool,
     /// Host-reported notice (e.g. agent-bindings path missing or unreadable at startup).
     #[serde(default)]
     pub host_notice: String,
@@ -173,7 +170,6 @@ impl Capabilities {
             streaming_nvenc: probes.streaming_nvenc,
             streaming_webrtc: probes.streaming_webrtc,
             windivert_forward: probes.windivert_forward,
-            linux_virsh_inventory: false,
             ..Self::default()
         };
         if agent_configured {
@@ -202,7 +198,6 @@ impl Capabilities {
             streaming_nvenc: probes.streaming_nvenc,
             streaming_webrtc: probes.streaming_webrtc,
             windivert_forward: probes.windivert_forward,
-            linux_virsh_inventory: probes.linux_virsh_available,
             ..Default::default()
         }
     }
@@ -220,6 +215,4 @@ pub struct HostRuntimeProbes {
     pub streaming_nvenc: bool,
     pub streaming_webrtc: bool,
     pub windivert_forward: bool,
-    /// Linux: `virsh --version` succeeds (libvirt client tools).
-    pub linux_virsh_available: bool,
 }

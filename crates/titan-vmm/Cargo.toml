@@ -3,7 +3,7 @@ name = "titan-vmm"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Virtualization abstraction: traits + Hyper-V (Windows) + KVM placeholders (Linux)."
+description = "Virtualization abstraction: traits + Hyper-V (Windows production path)."
 
 [dependencies]
 titan-common = { path = "../titan-common" }
