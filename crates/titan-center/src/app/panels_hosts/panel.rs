@@ -12,7 +12,7 @@ use egui::{
 use super::super::constants::DEVICE_CARD_GAP;
 use super::super::discovery;
 use super::super::i18n::{t, Msg};
-use super::super::widgets::subtle_button;
+use super::super::widgets::subtle_button_toolbar;
 use super::super::CenterApp;
 use super::helpers::{device_mgmt_card_height_hint, device_mgmt_cols_and_card_width};
 
@@ -36,6 +36,7 @@ impl CenterApp {
 
     fn panel_device_mgmt_toolbar(&mut self, ui: &mut egui::Ui, lang: super::super::i18n::UiLang) {
         ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 8.0;
             self.panel_device_mgmt_toolbar_left(ui, lang);
             self.panel_device_mgmt_toolbar_right(ui, lang);
         });
@@ -46,7 +47,7 @@ impl CenterApp {
         ui: &mut egui::Ui,
         lang: super::super::i18n::UiLang,
     ) {
-        if subtle_button(ui, t(lang, Msg::BtnAddHost), true).clicked() {
+        if subtle_button_toolbar(ui, t(lang, Msg::BtnAddHost), true).clicked() {
             self.add_host_dialog_ip = discovery::default_manual_host_ipv4_string();
             self.add_host_dialog_port = "7788".into();
             self.add_host_dialog_err.clear();
@@ -91,7 +92,7 @@ impl CenterApp {
         ui: &mut egui::Ui,
         lang: super::super::i18n::UiLang,
     ) {
-        if subtle_button(
+        if subtle_button_toolbar(
             ui,
             t(lang, Msg::BtnHostHello),
             !self.fleet_busy && !self.endpoints.is_empty(),
@@ -100,7 +101,7 @@ impl CenterApp {
         {
             self.spawn_fleet_hello_selected();
         }
-        if subtle_button(
+        if subtle_button_toolbar(
             ui,
             t(lang, Msg::BtnHostTelemetry),
             !self.endpoints.is_empty(),

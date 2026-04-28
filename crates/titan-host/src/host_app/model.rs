@@ -1,6 +1,5 @@
 //! Host egui app model (persist + serve handle).
 
-use std::sync::mpsc;
 use std::sync::Arc;
 use std::thread::JoinHandle;
 use std::time::Duration;
@@ -67,7 +66,6 @@ impl ServeRun {
 }
 
 pub struct HostApp {
-    pub(crate) ctx: egui::Context,
     pub(crate) really_quitting: bool,
     pub(crate) hidden_to_tray: bool,
     pub(crate) _tray: Option<titan_tray::TrayIcon>,
@@ -81,8 +79,6 @@ pub struct HostApp {
     pub(crate) persist: HostUiPersist,
     pub(crate) active_tab: usize,
     pub(crate) status_line: String,
-    pub(crate) provision_log: Vec<String>,
-    pub(crate) provision_rx: Option<mpsc::Receiver<String>>,
     pub(crate) env_listen_hint: Option<String>,
     /// First `update` tick starts serve once (invalid listen → user fixes and clicks restart).
     pub(crate) initial_serve_attempted: bool,

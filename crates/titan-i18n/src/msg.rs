@@ -106,7 +106,7 @@ pub enum Msg {
     HpWinTitle,
     /// Host sidebar: listen / announce / persist (formerly “Service”).
     HpTabSettings,
-    /// Host sidebar: VM plans / provision (shown as **窗口管理** in UI).
+    /// Host sidebar: window-management tab (content TBD).
     HpTabWindowMgmt,
     HpLangLabel,
     HpListen,
@@ -117,30 +117,12 @@ pub enum Msg {
     HpPublicAddr,
     HpLabelOverride,
     HpSaveRestart,
-    HpBatchTimeout,
-    HpBatchFailFast,
-    HpHeadingVmPlans,
-    HpHeadingVmGroups,
-    HpAddExplicitVm,
-    HpAddVmGroup,
-    HpName,
-    HpDelete,
-    HpParentVhdx,
-    HpDiffDir,
-    HpMemBytes,
-    HpGen,
-    HpSwitch,
-    HpAutoStartAfter,
-    HpGpuPath,
-    HpDynMac,
-    HpNoCkpt,
-    HpCpuCount,
-    HpPrefix,
-    HpCount,
-    HpDelGroup,
-    HpDryRun,
-    HpProvision,
-    HpLog,
+    /// Host settings card: TCP control plane listen.
+    HpSectionControlPlane,
+    /// Host settings card: LAN UDP announce / Center registration.
+    HpSectionLanAnnounce,
+    /// Host settings card: display identity overrides.
+    HpSectionIdentity,
 
     /// System tray: restore main window (egui apps).
     TrayShowMainWindow,

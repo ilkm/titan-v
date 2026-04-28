@@ -12,7 +12,7 @@ pub mod theme;
 
 pub use buttons::{
     danger_preview_delete_button, preview_overlay_configure_button, primary_button_large,
-    subtle_button, subtle_button_large,
+    subtle_button, subtle_button_large, subtle_button_toolbar,
 };
 pub use frames::{form_field_row, opaque_dialog_frame, opaque_dialog_frame_ctx, section_card};
 pub use modal::{show_opaque_modal, show_settings_tool_window, OpaqueFrameSource};

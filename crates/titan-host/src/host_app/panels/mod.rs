@@ -1,4 +1,4 @@
-//! Service settings and batch provisioning UI for [`crate::host_app::model::HostApp`].
+//! Host egui panels: settings and window-management placeholder.
 
-mod batch;
 mod service;
+mod window_mgmt;

@@ -3,11 +3,7 @@
 use std::net::SocketAddr;
 
 use serde::{Deserialize, Serialize};
-use titan_common::{
-    UiLang, VmProvisionPlan, DEFAULT_CENTER_POLL_UDP_PORT, DEFAULT_CENTER_REGISTER_UDP_PORT,
-};
-
-use crate::config::VmGroup;
+use titan_common::{UiLang, DEFAULT_CENTER_POLL_UDP_PORT, DEFAULT_CENTER_REGISTER_UDP_PORT};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HostUiPersist {
@@ -20,10 +16,6 @@ pub struct HostUiPersist {
     pub center_poll_listen_port: u16,
     pub public_addr_override: String,
     pub label_override: String,
-    pub batch_timeout_secs: u64,
-    pub batch_fail_fast: bool,
-    pub batch_vm: Vec<VmProvisionPlan>,
-    pub batch_vm_group: Vec<VmGroup>,
 }
 
 impl Default for HostUiPersist {
@@ -37,10 +29,6 @@ impl Default for HostUiPersist {
             center_poll_listen_port: DEFAULT_CENTER_POLL_UDP_PORT,
             public_addr_override: String::new(),
             label_override: String::new(),
-            batch_timeout_secs: 600,
-            batch_fail_fast: false,
-            batch_vm: Vec::new(),
-            batch_vm_group: Vec::new(),
         }
     }
 }

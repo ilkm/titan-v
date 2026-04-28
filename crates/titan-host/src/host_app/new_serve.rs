@@ -1,12 +1,8 @@
 use std::net::SocketAddr;
-use std::sync::mpsc;
-use std::time::Duration;
 
-use titan_common::{UiLang, VmProvisionPlan};
+use titan_common::UiLang;
 use tokio::sync::watch;
 
-use crate::batch::run_provision_plans;
-use crate::config::expand_vm_plans;
 use crate::host_font;
 use crate::serve::{run_serve, AgentBindingsSpec, HostAnnounceConfig};
 
@@ -79,7 +75,6 @@ impl HostApp {
         let (persist_apply_tx, persist_apply_rx) = std::sync::mpsc::channel();
         let (lang_apply_tx, lang_apply_rx) = std::sync::mpsc::channel();
         Self {
-            ctx: cc.egui_ctx.clone(),
             really_quitting: false,
             hidden_to_tray: false,
             _tray: initial_tray,
@@ -92,8 +87,6 @@ impl HostApp {
             persist,
             active_tab: 0,
             status_line: String::new(),
-            provision_log: Vec::new(),
-            provision_rx: None,
             env_listen_hint,
             initial_serve_attempted: false,
             boot_window_focus_once: false,
@@ -142,90 +135,4 @@ impl HostApp {
         self.status_line =
             crate::titan_i18n::hp_control_listening(self.persist.ui_lang, &self.persist.listen);
     }
-
-    pub(crate) fn drain_provision_log(&mut self) {
-        let Some(rx) = self.provision_rx.as_ref() else {
-            return;
-        };
-        while let Ok(line) = rx.try_recv() {
-            self.provision_log.push(line);
-            if self.provision_log.len() > 400 {
-                self.provision_log
-                    .drain(0..self.provision_log.len().saturating_sub(300));
-            }
-        }
-    }
-
-    pub(crate) fn run_provision_clicked(&mut self, dry_run: bool) {
-        let Some(plans) = expanded_batch_plans_or_status(&self.persist, &mut self.status_line)
-        else {
-            return;
-        };
-
-        let timeout = Duration::from_secs(self.persist.batch_timeout_secs.max(1));
-        let fail_fast = self.persist.batch_fail_fast;
-        let ui_lang = self.persist.ui_lang;
-        let (tx, rx) = mpsc::channel();
-        self.provision_rx = Some(rx);
-        self.provision_log.clear();
-        let banner = crate::titan_i18n::hp_provision_start_banner(
-            self.persist.ui_lang,
-            dry_run,
-            plans.len(),
-        );
-        let _ = tx.send(banner);
-
-        std::thread::Builder::new()
-            .name("titan-host-provision".into())
-            .spawn(move || {
-                provision_plans_thread(tx, plans, timeout, fail_fast, dry_run, ui_lang);
-            })
-            .expect("spawn provision");
-
-        self.ctx.request_repaint();
-    }
-}
-
-fn expanded_batch_plans_or_status(
-    persist: &HostUiPersist,
-    status: &mut String,
-) -> Option<Vec<VmProvisionPlan>> {
-    let plans = match expand_vm_plans(&persist.batch_vm, &persist.batch_vm_group) {
-        Ok(p) => p,
-        Err(e) => {
-            *status = e.to_string();
-            return None;
-        }
-    };
-    if plans.is_empty() {
-        *status = crate::titan_i18n::hp_batch_no_plans(persist.ui_lang);
-        return None;
-    }
-    Some(plans)
-}
-
-fn provision_plans_thread(
-    tx: mpsc::Sender<String>,
-    plans: Vec<VmProvisionPlan>,
-    timeout: Duration,
-    fail_fast: bool,
-    dry_run: bool,
-    ui_lang: UiLang,
-) {
-    let rt = match tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .build()
-    {
-        Ok(r) => r,
-        Err(e) => {
-            let _ = tx.send(format!("tokio runtime: {e}"));
-            return;
-        }
-    };
-    let res = rt.block_on(run_provision_plans(plans, timeout, fail_fast, dry_run));
-    let msg = match res {
-        Ok(()) => crate::titan_i18n::hp_provision_done_ok(ui_lang),
-        Err(e) => crate::titan_i18n::hp_provision_done_err(ui_lang, &e.to_string()),
-    };
-    let _ = tx.send(msg);
 }

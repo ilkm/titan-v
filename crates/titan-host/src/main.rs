@@ -1,4 +1,4 @@
-//! Titan Host: egui settings + batch provision; control-plane `serve` on a background Tokio runtime.
+//! Titan Host: egui control-plane settings + tray; `serve` runs on a background thread.
 
 use egui::ViewportBuilder;
 use titan_common::UiLang;

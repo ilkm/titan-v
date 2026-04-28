@@ -160,7 +160,7 @@ impl HostApp {
             ui.vertical(|ui| {
                 ui.set_width(column_w);
                 match self.active_tab {
-                    0 => self.panel_batch(ui),
+                    0 => self.panel_window_mgmt(ui),
                     1 => self.panel_service(ui),
                     _ => {}
                 }

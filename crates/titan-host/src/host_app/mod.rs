@@ -1,4 +1,5 @@
-//! egui shell: service settings and batch VM provisioning (no hand-edited TOML).
+//! egui shell: control-plane settings and a placeholder **窗口管理** tab.
+//! Hyper-V batch provisioning remains in [`crate::batch`] for programmatic / TOML use.
 
 mod chrome;
 mod constants;

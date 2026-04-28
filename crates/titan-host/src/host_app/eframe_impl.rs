@@ -108,7 +108,6 @@ impl eframe::App for HostApp {
         self.sync_tray_glyph_lang();
         self.boot_focus_once_if_needed(ctx);
         self.sync_tray_wakeup_and_repaint(ctx);
-        self.drain_provision_log();
         if !self.initial_serve_attempted {
             self.initial_serve_attempted = true;
             self.start_serve();
