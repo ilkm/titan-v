@@ -28,7 +28,7 @@ pub struct VmIdentityProfile {
     pub guest_secure_boot: Option<bool>,
     /// Enable vTPM when firmware cmdlets apply (`None` = leave unchanged).
     pub guest_vtpm: Option<bool>,
-    /// Request offline hive stamping pipeline before first boot (`titan-offline-spoof`).
+    /// Request offline hive stamping pipeline before first boot (roadmap; no crate in this snapshot).
     pub offline_hive_stamp_requested: bool,
     /// `guest_agent_only` \| `driver_preferred` (future: prefer VMBus driver when present).
     pub injection_channel: String,

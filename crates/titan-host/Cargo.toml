@@ -3,7 +3,7 @@ name = "titan-host"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Host node: egui control-plane settings + batch provision; library includes `titan_host::batch`."
+description = "Host node: egui settings + TCP/QUIC control-plane server (`titan_host::serve`, `titan_host::control_plane`)."
 
 # See `titan-center` crate for packaging notes (`cargo-packager`).
 [package.metadata.packager]
@@ -26,17 +26,12 @@ path = "src/main.rs"
 titan-common = { path = "../titan-common" }
 titan-egui-widgets = { path = "../titan-egui-widgets" }
 titan-i18n = { path = "../titan-i18n" }
-titan-driver = { path = "../titan-driver" }
-titan-offline-spoof = { path = "../titan-offline-spoof" }
-titan-scripts = { path = "../titan-scripts" }
-titan-vmm = { path = "../titan-vmm" }
 titan-tray = { path = "../titan-tray", features = ["egui"] }
 eframe = { version = "0.31" }
 egui = "0.31"
 fontdb = "0.23"
 if-addrs = "0.15"
 anyhow = "1.0"
-dashmap = "6.1"
 whoami = "1.5"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"

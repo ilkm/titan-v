@@ -1,4 +1,4 @@
-//! Parse `agent-bindings.toml` for [`titan_vmm::hyperv::HypervHostRuntime`].
+//! Parse `agent-bindings.toml` into [`crate::agent_binding_table::AgentBindingTable`].
 
 use std::fs;
 use std::io::Write;
@@ -7,7 +7,8 @@ use std::path::Path;
 
 use anyhow::Context;
 use serde::{Deserialize, Serialize};
-use titan_vmm::hyperv::AgentBindingTable;
+
+use crate::agent_binding_table::AgentBindingTable;
 
 #[derive(Debug, Deserialize)]
 struct AgentBindingsFile {
@@ -51,7 +52,7 @@ pub fn load_agent_bindings(path: &Path) -> anyhow::Result<AgentBindingTable> {
             file.schema_version
         );
     }
-    let out = AgentBindingTable::new();
+    let mut out = AgentBindingTable::new();
     for row in file.binding {
         let vm = row.vm_name.trim().to_string();
         if vm.is_empty() {
@@ -69,10 +70,7 @@ pub fn load_agent_bindings(path: &Path) -> anyhow::Result<AgentBindingTable> {
 
 /// Writes the current binding table to TOML (schema v1), sorted by `vm_name`.
 pub fn save_agent_bindings(path: &Path, table: &AgentBindingTable) -> anyhow::Result<()> {
-    let mut rows: Vec<(String, SocketAddr)> = table
-        .iter()
-        .map(|e| (e.key().clone(), *e.value()))
-        .collect();
+    let mut rows: Vec<(String, SocketAddr)> = table.iter().map(|(k, v)| (k.clone(), *v)).collect();
     rows.sort_by(|a, b| a.0.cmp(&b.0));
     let file = AgentBindingsFileSer {
         schema_version: 1,
@@ -163,14 +161,14 @@ addr = "127.0.0.1:9002"
     #[test]
     fn save_roundtrip() {
         let f = NamedTempFile::new().unwrap();
-        let table = AgentBindingTable::new();
+        let mut table = AgentBindingTable::new();
         table.insert("z".into(), "127.0.0.1:1".parse().unwrap());
         table.insert("a".into(), "127.0.0.1:2".parse().unwrap());
         save_agent_bindings(f.path(), &table).unwrap();
         let m = load_agent_bindings(f.path()).unwrap();
         assert_eq!(m.len(), 2);
         assert_eq!(
-            *m.get("a").unwrap().value(),
+            *m.get("a").expect("a"),
             "127.0.0.1:2".parse::<SocketAddr>().unwrap()
         );
     }

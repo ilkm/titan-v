@@ -1,4 +1,4 @@
-//! TOML configuration for batch VM provisioning.
+//! TOML configuration for VM provisioning plans (no longer executed by this binary; schema retained).
 
 use std::collections::HashSet;
 use std::fs;
@@ -38,7 +38,7 @@ fn default_auto_start_after_provision() -> bool {
     true
 }
 
-/// Root config file for batch VM provisioning ([`crate::batch::run_provision`]).
+/// Root config file for VM provisioning plans (historical / external tooling).
 #[derive(Debug, Deserialize)]
 pub struct HostConfigFile {
     /// Max wall-clock time per VM for the outer async wait (see `HostConfigFile::timeout`).

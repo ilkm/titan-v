@@ -7,8 +7,7 @@ use std::time::Duration;
 use eframe::egui;
 use tokio::sync::watch;
 
-use titan_vmm::hyperv::AgentBindingTable;
-
+use crate::agent_binding_table::AgentBindingTable;
 use crate::serve::{AgentBindingsSpec, HostAnnounceConfig};
 
 pub const PERSIST_KEY: &str = "titan_host_ui_v1";

@@ -1,5 +1,5 @@
 //! egui shell: control-plane settings and a placeholder **窗口管理** tab.
-//! Hyper-V batch provisioning remains in [`crate::batch`] for programmatic / TOML use.
+//! VM / Hyper-V automation crates were removed; control TCP still speaks [`titan_common`] wire types.
 
 mod chrome;
 mod constants;

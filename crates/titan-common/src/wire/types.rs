@@ -40,7 +40,7 @@ pub enum ControlRequest {
         dry_run: bool,
         spoof: VmSpoofProfile,
     },
-    /// Apply a single spoof step by id (see `titan_vmm::hyperv::mother_image` step names).
+    /// Apply a single spoof step by id (host implementation may be absent in slim builds).
     ApplySpoofStep {
         vm_name: String,
         step_id: String,

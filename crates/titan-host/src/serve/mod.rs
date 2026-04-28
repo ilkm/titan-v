@@ -6,7 +6,6 @@ mod dispatch;
 mod errors;
 mod io;
 mod limits;
-mod power;
 mod quic_fleet;
 mod response;
 mod run;

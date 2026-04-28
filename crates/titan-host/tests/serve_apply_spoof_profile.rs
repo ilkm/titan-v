@@ -1,4 +1,4 @@
-//! Integration: ApplySpoofProfile over control-plane TCP.
+//! Integration: ApplySpoofProfile over control-plane TCP (Hyper-V path removed).
 
 use std::time::Duration;
 
@@ -25,23 +25,16 @@ async fn read_one_control_response(client: &mut tokio::net::TcpStream) -> Contro
     }
 }
 
-fn assert_apply_spoof_dry_run_response(res: ControlResponse) {
-    #[cfg(not(windows))]
+fn assert_apply_spoof_removed(res: ControlResponse) {
     match res {
         ControlResponse::ServerError { code, message } => {
             assert_eq!(code, 501);
             assert!(
-                message.contains("Windows") || message.contains("Hyper-V"),
+                message.contains("removed") || message.contains("mother_image"),
                 "{message}"
             );
         }
-        other => panic!("expected ServerError on non-Windows: {other:?}"),
-    }
-    #[cfg(windows)]
-    match res {
-        ControlResponse::SpoofApplyAck { dry_run, .. } => assert!(dry_run),
-        ControlResponse::ServerError { .. } => {}
-        other => panic!("unexpected response: {other:?}"),
+        other => panic!("expected ServerError 501: {other:?}"),
     }
 }
 
@@ -73,7 +66,7 @@ async fn apply_spoof_profile_dry_run_roundtrip() {
     client.write_all(&frame).await.unwrap();
 
     let res = read_one_control_response(&mut client).await;
-    assert_apply_spoof_dry_run_response(res);
+    assert_apply_spoof_removed(res);
 
     drop(client);
     server.await.unwrap();

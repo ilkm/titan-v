@@ -27,17 +27,7 @@ fn disk_volumes_blocking() -> Vec<DiskVolume> {
 
 /// Builds a telemetry push. If `reuse_vms` is set (e.g. right after `ListVms`), skips a second VM query.
 pub async fn build_telemetry_push(reuse_vms: Option<Vec<VmBrief>>) -> Option<ControlPush> {
-    let vms = if let Some(v) = reuse_vms {
-        v
-    } else {
-        match task::spawn_blocking(titan_vmm::platform_vm::list_vms_blocking).await {
-            Ok(Ok(rows)) => rows
-                .into_iter()
-                .map(|(name, state)| VmBrief { name, state })
-                .collect(),
-            Ok(Err(_)) | Err(_) => Vec::new(),
-        }
-    };
+    let vms = reuse_vms.unwrap_or_default();
 
     let volumes: Vec<DiskVolume> = task::spawn_blocking(disk_volumes_blocking)
         .await

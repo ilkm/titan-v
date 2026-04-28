@@ -13,14 +13,10 @@ use titan_common::{
 use tokio::io::AsyncWriteExt;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::broadcast;
-use tokio::sync::mpsc;
 use tokio::sync::watch;
 use tokio::time::timeout;
 
-use dashmap::DashMap;
-use tokio::sync::Mutex as AsyncMutex;
-
-use crate::runtime::{self, SCRIPT_QUEUE_CAPACITY};
+use crate::agent_binding_table::AgentBindingTable;
 use crate::ui_persist::HostUiPersist;
 
 use super::announce::{spawn_host_announce_background, HostAnnounceConfig};
@@ -33,8 +29,6 @@ use super::state::ServeState;
 use super::telemetry;
 
 use crate::tcp_tune::tcp_listen_tokio;
-
-use titan_vmm::hyperv::AgentBindingTable;
 
 static NEXT_CONN_ID: AtomicU64 = AtomicU64::new(1);
 
@@ -59,21 +53,16 @@ async fn build_serve_state_inner(
     let host_notice = std::sync::Mutex::new(host_notice);
     let (gpu_partition_available, runtime_probes) = tokio::task::spawn_blocking(|| {
         (
-            titan_vmm::hyperv::gpu_pv::gpu_partition_cmdlets_available_blocking(),
+            false,
             crate::host_runtime_probes::probe_host_runtime_blocking(),
         )
     })
     .await
     .unwrap_or((false, HostRuntimeProbes::default()));
     log_runtime_probes(gpu_partition_available, &runtime_probes);
-    let (script_tx, script_rx) = mpsc::channel(SCRIPT_QUEUE_CAPACITY);
-    let vm_locks = Arc::new(DashMap::<String, Arc<AsyncMutex<()>>>::new());
-    tokio::spawn(runtime::script_worker(script_rx, vm_locks));
-    runtime::spawn_coordinator_ticks();
     Ok(Arc::new(ServeState::new(
         agents,
         host_notice,
-        script_tx,
         gpu_partition_available,
         runtime_probes,
         persist_apply_tx,

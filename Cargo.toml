@@ -5,12 +5,8 @@ members = [
     "crates/titan-egui-widgets",
     "crates/titan-i18n",
     "crates/titan-tray",
-    "crates/titan-vmm",
-    "crates/titan-scripts",
-    "crates/titan-driver",
     "crates/titan-host",
     "crates/titan-center",
-    "crates/titan-offline-spoof",
 ]
 
 [workspace.package]
