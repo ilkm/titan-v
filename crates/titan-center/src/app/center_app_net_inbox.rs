@@ -166,8 +166,9 @@ impl CenterApp {
     }
 
     fn on_net_host_ui_push_done(&mut self, ok: bool, detail: String) {
-        self.host_managed_last_msg = format!("push ok={ok}: {detail}");
-        self.ui_toast_text = self.host_managed_last_msg.clone();
+        let s = format!("push ok={ok}: {detail}");
+        self.host_managed_last_msg = s.clone();
+        self.ui_toast_text = s;
         self.ui_toast_until = Some(self.ctx.input(|i| i.time) + 5.0);
         self.ctx.request_repaint();
     }

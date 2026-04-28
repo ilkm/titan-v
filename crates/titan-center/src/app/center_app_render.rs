@@ -1,8 +1,8 @@
 //! Main window layout: top bar, side nav, central stack, settings popup, device persistence hook.
 
 use egui::{
-    Align, Frame, Layout, Margin, RichText, ScrollArea, Sense, Stroke, TextStyle, TextWrapMode,
-    WidgetText,
+    Align, Align2, Frame, Layout, Margin, RichText, ScrollArea, Sense, Stroke, TextStyle,
+    TextWrapMode, WidgetText,
 };
 
 use super::constants::{
@@ -16,6 +16,12 @@ use super::CenterApp;
 fn effective_content_width(full_w: f32) -> f32 {
     let scalable = (CONTENT_MAX_WIDTH * 1.15).max(full_w * 0.92);
     full_w.min(scalable).max(280.0)
+}
+
+/// Settings popup: outer **right-top** corner, flush right with the language button, just below it.
+fn settings_popup_right_top_under_btn(btn: egui::Rect) -> egui::Pos2 {
+    const GAP_Y: f32 = 6.0;
+    btn.right_bottom() + egui::vec2(0.0, GAP_Y)
 }
 
 impl CenterApp {
@@ -150,54 +156,55 @@ impl CenterApp {
     fn settings_window_lang_radios(ui: &mut egui::Ui, ui_lang: &mut UiLang, lang: UiLang) {
         ui.radio_value(ui_lang, UiLang::En, i18n::t(lang, Msg::LangRadioEn));
         ui.radio_value(ui_lang, UiLang::Zh, i18n::t(lang, Msg::LangRadioZh));
-        ui.add_space(12.0);
-        ui.label(
-            RichText::new(i18n::t(lang, Msg::SettingsMoreLangNote))
-                .small()
-                .color(ui.visuals().weak_text_color()),
-        );
-    }
-
-    fn settings_window_sqlite_path(ui: &mut egui::Ui, lang: UiLang) {
-        ui.separator();
-        ui.label(
-            RichText::new(i18n::t(lang, Msg::SettingsDbCaption))
-                .small()
-                .color(ui.visuals().weak_text_color()),
-        );
-        let p = device_store::registration_db_path();
-        ui.label(
-            RichText::new(p.display().to_string())
-                .monospace()
-                .size(11.0),
-        );
-        ui.label(
-            RichText::new(i18n::t(lang, Msg::SettingsDbHint))
-                .small()
-                .color(ui.visuals().weak_text_color()),
-        );
     }
 
     pub(crate) fn render_settings_window(&mut self, ctx: &egui::Context) {
         let lang = self.ui_lang;
         let mut close_clicked = false;
-        egui::Window::new(i18n::t(lang, Msg::SettingsTitle))
+        let anchor = self
+            .settings_lang_btn_rect
+            .map(settings_popup_right_top_under_btn);
+        let mut window = egui::Window::new(i18n::t(lang, Msg::SettingsTitle))
             .open(&mut self.settings_open)
             .collapsible(false)
             .resizable(false)
-            .default_pos(ctx.screen_rect().right_top() + egui::vec2(-256.0, 48.0))
-            .default_width(420.0)
-            .show(ctx, |ui| {
-                Self::settings_window_lang_radios(ui, &mut self.ui_lang, lang);
-                Self::settings_window_sqlite_path(ui, lang);
-                ui.add_space(8.0);
-                if ui.button(i18n::t(lang, Msg::SettingsClose)).clicked() {
-                    close_clicked = true;
-                }
-            });
+            .default_width(420.0);
+        window = match anchor {
+            Some(p) => window.pivot(Align2::RIGHT_TOP).fixed_pos(p),
+            None => window.default_pos(ctx.screen_rect().right_top() + egui::vec2(-256.0, 48.0)),
+        };
+        window.show(ctx, |ui| {
+            Self::settings_window_lang_radios(ui, &mut self.ui_lang, lang);
+            ui.add_space(8.0);
+            if ui.button(i18n::t(lang, Msg::SettingsClose)).clicked() {
+                close_clicked = true;
+            }
+        });
         if close_clicked {
             self.settings_open = false;
         }
+    }
+
+    pub(crate) fn center_app_tick_frame(&mut self, ctx: &egui::Context) {
+        self.maybe_flush_center_sqlite(ctx);
+        self.drain_net_inbox();
+        self.tick_add_host_verify_watchdog(ctx);
+        self.tick_telemetry_staleness();
+        self.tick_reachability_probes(ctx);
+        self.tick_auto_control_session(ctx);
+        self.tick_discovery_thread();
+        self.tick_host_collect_thread();
+        self.tick_desktop_preview_refresh(ctx);
+        self.tick_list_vms_auto_refresh(ctx);
+    }
+
+    pub(crate) fn center_app_paint_frame(&mut self, ctx: &egui::Context) {
+        self.render_top_panel(ctx);
+        self.render_side_nav(ctx);
+        self.render_central_panel(ctx);
+        self.render_settings_window(ctx);
+        self.render_host_config_window(ctx);
+        self.render_ui_toast(ctx);
     }
 
     /// Persist the registered device list to SQLite (same store as app shutdown).

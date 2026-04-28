@@ -2,7 +2,7 @@ use std::net::Ipv4Addr;
 use std::str::FromStr;
 
 use egui::{
-    Align, Align2, Color32, CornerRadius, Frame, Layout, Margin, RichText, Stroke, TextStyle, Vec2,
+    Align, Color32, CornerRadius, Frame, Layout, Margin, RichText, Stroke, TextStyle, Vec2,
 };
 
 use super::super::i18n::{t, Msg};
@@ -48,16 +48,16 @@ impl CenterApp {
     ) {
         let title = t(lang, Msg::AddHostDialogTitle);
         const DIALOG_INNER: Vec2 = Vec2::new(440.0, 312.0);
+        let center_pos = ctx.screen_rect().center() - 0.5 * DIALOG_INNER;
         egui::Window::new(title)
             .id(egui::Id::new("titan_center_add_host_dialog"))
             .frame(opaque_dialog_frame(outer_ui))
             .open(win_open)
             .collapsible(false)
             .resizable(false)
-            .movable(false)
             .fade_in(false)
             .fade_out(false)
-            .anchor(Align2::CENTER_CENTER, Vec2::ZERO)
+            .default_pos(center_pos)
             .fixed_size(DIALOG_INNER)
             .order(egui::Order::Foreground)
             .show(ctx, |ui| {

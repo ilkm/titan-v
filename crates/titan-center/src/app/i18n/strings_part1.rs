@@ -3,24 +3,9 @@ use super::UiLang;
 
 pub(super) fn translate(lang: UiLang, msg: Msg) -> Option<&'static str> {
     brand_settings_lang(lang, msg)
-        .or_else(|| settings_db_i18n(lang, msg))
         .or_else(|| nav_all(lang, msg))
         .or_else(|| discovery_top(lang, msg))
         .or_else(|| discovery_bind_ports(lang, msg))
-}
-
-fn settings_db_i18n(lang: UiLang, msg: Msg) -> Option<&'static str> {
-    match (lang, msg) {
-        (UiLang::En, Msg::SettingsDbCaption) => Some("SQLite path (not the repo folder):"),
-        (UiLang::Zh, Msg::SettingsDbCaption) => Some("SQLite 路径（不是仓库目录）："),
-        (UiLang::En, Msg::SettingsDbHint) => Some(
-            "Tables: `registered_devices`, `app_kv` (key `titan_center_state_v1`). Drafts: `host_managed_config`.",
-        ),
-        (UiLang::Zh, Msg::SettingsDbHint) => Some(
-            "表：`registered_devices`、`app_kv`（键 `titan_center_state_v1`）。草稿：`host_managed_config`。",
-        ),
-        _ => None,
-    }
 }
 
 fn brand_settings_lang(lang: UiLang, msg: Msg) -> Option<&'static str> {
@@ -33,12 +18,6 @@ fn brand_settings_lang(lang: UiLang, msg: Msg) -> Option<&'static str> {
         (UiLang::Zh, Msg::SettingsTitle) => Some("设置"),
         (UiLang::En, Msg::SettingsClose) => Some("Close"),
         (UiLang::Zh, Msg::SettingsClose) => Some("关闭"),
-        (UiLang::En, Msg::SettingsMoreLangNote) => {
-            Some("More languages can be added here later (e.g. locale files).")
-        }
-        (UiLang::Zh, Msg::SettingsMoreLangNote) => {
-            Some("后续可在此加载更多语言（例如独立语言包）。")
-        }
         (UiLang::En, Msg::LangRadioEn) => Some("English"),
         (UiLang::Zh, Msg::LangRadioEn) => Some("English"),
         (UiLang::En, Msg::LangRadioZh) => Some("中文"),

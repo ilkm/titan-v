@@ -28,9 +28,9 @@ impl CenterApp {
             self.panel_device_mgmt_empty_state(ui, lang);
         } else {
             self.panel_device_mgmt_masonry(ui, lang);
-            ui.add_space(8.0);
-            self.host_managed_config_section(ui);
         }
+        // After all cards paint (overlay delete may set pending mid-layout).
+        self.apply_pending_endpoint_remove();
         self.show_add_host_dialog(ui, lang);
     }
 
@@ -52,22 +52,37 @@ impl CenterApp {
             self.add_host_dialog_err.clear();
             self.add_host_dialog_open = true;
         }
-        if subtle_button(
-            ui,
-            t(lang, Msg::BtnRemoveSelected),
-            !self.endpoints.is_empty(),
-        )
-        .clicked()
-        {
-            let idx = self
-                .selected_host
-                .min(self.endpoints.len().saturating_sub(1));
-            if !self.endpoints.is_empty() {
-                self.device_remark_edit_index = None;
-                self.device_remark_edit_focus_next = false;
-                self.endpoints.remove(idx);
-                self.selected_host = self.selected_host.saturating_sub(1);
+    }
+
+    fn apply_pending_endpoint_remove(&mut self) {
+        if let Some(idx) = self.pending_remove_endpoint.take() {
+            if idx < self.endpoints.len() {
+                self.remove_endpoint_at(idx);
+                self.persist_registered_devices();
             }
+        }
+    }
+
+    /// Remove one registered endpoint by index (Connect tab: card overlay delete).
+    pub(crate) fn remove_endpoint_at(&mut self, idx: usize) {
+        if idx >= self.endpoints.len() {
+            return;
+        }
+        self.device_remark_edit_index = None;
+        self.device_remark_edit_focus_next = false;
+        if self.host_config_window_open && idx == self.selected_host {
+            self.host_config_window_open = false;
+        }
+        self.endpoints.remove(idx);
+        let new_len = self.endpoints.len();
+        if new_len == 0 {
+            self.selected_host = 0;
+            return;
+        }
+        if idx < self.selected_host {
+            self.selected_host -= 1;
+        } else if idx == self.selected_host {
+            self.selected_host = self.selected_host.min(new_len - 1);
         }
     }
 
@@ -184,7 +199,7 @@ impl CenterApp {
 
     fn panel_device_mgmt_masonry(&mut self, ui: &mut egui::Ui, lang: super::super::i18n::UiLang) {
         let inner = ui.available_width();
-        let (cols, card_w, gap, row_w, lead) = Self::device_masonry_outer_metrics(inner);
+        let (cols, card_w, gap, _row_w, lead) = Self::device_masonry_outer_metrics(inner);
         let n = self.endpoints.len();
         const CARD_STACK_GAP: f32 = 14.0;
         self.device_masonry_prune_heights();
@@ -203,9 +218,8 @@ impl CenterApp {
             card_w,
             CARD_STACK_GAP,
         );
-        let max_bottom = Self::device_masonry_max_bottom(&columns, &col_y, y0, CARD_STACK_GAP);
-        let total_h = (max_bottom - y0).max(0.0);
-        ui.allocate_space(Vec2::new(lead + row_w, total_h));
+        // Do not call `allocate_space` for the masonry height: each `allocate_new_ui` already
+        // expands the parent `min_rect` via the placer. A second allocation duplicated scroll extent.
     }
 
     fn device_masonry_prune_heights(&mut self) {
@@ -296,22 +310,5 @@ impl CenterApp {
         let used = slot.response.rect.height().max(32.0);
         self.device_masonry_heights.insert(addr_key, used);
         used
-    }
-
-    fn device_masonry_max_bottom(
-        columns: &[Vec<usize>],
-        col_y: &[f32],
-        y0: f32,
-        stack_gap: f32,
-    ) -> f32 {
-        (0..columns.len())
-            .map(|c| {
-                if columns[c].is_empty() {
-                    y0
-                } else {
-                    col_y[c] - stack_gap
-                }
-            })
-            .fold(y0, f32::max)
     }
 }

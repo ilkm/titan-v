@@ -4,6 +4,7 @@ use super::UiLang;
 pub(super) fn translate(lang: UiLang, msg: Msg) -> Option<&'static str> {
     host_collect_block(lang, msg)
         .or_else(|| device_empty_and_preview(lang, msg))
+        .or_else(|| host_config_window_i18n(lang, msg))
         .or_else(|| device_metrics(lang, msg))
         .or_else(|| add_host_dialog(lang, msg))
         .or_else(|| add_host_verify_and_toolbar(lang, msg))
@@ -53,6 +54,26 @@ fn device_empty_and_preview(lang: UiLang, msg: Msg) -> Option<&'static str> {
         (UiLang::Zh, Msg::DeviceMgmtDesktopPreviewNote) => {
             Some("桌面预览 — 尚未接入实时画面")
         }
+        _ => None,
+    }
+}
+
+fn host_config_window_i18n(lang: UiLang, msg: Msg) -> Option<&'static str> {
+    match (lang, msg) {
+        (UiLang::En, Msg::DeviceMgmtPreviewConfigure) => Some("Configure"),
+        (UiLang::Zh, Msg::DeviceMgmtPreviewConfigure) => Some("配置"),
+        (UiLang::En, Msg::DeviceMgmtPreviewDelete) => Some("Delete"),
+        (UiLang::Zh, Msg::DeviceMgmtPreviewDelete) => Some("删除"),
+        (UiLang::En, Msg::HostConfigWinTitle) => Some("Host config (SQLite → push)"),
+        (UiLang::Zh, Msg::HostConfigWinTitle) => Some("主机配置（SQLite → 下发）"),
+        (UiLang::En, Msg::HostConfigWinLoadDb) => Some("Load draft from DB"),
+        (UiLang::Zh, Msg::HostConfigWinLoadDb) => Some("从数据库加载草稿"),
+        (UiLang::En, Msg::HostConfigWinSaveDb) => Some("Save draft to DB"),
+        (UiLang::Zh, Msg::HostConfigWinSaveDb) => Some("保存草稿到数据库"),
+        (UiLang::En, Msg::HostConfigWinPushHost) => Some("Push to this host"),
+        (UiLang::Zh, Msg::HostConfigWinPushHost) => Some("下发到该主机"),
+        (UiLang::En, Msg::HostConfigWinClose) => Some("Close"),
+        (UiLang::Zh, Msg::HostConfigWinClose) => Some("关闭"),
         _ => None,
     }
 }
@@ -111,8 +132,6 @@ fn add_host_verify_and_toolbar(lang: UiLang, msg: Msg) -> Option<&'static str> {
         (UiLang::Zh, Msg::AddHostOfflineToast) => Some("设备不在线～"),
         (UiLang::En, Msg::AddHostSavedLog) => Some("Host added (online check OK)."),
         (UiLang::Zh, Msg::AddHostSavedLog) => Some("已添加主机（在线检测通过）。"),
-        (UiLang::En, Msg::BtnRemoveSelected) => Some("Remove selected"),
-        (UiLang::Zh, Msg::BtnRemoveSelected) => Some("删除选中"),
         (UiLang::En, Msg::BtnHostHello) => Some("Hello"),
         (UiLang::Zh, Msg::BtnHostHello) => Some("Hello"),
         (UiLang::En, Msg::BtnHostTelemetry) => Some("Telemetry"),

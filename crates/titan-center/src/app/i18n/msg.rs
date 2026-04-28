@@ -7,9 +7,6 @@ pub enum Msg {
     SettingsTooltip,
     SettingsTitle,
     SettingsClose,
-    SettingsDbCaption,
-    SettingsDbHint,
-    SettingsMoreLangNote,
     LangRadioEn,
     LangRadioZh,
 
@@ -47,6 +44,16 @@ pub enum Msg {
     DeviceMgmtEmptyHint,
     /// Shown on device card preview until host desktop streaming is wired.
     DeviceMgmtDesktopPreviewNote,
+    /// Online device card: hover overlay action on desktop preview.
+    DeviceMgmtPreviewConfigure,
+    /// Online device card: hover overlay — remove this host from the list (red label in UI).
+    DeviceMgmtPreviewDelete,
+    /// Floating host JSON draft editor (from preview Configure).
+    HostConfigWinTitle,
+    HostConfigWinLoadDb,
+    HostConfigWinSaveDb,
+    HostConfigWinPushHost,
+    HostConfigWinClose,
     /// Device card: CPU usage label (value appended in UI).
     DeviceMgmtResCpu,
     /// Device card: memory usage label.
@@ -73,7 +80,6 @@ pub enum Msg {
     AddHostOfflineToast,
     /// Status log after manual add-host succeeds.
     AddHostSavedLog,
-    BtnRemoveSelected,
     /// Device toolbar: send Hello to the currently selected host.
     BtnHostHello,
     /// Device toolbar: open telemetry stream for the selected host.

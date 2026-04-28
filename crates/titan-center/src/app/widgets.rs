@@ -3,22 +3,43 @@
 use egui::text::CursorRange;
 use egui::widgets::text_edit::TextEditOutput;
 use egui::widgets::Button;
-use egui::{pos2, Color32, CornerRadius, Frame, Margin, Response, RichText, Sense, Stroke};
-
-use super::constants::{
-    card_shadow, ACCENT, CARD_CORNER_RADIUS, CARD_SURFACE, FORM_LABEL_WIDTH, PANEL_SPACING,
+use egui::{
+    pos2, Color32, CornerRadius, Frame, Margin, Response, RichText, Sense, Stroke, Visuals,
 };
 
-fn card_outline_stroke(ui: &egui::Ui) -> Stroke {
+use super::constants::{
+    card_shadow, ACCENT, ACCENT_DIM, CARD_CORNER_RADIUS, CARD_SURFACE, FORM_LABEL_WIDTH,
+    PANEL_SPACING,
+};
+
+/// Modal / form secondary button outline (slate-300); pairs with theme `weak_bg_fill` when fill is unset.
+const BTN_SUBTLE_STROKE: Color32 = Color32::from_rgb(203, 213, 225);
+
+fn primary_btn_outline(ui: &egui::Ui, enabled: bool) -> Stroke {
     Stroke::new(
         1.0,
-        ui.visuals()
+        if enabled {
+            ACCENT_DIM
+        } else {
+            ui.visuals().widgets.inactive.bg_stroke.color
+        },
+    )
+}
+
+fn outline_stroke_from_visuals(visuals: &Visuals) -> Stroke {
+    Stroke::new(
+        1.0,
+        visuals
             .widgets
             .noninteractive
             .bg_stroke
             .color
             .linear_multiply(0.55),
     )
+}
+
+fn card_outline_stroke(ui: &egui::Ui) -> Stroke {
+    outline_stroke_from_visuals(ui.visuals())
 }
 
 fn paint_section_title_accent(ui: &mut egui::Ui, accent: egui::Color32) {
@@ -106,10 +127,12 @@ pub fn primary_button(ui: &mut egui::Ui, text: &str, enabled: bool) -> egui::Res
     } else {
         RichText::new(text).strong()
     };
+    let stroke = primary_btn_outline(ui, enabled);
     ui.add_enabled(
         enabled,
         Button::new(label)
             .fill(fill)
+            .stroke(stroke)
             .corner_radius(CornerRadius::same(8)),
     )
 }
@@ -117,7 +140,9 @@ pub fn primary_button(ui: &mut egui::Ui, text: &str, enabled: bool) -> egui::Res
 pub fn subtle_button(ui: &mut egui::Ui, text: &str, enabled: bool) -> egui::Response {
     ui.add_enabled(
         enabled,
-        Button::new(text).corner_radius(CornerRadius::same(8)),
+        Button::new(RichText::new(text).strong())
+            .stroke(Stroke::new(1.0, BTN_SUBTLE_STROKE))
+            .corner_radius(CornerRadius::same(8)),
     )
 }
 
@@ -140,21 +165,27 @@ pub fn primary_button_large(ui: &mut egui::Ui, text: &str, enabled: bool) -> Res
     } else {
         RichText::new(text).strong().size(DLG_BTN_FONT)
     };
+    let stroke = primary_btn_outline(ui, enabled);
     ui.add_enabled(
         enabled,
         Button::new(label)
             .fill(fill)
+            .stroke(stroke)
             .min_size(DLG_BTN_MIN)
             .corner_radius(DLG_BTN_RADIUS),
     )
 }
 
 /// Secondary action for compact modals (matches [`primary_button_large`] height).
+///
+/// Uses a fixed outline so the control reads on white dialogs; fill follows theme interaction
+/// (hover/active) because [`Button::fill`] is not set.
 pub fn subtle_button_large(ui: &mut egui::Ui, text: &str, enabled: bool) -> Response {
     let label = RichText::new(text).strong().size(DLG_BTN_FONT);
     ui.add_enabled(
         enabled,
         Button::new(label)
+            .stroke(Stroke::new(1.0, BTN_SUBTLE_STROKE))
             .min_size(DLG_BTN_MIN)
             .corner_radius(DLG_BTN_RADIUS),
     )
@@ -176,7 +207,17 @@ pub fn opaque_dialog_frame(ui: &egui::Ui) -> Frame {
         .corner_radius(CARD_CORNER_RADIUS)
         .inner_margin(Margin::symmetric(24, 20))
         .shadow(card_shadow())
-        .stroke(card_outline_stroke(ui))
+        .stroke(outline_stroke_from_visuals(ui.visuals()))
+}
+
+/// Same as [`opaque_dialog_frame`] when only [`egui::Context`] is available (e.g. top-level paint).
+pub fn opaque_dialog_frame_ctx(ctx: &egui::Context) -> Frame {
+    Frame::NONE
+        .fill(Color32::WHITE)
+        .corner_radius(CARD_CORNER_RADIUS)
+        .inner_margin(Margin::symmetric(24, 20))
+        .shadow(card_shadow())
+        .stroke(outline_stroke_from_visuals(&ctx.style().visuals))
 }
 
 const UNDERLINE_IDLE: Color32 = Color32::from_rgb(148, 163, 184);

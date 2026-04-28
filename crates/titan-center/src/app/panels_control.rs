@@ -25,6 +25,7 @@ impl CenterApp {
             }
             let lang_btn = subtle_button(ui, "🌐", true);
             let lang_btn = lang_btn.on_hover_text(t(lang, Msg::SettingsTooltip));
+            self.settings_lang_btn_rect = Some(lang_btn.rect);
             if lang_btn.clicked() {
                 self.settings_open = !self.settings_open;
             }

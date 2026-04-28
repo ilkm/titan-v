@@ -7,7 +7,7 @@
 use std::cell::Cell;
 
 use egui::{
-    pos2, Align, Color32, CornerRadius, FontId, Frame, Label, Layout, Margin, Rect, RichText,
+    pos2, vec2, Align, Color32, CornerRadius, FontId, Frame, Label, Layout, Margin, Rect, RichText,
     Sense, TextStyle, TextWrapMode, Vec2, WidgetText,
 };
 
@@ -25,6 +25,10 @@ use super::helpers::{
 const CARD_BODY_GRID_PX: f32 = 13.0;
 const METRIC_BODY_ROW_GAP: f32 = 5.0;
 const REMARK_ROW_H: f32 = 32.0;
+const PREVIEW_HOVER_MASK_A: u8 = 100;
+const PREVIEW_CFG_BTN_PAD: f32 = 8.0;
+const PREVIEW_OVERLAY_BTN_H: f32 = 30.0;
+const PREVIEW_OVERLAY_BTN_GAP: f32 = 8.0;
 
 pub(super) fn paint_device_masonry_slot(
     app: &mut CenterApp,
@@ -55,10 +59,24 @@ fn paint_device_masonry_frame_inner(app: &mut CenterApp, ui: &mut egui::Ui, i: u
     device_card_set_fixed_width(ui, card_w);
     let card_tl = ui.cursor().min;
     let mut select_split_y = card_tl.y;
+    let mut select_interact_top_y = card_tl.y;
     ui.vertical(|ui| {
-        paint_device_card_column(app, ui, i, card_w, lang, is_sel, label_s, addr_s, win_n, online, &mut select_split_y);
+        paint_device_card_column(
+            app,
+            ui,
+            i,
+            card_w,
+            lang,
+            is_sel,
+            label_s,
+            addr_s,
+            win_n,
+            online,
+            &mut select_split_y,
+            &mut select_interact_top_y,
+        );
     });
-    device_card_select_interact(ui, card_tl, select_split_y, i)
+    device_card_select_interact(ui, pos2(card_tl.x, select_interact_top_y), select_split_y, i)
 }
 
 fn device_card_set_fixed_width(ui: &mut egui::Ui, card_w: f32) {
@@ -68,10 +86,11 @@ fn device_card_set_fixed_width(ui: &mut egui::Ui, card_w: f32) {
 }
 
 #[rustfmt::skip]
-fn paint_device_card_column(app: &mut CenterApp, ui: &mut egui::Ui, i: usize, card_w: f32, lang: UiLang, is_sel: bool, label_s: &str, addr_s: &str, win_n: u32, online: bool, select_split_y: &mut f32) {
+fn paint_device_card_column(app: &mut CenterApp, ui: &mut egui::Ui, i: usize, card_w: f32, lang: UiLang, is_sel: bool, label_s: &str, addr_s: &str, win_n: u32, online: bool, select_split_y: &mut f32, select_interact_top_y: &mut f32) {
     ui.spacing_mut().item_spacing.y = 0.0;
     let preview_key = CenterApp::endpoint_addr_key(addr_s);
-    paint_device_preview_slot(app, ui, &preview_key, card_w, lang);
+    paint_device_preview_slot(app, ui, i, &preview_key, card_w, lang, online);
+    *select_interact_top_y = ui.cursor().min.y;
     Frame::NONE.inner_margin(Margin::symmetric(12, 10)).show(ui, |ui| {
         let inner_w = (card_w - 24.0).max(1.0);
         ui.set_width(inner_w);
@@ -93,25 +112,138 @@ fn device_card_endpoint_meta(app: &CenterApp, i: usize) -> (String, String, u32,
     )
 }
 
-fn paint_device_preview_slot(
-    app: &CenterApp,
-    ui: &mut egui::Ui,
-    preview_key: &str,
-    card_w: f32,
-    lang: UiLang,
-) {
-    let preview_h = (card_w * 9.0 / 16.0).clamp(100.0, 200.0);
-    let (preview_rect, _) = ui.allocate_exact_size(Vec2::new(card_w, preview_h), Sense::empty());
-    let preview_corners = CornerRadius {
+fn device_preview_slot_height(card_w: f32) -> f32 {
+    (card_w * 9.0 / 16.0).clamp(100.0, 200.0)
+}
+
+fn preview_slot_top_corners() -> CornerRadius {
+    CornerRadius {
         nw: CARD_CORNER_RADIUS.nw,
         ne: CARD_CORNER_RADIUS.ne,
         sw: 0,
         se: 0,
-    };
+    }
+}
+
+fn paint_device_preview_fill(
+    app: &CenterApp,
+    ui: &mut egui::Ui,
+    preview_key: &str,
+    preview_rect: Rect,
+    preview_corners: CornerRadius,
+    lang: UiLang,
+) {
     if let Some(tex) = app.host_desktop_textures.get(preview_key) {
         paint_preview_texture(ui, preview_rect, preview_corners, tex);
     } else {
         paint_preview_placeholder(ui, preview_rect, preview_corners, lang);
+    }
+}
+
+fn paint_preview_hover_mask(ui: &egui::Ui, preview_rect: Rect, preview_corners: CornerRadius) {
+    ui.painter().rect_filled(
+        preview_rect,
+        preview_corners,
+        Color32::from_black_alpha(PREVIEW_HOVER_MASK_A),
+    );
+}
+
+/// Right-aligned row: **[配置] 8px [删除]** (delete flush to preview right inset).
+fn preview_overlay_action_bar_rects(preview_rect: Rect) -> (Rect, Rect) {
+    let pad = PREVIEW_CFG_BTN_PAD;
+    let gap = PREVIEW_OVERLAY_BTN_GAP;
+    let y = preview_rect.bottom() - pad - PREVIEW_OVERLAY_BTN_H;
+    let max_pair = (preview_rect.width() - pad * 2.0 - gap).max(0.0);
+    let w_cfg = (max_pair * 0.52).clamp(56.0, 120.0);
+    let w_del = (max_pair - gap - w_cfg).clamp(48.0, 100.0);
+    let right_x = preview_rect.right() - pad;
+    let del_min = pos2(right_x - w_del, y);
+    let cfg_min = pos2(right_x - w_del - gap - w_cfg, y);
+    (
+        Rect::from_min_size(cfg_min, vec2(w_cfg, PREVIEW_OVERLAY_BTN_H)),
+        Rect::from_min_size(del_min, vec2(w_del, PREVIEW_OVERLAY_BTN_H)),
+    )
+}
+
+fn paint_preview_delete_btn(
+    ui: &mut egui::Ui,
+    btn_rect: Rect,
+    lang: UiLang,
+    app: &mut CenterApp,
+    card_index: usize,
+) {
+    let red = Color32::from_rgb(255, 72, 72);
+    let btn = egui::Button::new(RichText::new(t(lang, Msg::DeviceMgmtPreviewDelete)).color(red))
+        .fill(Color32::from_black_alpha(45))
+        .stroke(egui::Stroke::new(1.0, Color32::from_rgb(200, 55, 55)));
+    if ui.put(btn_rect, btn).clicked() {
+        app.pending_remove_endpoint = Some(card_index);
+        ui.ctx().request_repaint();
+    }
+}
+
+fn paint_preview_configure_btn(
+    ui: &mut egui::Ui,
+    btn_rect: Rect,
+    lang: UiLang,
+    app: &mut CenterApp,
+    card_index: usize,
+) {
+    let btn = egui::Button::new(
+        RichText::new(t(lang, Msg::DeviceMgmtPreviewConfigure)).color(Color32::WHITE),
+    )
+    .fill(Color32::from_white_alpha(36))
+    .stroke(egui::Stroke::new(1.0, Color32::from_white_alpha(90)));
+    if ui.put(btn_rect, btn).clicked() {
+        app.open_host_config_from_card(card_index);
+    }
+}
+
+fn paint_device_preview_hover_layer(
+    ui: &mut egui::Ui,
+    preview_rect: Rect,
+    preview_corners: CornerRadius,
+    lang: UiLang,
+    hovered: bool,
+    app: &mut CenterApp,
+    card_index: usize,
+) {
+    if !hovered {
+        return;
+    }
+    paint_preview_hover_mask(ui, preview_rect, preview_corners);
+    let (cfg_rect, del_rect) = preview_overlay_action_bar_rects(preview_rect);
+    paint_preview_configure_btn(ui, cfg_rect, lang, app, card_index);
+    paint_preview_delete_btn(ui, del_rect, lang, app, card_index);
+}
+
+fn paint_device_preview_slot(
+    app: &mut CenterApp,
+    ui: &mut egui::Ui,
+    card_index: usize,
+    preview_key: &str,
+    card_w: f32,
+    lang: UiLang,
+    online: bool,
+) {
+    let preview_h = device_preview_slot_height(card_w);
+    let (preview_rect, _) = ui.allocate_exact_size(Vec2::new(card_w, preview_h), Sense::empty());
+    let corners = preview_slot_top_corners();
+    paint_device_preview_fill(app, ui, preview_key, preview_rect, corners, lang);
+    // Use geometry + layer clip, not `Response::hovered()`: the latter goes false when the pointer
+    // moves onto overlay `ui.put` buttons, which made the overlay disappear before click.
+    let show_chrome = online && ui.rect_contains_pointer(preview_rect);
+    paint_device_preview_hover_layer(
+        ui,
+        preview_rect,
+        corners,
+        lang,
+        show_chrome,
+        app,
+        card_index,
+    );
+    if show_chrome {
+        ui.ctx().request_repaint();
     }
 }
 
@@ -579,12 +711,13 @@ fn paint_remark_display_row(
 
 fn device_card_select_interact(
     ui: &mut egui::Ui,
-    card_tl: egui::Pos2,
+    select_min: egui::Pos2,
     select_split_y: f32,
     i: usize,
 ) -> egui::Response {
     let card_br = ui.min_rect().max;
-    let select_rect = Rect::from_min_max(card_tl, pos2(card_br.x, select_split_y));
+    let y1 = select_split_y.max(select_min.y + 1.0);
+    let select_rect = Rect::from_min_max(select_min, pos2(card_br.x, y1));
     ui.interact(
         select_rect,
         ui.make_persistent_id(("device_mgmt_card", i)),

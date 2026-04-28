@@ -3,5 +3,5 @@
 mod add_host_dialog;
 mod device_card;
 mod helpers;
-mod host_config_panel;
+mod host_config_window;
 mod panel;

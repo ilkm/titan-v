@@ -138,6 +138,7 @@ impl CenterApp {
             pending_spoof_confirm_apply: false,
             ui_lang,
             settings_open: false,
+            settings_lang_btn_rect: None,
             add_host_dialog_open: false,
             add_host_dialog_ip: String::new(),
             add_host_dialog_port: "7788".into(),
@@ -155,6 +156,10 @@ impl CenterApp {
             device_remark_edit_index: None,
             device_remark_edit_focus_next: false,
             device_masonry_heights: HashMap::new(),
+            pending_remove_endpoint: None,
+            host_config_window_open: false,
+            host_managed_draft_json: String::new(),
+            host_managed_last_msg: String::new(),
             fleet_by_endpoint: HashMap::new(),
             fleet_busy: false,
             vm_inventory: Vec::new(),
@@ -175,8 +180,6 @@ impl CenterApp {
             host_disk_volumes: Vec::new(),
             last_capabilities: String::new(),
             last_net_error: String::new(),
-            host_managed_draft_json: String::new(),
-            host_managed_last_msg: String::new(),
             sqlite_snapshot_last_time: -1.0e9_f64,
         };
         app.flush_center_settings_to_sqlite();

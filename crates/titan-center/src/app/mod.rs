@@ -125,6 +125,8 @@ pub struct CenterApp {
     pub(crate) pending_spoof_confirm_apply: bool,
     pub(crate) ui_lang: UiLang,
     pub(crate) settings_open: bool,
+    /// Last frame's 🌐 button rect (screen space); used to anchor the settings popup.
+    pub(crate) settings_lang_btn_rect: Option<egui::Rect>,
     /// Device tab: manual host entry (IP + port), not persisted until saved with app state.
     pub(crate) add_host_dialog_open: bool,
     pub(crate) add_host_dialog_ip: String,
@@ -151,7 +153,11 @@ pub struct CenterApp {
     device_remark_edit_focus_next: bool,
     /// Last painted card height per control addr key (Connect tab masonry / waterfall).
     pub(crate) device_masonry_heights: HashMap<String, f32>,
-    /// Draft JSON for [`device_store::host_managed_config`] (Connect tab → push to selected host).
+    /// Card overlay delete: applied before painting so the same frame never reads `endpoints[i]` after removal.
+    pub(crate) pending_remove_endpoint: Option<usize>,
+    /// Host JSON draft window (device card preview → Configure).
+    pub(crate) host_config_window_open: bool,
+    /// Draft JSON for [`device_store::host_managed_config`] (host config window).
     pub(crate) host_managed_draft_json: String,
     pub(crate) host_managed_last_msg: String,
     /// Last egui time ([`egui::InputState::time`]) we flushed settings to SQLite (eframe persistence off).
@@ -202,20 +208,7 @@ impl eframe::App for CenterApp {
         if self.hidden_to_tray {
             ctx.request_repaint_after(std::time::Duration::from_millis(300));
         }
-        self.maybe_flush_center_sqlite(ctx);
-        self.drain_net_inbox();
-        self.tick_add_host_verify_watchdog(ctx);
-        self.tick_telemetry_staleness();
-        self.tick_reachability_probes(ctx);
-        self.tick_auto_control_session(ctx);
-        self.tick_discovery_thread();
-        self.tick_host_collect_thread();
-        self.tick_desktop_preview_refresh(ctx);
-        self.tick_list_vms_auto_refresh(ctx);
-        self.render_top_panel(ctx);
-        self.render_side_nav(ctx);
-        self.render_central_panel(ctx);
-        self.render_settings_window(ctx);
-        self.render_ui_toast(ctx);
+        self.center_app_tick_frame(ctx);
+        self.center_app_paint_frame(ctx);
     }
 }
