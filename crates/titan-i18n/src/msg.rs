@@ -104,8 +104,10 @@ pub enum Msg {
 
     /// Titan Host window title and top chrome.
     HpWinTitle,
-    HpTabService,
-    HpTabBatch,
+    /// Host sidebar: listen / announce / persist (formerly “Service”).
+    HpTabSettings,
+    /// Host sidebar: VM plans / provision (shown as **窗口管理** in UI).
+    HpTabWindowMgmt,
     HpLangLabel,
     HpListen,
     HpAnnounce,

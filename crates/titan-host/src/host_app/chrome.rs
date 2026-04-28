@@ -126,8 +126,8 @@ impl HostApp {
 
     fn host_side_nav_tab_buttons(&mut self, ui: &mut egui::Ui, lang: UiLang) {
         ui.spacing_mut().item_spacing.y = 6.0;
-        self.host_side_nav_one_row(ui, lang, 0, Msg::HpTabService);
-        self.host_side_nav_one_row(ui, lang, 1, Msg::HpTabBatch);
+        self.host_side_nav_one_row(ui, lang, 0, Msg::HpTabWindowMgmt);
+        self.host_side_nav_one_row(ui, lang, 1, Msg::HpTabSettings);
     }
 
     pub(crate) fn render_host_side_nav(&mut self, ctx: &egui::Context) {
@@ -160,8 +160,8 @@ impl HostApp {
             ui.vertical(|ui| {
                 ui.set_width(column_w);
                 match self.active_tab {
-                    0 => self.panel_service(ui),
-                    1 => self.panel_batch(ui),
+                    0 => self.panel_batch(ui),
+                    1 => self.panel_service(ui),
                     _ => {}
                 }
             });
