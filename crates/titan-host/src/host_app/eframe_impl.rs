@@ -5,6 +5,7 @@ use crate::titan_i18n::{self as i18n, Msg};
 use super::model::{HostApp, PERSIST_KEY};
 
 impl HostApp {
+    /// Sync tray icon, context menu, and tooltip when [`Self::persist.ui_lang`] changes.
     fn sync_tray_glyph_lang(&mut self) {
         let Some(tray) = self._tray.as_ref() else {
             return;

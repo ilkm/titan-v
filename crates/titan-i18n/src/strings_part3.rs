@@ -6,6 +6,17 @@ pub(super) fn translate(lang: UiLang, msg: Msg) -> Option<&'static str> {
         .or_else(|| monitor_counts(lang, msg))
         .or_else(|| monitor_hints_and_actions(lang, msg))
         .or_else(|| slots(lang, msg))
+        .or_else(|| tray(lang, msg))
+}
+
+fn tray(lang: UiLang, msg: Msg) -> Option<&'static str> {
+    match (lang, msg) {
+        (UiLang::En, Msg::TrayShowMainWindow) => Some("Show main window"),
+        (UiLang::Zh, Msg::TrayShowMainWindow) => Some("显示主窗口"),
+        (UiLang::En, Msg::TrayQuit) => Some("Quit"),
+        (UiLang::Zh, Msg::TrayQuit) => Some("退出"),
+        _ => None,
+    }
 }
 
 fn inventory_and_preview(lang: UiLang, msg: Msg) -> Option<&'static str> {

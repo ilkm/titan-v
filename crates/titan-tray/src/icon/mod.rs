@@ -6,9 +6,10 @@ mod geom;
 mod tray_pix;
 
 use titan_common::UiLang;
+use titan_i18n::{t, Msg};
 use tray_icon::Icon;
 
-use crate::menu::DesktopProduct;
+use crate::menu::{self, DesktopProduct};
 
 /// Tray bitmap width (horizontal “pill”; matches macOS Pinyin **拼** / ABC **A** tile ≈44×30 reference).
 pub const TRAY_ICON_WIDTH_PX: u32 = 44;
@@ -31,10 +32,25 @@ pub fn tray_icon_for_lang(product: DesktopProduct, lang: UiLang) -> Icon {
         .expect("tray rgba dimensions valid")
 }
 
+/// Refreshes tray **icon**, **context menu**, and **tooltip** for [`UiLang`] (e.g. after settings change).
 pub fn refresh_tray_icon(
     tray: &tray_icon::TrayIcon,
     product: DesktopProduct,
     lang: UiLang,
 ) -> tray_icon::Result<()> {
+    let m = menu::build_tray_menu(product, lang).map_err(map_tray_menu_err)?;
+    tray.set_menu(Some(Box::new(m)));
+    tray.set_tooltip(Some(tray_tooltip(product, lang)))?;
     tray.set_icon(Some(tray_icon_for_lang(product, lang)))
+}
+
+fn map_tray_menu_err(e: tray_icon::menu::Error) -> tray_icon::Error {
+    tray_icon::Error::OsError(std::io::Error::other(format!("tray menu: {e}")))
+}
+
+fn tray_tooltip(product: DesktopProduct, lang: UiLang) -> &'static str {
+    match product {
+        DesktopProduct::Center => t(lang, Msg::BrandTitle),
+        DesktopProduct::Host => t(lang, Msg::HpWinTitle),
+    }
 }

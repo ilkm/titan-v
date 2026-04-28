@@ -140,5 +140,10 @@ pub enum Msg {
     HpProvision,
     HpLog,
 
+    /// System tray: restore main window (egui apps).
+    TrayShowMainWindow,
+    /// System tray: quit the application.
+    TrayQuit,
+
     BtnCancel,
 }

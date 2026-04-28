@@ -14,6 +14,7 @@ tokio = ["dep:tokio"]
 fontdb = { version = "0.23", default-features = true }
 fontdue = "0.9"
 titan-common = { path = "../titan-common" }
+titan-i18n = { path = "../titan-i18n" }
 tray-icon = "0.19"
 tracing = "0.1"
 

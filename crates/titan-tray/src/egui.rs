@@ -5,6 +5,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 
 use titan_common::UiLang;
+use titan_i18n::{t, Msg};
 
 use crate::menu::{self, DesktopProduct};
 use tray_icon::menu::{MenuEvent, MenuId};
@@ -63,19 +64,19 @@ pub fn register_host_tray_wakeup(ctx: &egui::Context) {
 }
 
 pub fn build_tray_icon(lang: UiLang) -> tray_icon::Result<TrayIcon> {
-    build_tray_icon_for(DesktopProduct::Center, "Titan Center", lang)
+    build_tray_icon_for(DesktopProduct::Center, lang)
 }
 
 pub fn build_host_tray_icon(lang: UiLang) -> tray_icon::Result<TrayIcon> {
-    build_tray_icon_for(DesktopProduct::Host, "Titan Host", lang)
+    build_tray_icon_for(DesktopProduct::Host, lang)
 }
 
-fn build_tray_icon_for(
-    product: DesktopProduct,
-    tooltip: &str,
-    lang: UiLang,
-) -> tray_icon::Result<TrayIcon> {
-    let m = menu::build_tray_menu(product)
+fn build_tray_icon_for(product: DesktopProduct, lang: UiLang) -> tray_icon::Result<TrayIcon> {
+    let tooltip = match product {
+        DesktopProduct::Center => t(lang, Msg::BrandTitle),
+        DesktopProduct::Host => t(lang, Msg::HpWinTitle),
+    };
+    let m = menu::build_tray_menu(product, lang)
         .map_err(|e| std::io::Error::other(format!("tray menu: {e}")))?;
     let builder = TrayIconBuilder::new()
         .with_menu(Box::new(m))
@@ -89,7 +90,7 @@ fn build_tray_icon_for(
 
 /// Drain tray-queued menu actions (handlers call [`egui::Context::request_repaint`]).
 ///
-/// Returns `true` if **显示主窗口** was chosen (caller may clear a “hidden to tray” flag).
+/// Returns `true` if **Show main window** was chosen (caller may clear a “hidden to tray” flag).
 pub fn poll_tray_for_egui(ctx: &egui::Context, really_quitting: &mut bool) -> bool {
     poll_tray_for_egui_product(ctx, really_quitting, DesktopProduct::Center)
 }

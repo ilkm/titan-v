@@ -34,6 +34,7 @@ impl CenterApp {
         }
     }
 
+    /// Sync tray icon, context menu, and tooltip when [`Self::ui_lang`] changes.
     pub(crate) fn sync_tray_glyph_lang(&mut self) {
         let Some(tray) = self._tray.as_ref() else {
             return;

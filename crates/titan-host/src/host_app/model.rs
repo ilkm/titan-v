@@ -71,7 +71,7 @@ pub struct HostApp {
     pub(crate) really_quitting: bool,
     pub(crate) hidden_to_tray: bool,
     pub(crate) _tray: Option<titan_tray::TrayIcon>,
-    /// Last UI language applied to the tray bitmap (see [`titan_tray::refresh_tray_icon`]).
+    /// Last UI language applied to the tray (icon, menu, tooltip); see [`titan_tray::refresh_tray_icon`].
     pub(crate) tray_glyph_lang: titan_common::UiLang,
     pub(crate) serve_run: Option<ServeRun>,
     pub(crate) persist_apply_tx: Option<std::sync::mpsc::Sender<HostUiPersist>>,

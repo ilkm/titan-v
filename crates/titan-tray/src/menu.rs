@@ -1,5 +1,7 @@
 //! Context menu: macOS root [`muda::Menu`] may only contain [`muda::Submenu`] children.
 
+use titan_common::UiLang;
+use titan_i18n::{t, Msg};
 use tray_icon::menu::{Menu, MenuId, MenuItem, Submenu};
 
 /// Stable menu item ids (avoid clashes if multiple Titan apps run).
@@ -15,10 +17,10 @@ pub enum DesktopProduct {
 }
 
 impl DesktopProduct {
-    fn submenu_title(self) -> &'static str {
+    fn submenu_title(self, lang: UiLang) -> &'static str {
         match self {
-            DesktopProduct::Center => "Titan Center",
-            DesktopProduct::Host => "Titan Host",
+            DesktopProduct::Center => t(lang, Msg::BrandTitle),
+            DesktopProduct::Host => t(lang, Msg::HpWinTitle),
         }
     }
 
@@ -33,7 +35,7 @@ impl DesktopProduct {
         }
     }
 
-    /// Tray menu id for **显示主窗口** (egui apps).
+    /// Tray menu id for **Show main window** / **显示主窗口** (egui apps).
     #[must_use]
     pub fn show_menu_id(self) -> MenuId {
         match self {
@@ -43,30 +45,55 @@ impl DesktopProduct {
     }
 }
 
-pub fn build_tray_menu(product: DesktopProduct) -> tray_icon::menu::Result<Menu> {
+pub fn build_tray_menu(product: DesktopProduct, lang: UiLang) -> tray_icon::menu::Result<Menu> {
     let menu = Menu::new();
-    let quit = MenuItem::with_id(product.quit_menu_id(), "退出", true, None);
-
+    let quit = MenuItem::with_id(product.quit_menu_id(), t(lang, Msg::TrayQuit), true, None);
     #[cfg(target_os = "macos")]
-    {
-        if product.include_show() {
-            let show = MenuItem::with_id(product.show_menu_id(), "显示主窗口", true, None);
-            let submenu = Submenu::with_items(product.submenu_title(), true, &[&show, &quit])?;
-            menu.append(&submenu)?;
-        } else {
-            let submenu = Submenu::with_items(product.submenu_title(), true, &[&quit])?;
-            menu.append(&submenu)?;
-        }
-    }
-
+    append_tray_entries_macos(&menu, product, lang, &quit)?;
     #[cfg(not(target_os = "macos"))]
-    {
-        if product.include_show() {
-            let show = MenuItem::with_id(product.show_menu_id(), "显示主窗口", true, None);
-            menu.append(&show)?;
-        }
-        menu.append(&quit)?;
-    }
-
+    append_tray_entries_non_macos(&menu, product, lang, &quit)?;
     Ok(menu)
+}
+
+#[cfg(target_os = "macos")]
+fn append_tray_entries_macos(
+    menu: &Menu,
+    product: DesktopProduct,
+    lang: UiLang,
+    quit: &MenuItem,
+) -> tray_icon::menu::Result<()> {
+    if product.include_show() {
+        let show = MenuItem::with_id(
+            product.show_menu_id(),
+            t(lang, Msg::TrayShowMainWindow),
+            true,
+            None,
+        );
+        let submenu = Submenu::with_items(product.submenu_title(lang), true, &[&show, quit])?;
+        menu.append(&submenu)?;
+    } else {
+        let submenu = Submenu::with_items(product.submenu_title(lang), true, &[quit])?;
+        menu.append(&submenu)?;
+    }
+    Ok(())
+}
+
+#[cfg(not(target_os = "macos"))]
+fn append_tray_entries_non_macos(
+    menu: &Menu,
+    product: DesktopProduct,
+    lang: UiLang,
+    quit: &MenuItem,
+) -> tray_icon::menu::Result<()> {
+    if product.include_show() {
+        let show = MenuItem::with_id(
+            product.show_menu_id(),
+            t(lang, Msg::TrayShowMainWindow),
+            true,
+            None,
+        );
+        menu.append(&show)?;
+    }
+    menu.append(quit)?;
+    Ok(())
 }

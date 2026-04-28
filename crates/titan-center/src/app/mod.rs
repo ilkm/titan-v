@@ -140,7 +140,7 @@ pub struct CenterApp {
     pub(crate) _tray: Option<titan_tray::TrayIcon>,
     /// macOS/Winit: tray must be created after the event loop has started (`StartCause::Init`); see tray-icon docs.
     tray_icon_init_attempted: bool,
-    /// Last UI language applied to the tray bitmap (see [`titan_tray::refresh_tray_icon`]).
+    /// Last UI language applied to the tray (icon, menu, tooltip); see [`titan_tray::refresh_tray_icon`].
     tray_glyph_lang: UiLang,
     /// Device card: index into `endpoints` whose remark is being edited (`None` = display mode).
     pub(crate) device_remark_edit_index: Option<usize>,

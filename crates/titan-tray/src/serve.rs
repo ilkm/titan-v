@@ -4,6 +4,7 @@
 use std::time::Duration;
 
 use titan_common::UiLang;
+use titan_i18n::{t, Msg};
 use tokio::sync::watch;
 use tray_icon::menu::{MenuEvent, MenuId};
 use tray_icon::TrayIconBuilder;
@@ -29,7 +30,7 @@ fn poll_host_tray_until_quit(shutdown_tx: &watch::Sender<bool>, quit_id: &MenuId
 
 #[cfg(not(target_os = "macos"))]
 fn non_macos_tray_host_thread(shutdown_tx: watch::Sender<bool>, tooltip: String, lang: UiLang) {
-    let menu = match menu::build_tray_menu(DesktopProduct::Host) {
+    let menu = match menu::build_tray_menu(DesktopProduct::Host, lang) {
         Ok(m) => m,
         Err(e) => {
             tracing::warn!("tray: menu build failed: {e}");
@@ -54,9 +55,9 @@ fn non_macos_tray_host_thread(shutdown_tx: watch::Sender<bool>, tooltip: String,
     poll_host_tray_until_quit(&shutdown_tx, &quit_id);
 }
 
-fn host_tooltip(tooltip: &str) -> String {
+fn host_tooltip(lang: UiLang, tooltip: &str) -> String {
     if tooltip.is_empty() {
-        "Titan".to_string()
+        t(lang, Msg::HpWinTitle).to_string()
     } else {
         tooltip.to_string()
     }
@@ -69,7 +70,7 @@ pub fn spawn_tray_shutdown_for_serve(
     tooltip: String,
     lang: UiLang,
 ) {
-    let tooltip = host_tooltip(&tooltip);
+    let tooltip = host_tooltip(lang, &tooltip);
     std::thread::Builder::new()
         .name("titan-tray-host".to_string())
         .spawn(move || non_macos_tray_host_thread(shutdown_tx, tooltip, lang))
@@ -90,7 +91,7 @@ fn macos_set_accessory_activation_policy() {
 
 #[cfg(target_os = "macos")]
 fn macos_install_tray_icon_and_tick_runloop(tooltip: &str, lang: UiLang) -> Result<(), String> {
-    let menu = menu::build_tray_menu(DesktopProduct::Host).map_err(|e| e.to_string())?;
+    let menu = menu::build_tray_menu(DesktopProduct::Host, lang).map_err(|e| e.to_string())?;
     let icon = crate::icon::tray_icon_for_lang(DesktopProduct::Host, lang);
     let tray = TrayIconBuilder::new()
         .with_menu(Box::new(menu))
@@ -131,7 +132,7 @@ pub fn spawn_tray_shutdown_for_serve(
     tooltip: String,
     lang: UiLang,
 ) {
-    let tooltip = host_tooltip(&tooltip);
+    let tooltip = host_tooltip(lang, &tooltip);
     let on_main = unsafe { libc::pthread_main_np() != 0 };
     let res = if on_main {
         macos_install_host_tray_for_serve(&shutdown_tx, &tooltip, lang)
