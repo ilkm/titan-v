@@ -1,0 +1,10 @@
+[package]
+name = "titan-i18n"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Shared UI strings (EN/ZH) for Titan Center and Titan Host."
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+titan-common = { path = "../titan-common" }

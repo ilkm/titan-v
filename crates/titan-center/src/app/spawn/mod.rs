@@ -4,6 +4,7 @@ mod add_host_verify;
 mod common;
 mod desktop_cycle;
 mod fleet;
-mod hello_vms_spoof_power;
+mod hello_vms;
 mod reachability;
 mod telemetry;
+mod ui_lang_hosts;

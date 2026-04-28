@@ -1,8 +1,28 @@
 use eframe::egui;
 
-use super::model::HostApp;
+use crate::titan_i18n::{self as i18n, Msg};
+
+use super::model::{HostApp, PERSIST_KEY};
 
 impl HostApp {
+    fn sync_tray_glyph_lang(&mut self) {
+        let Some(tray) = self._tray.as_ref() else {
+            return;
+        };
+        if self.tray_glyph_lang == self.persist.ui_lang {
+            return;
+        }
+        if let Err(e) = titan_tray::refresh_tray_icon(
+            tray,
+            titan_tray::DesktopProduct::Host,
+            self.persist.ui_lang,
+        ) {
+            tracing::warn!("tray icon refresh: {e}");
+            return;
+        }
+        self.tray_glyph_lang = self.persist.ui_lang;
+    }
+
     fn boot_focus_once_if_needed(&mut self, ctx: &egui::Context) {
         if !self.boot_window_focus_once && !self.hidden_to_tray {
             self.boot_window_focus_once = true;
@@ -25,27 +45,12 @@ impl HostApp {
     }
 
     fn show_host_chrome(&mut self, ctx: &egui::Context) {
-        egui::TopBottomPanel::top("host_top").show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                ui.heading("Titan Host");
-                ui.separator();
-                if ui.selectable_label(self.active_tab == 0, "服务").clicked() {
-                    self.active_tab = 0;
-                }
-                if ui
-                    .selectable_label(self.active_tab == 1, "批量创建")
-                    .clicked()
-                {
-                    self.active_tab = 1;
-                }
-            });
-        });
-
-        egui::CentralPanel::default().show(ctx, |ui| match self.active_tab {
-            0 => self.panel_service(ui),
-            1 => self.panel_batch(ui),
-            _ => {}
-        });
+        let title = i18n::t(self.persist.ui_lang, Msg::HpWinTitle).to_string();
+        ctx.send_viewport_cmd_to(egui::ViewportId::ROOT, egui::ViewportCommand::Title(title));
+        self.render_host_top_panel(ctx);
+        self.render_host_side_nav(ctx);
+        self.render_host_central_panel(ctx);
+        self.render_host_lang_settings_window(ctx);
     }
 }
 
@@ -54,6 +59,12 @@ impl eframe::App for HostApp {
     /// `ViewportCommand::Visible(false)` and the main window can stay hidden on launch.
     fn persist_egui_memory(&self) -> bool {
         false
+    }
+
+    fn save(&mut self, storage: &mut dyn eframe::Storage) {
+        if let Ok(json) = serde_json::to_string(&self.persist) {
+            storage.set_string(PERSIST_KEY, json);
+        }
     }
 
     fn raw_input_hook(&mut self, ctx: &egui::Context, raw_input: &mut egui::RawInput) {
@@ -89,6 +100,11 @@ impl eframe::App for HostApp {
             self.persist = next;
             self.start_serve();
         }
+        while let Ok(lang) = self.lang_apply_rx.try_recv() {
+            self.persist.ui_lang = lang;
+            ctx.request_repaint();
+        }
+        self.sync_tray_glyph_lang();
         self.boot_focus_once_if_needed(ctx);
         self.sync_tray_wakeup_and_repaint(ctx);
         self.drain_provision_log();

@@ -1,4 +1,4 @@
-use titan_common::{ControlResponse, MAX_PAYLOAD_BYTES};
+use titan_common::{ControlResponse, UiLang, MAX_PAYLOAD_BYTES};
 
 use crate::ui_persist::HostUiPersist;
 
@@ -28,9 +28,6 @@ fn parse_and_validate_persist(json: &str) -> Result<HostUiPersist, ControlRespon
         Err(e) => return Err(server_err(400, format!("invalid HostUiPersist JSON: {e}"))),
     };
     if let Err(e) = p.validate_for_remote_apply() {
-        return Err(server_err(400, e));
-    }
-    if let Err(e) = HostUiPersist::bindings_spec(&p) {
         return Err(server_err(400, e));
     }
     Ok(p)
@@ -63,4 +60,23 @@ pub async fn handle_apply_host_ui_persist_json(
         ok: true,
         detail: "queued; Host UI will apply on next frame and restart serve".into(),
     })
+}
+
+pub fn handle_set_ui_lang(
+    lang: UiLang,
+    state: &super::state::ServeState,
+) -> Result<ControlResponse, super::errors::ServeError> {
+    let Some(tx) = state.lang_apply_tx.as_ref() else {
+        return Ok(server_err(
+            503,
+            "remote UI language apply is not enabled on this process",
+        ));
+    };
+    if tx.send(lang).is_err() {
+        return Ok(server_err(
+            503,
+            "host UI language channel closed; cannot apply remote language",
+        ));
+    }
+    Ok(ControlResponse::SetUiLangAck { ok: true })
 }

@@ -4,7 +4,9 @@ use egui::{RichText, ScrollArea};
 
 use super::constants::ACCENT;
 use super::i18n::{t, Msg};
-use super::widgets::{form_field_row, section_card, subtle_button};
+use super::widgets::{
+    form_field_row, inset_single_select_dropdown, section_card, subtle_button, InsetDropdownLayout,
+};
 use super::CenterApp;
 
 impl CenterApp {
@@ -107,30 +109,41 @@ impl CenterApp {
         });
     }
 
+    fn discovery_quick_add_menu_rows(&mut self, ui: &mut egui::Ui, lang: super::i18n::UiLang) {
+        if self.discovery_if_rows.is_empty() {
+            ui.weak(t(lang, Msg::DiscoveryNoIpv4Ifaces));
+        }
+        for row in &self.discovery_if_rows {
+            let ip_s = row.ip.to_string();
+            let label = format!(
+                "{} — {}{}",
+                row.ip,
+                row.iface,
+                if self.discovery_bind_ipv4s.contains(&ip_s) {
+                    "  ✓"
+                } else {
+                    ""
+                }
+            );
+            if subtle_button(ui, label.as_str(), true).clicked()
+                && !self.discovery_bind_ipv4s.contains(&ip_s)
+            {
+                self.discovery_bind_ipv4s.push(ip_s);
+            }
+        }
+    }
+
     fn settings_discovery_quick_add_combo(&mut self, ui: &mut egui::Ui, lang: super::i18n::UiLang) {
-        egui::ComboBox::from_id_salt("discovery_ipv4_quick_add")
-            .selected_text(t(lang, Msg::DiscoveryBindQuickAdd))
-            .show_ui(ui, |ui| {
-                if self.discovery_if_rows.is_empty() {
-                    ui.weak(t(lang, Msg::DiscoveryNoIpv4Ifaces));
-                }
-                for row in &self.discovery_if_rows {
-                    let ip_s = row.ip.to_string();
-                    let label = format!(
-                        "{} — {}{}",
-                        row.ip,
-                        row.iface,
-                        if self.discovery_bind_ipv4s.contains(&ip_s) {
-                            "  ✓"
-                        } else {
-                            ""
-                        }
-                    );
-                    if ui.button(label).clicked() && !self.discovery_bind_ipv4s.contains(&ip_s) {
-                        self.discovery_bind_ipv4s.push(ip_s);
-                    }
-                }
-            });
+        let w = ui.available_width();
+        inset_single_select_dropdown(
+            ui,
+            "discovery_ipv4_quick_add",
+            w,
+            t(lang, Msg::DiscoveryBindQuickAdd),
+            220.0,
+            InsetDropdownLayout::default(),
+            |ui| self.discovery_quick_add_menu_rows(ui, lang),
+        );
     }
 
     fn settings_discovery_bind_list(&mut self, ui: &mut egui::Ui, lang: super::i18n::UiLang) {

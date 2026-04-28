@@ -11,6 +11,7 @@ pub mod proxy_pool;
 pub mod state;
 pub mod stubs;
 pub mod transport;
+pub mod ui_lang;
 pub mod wire;
 
 pub use capabilities::{Capabilities, HostRuntimeProbes, HypervSpoofHostCaps};
@@ -32,6 +33,7 @@ pub use transport::{
     DdsControlBus, GrpcControlPlane, NoopDdsControlBus, NoopGrpcControlPlane, TcpWirePingClient,
     TracingHeartbeatBus,
 };
+pub use ui_lang::UiLang;
 pub use wire::compress::{maybe_zstd_compress, zstd_compress_all, zstd_decompress_all};
 pub use wire::fleet_rkyv::{fleet_rkyv_decode_ping, fleet_rkyv_encode_ping, FleetRkyvPing};
 pub use wire::frame_bytes::{skip_bytes, take_payload_bytes};
@@ -48,4 +50,4 @@ pub use wire::{
 };
 
 /// Wire protocol / capability negotiation version (center ↔ host).
-pub const PROTOCOL_VERSION: u32 = 13;
+pub const PROTOCOL_VERSION: u32 = 14;

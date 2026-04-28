@@ -22,6 +22,8 @@ path = "src/main.rs"
 
 [dependencies]
 titan-common = { path = "../titan-common" }
+titan-egui-widgets = { path = "../titan-egui-widgets" }
+titan-i18n = { path = "../titan-i18n" }
 anyhow = "1.0"
 eframe = { version = "0.31" }
 egui = "0.31"

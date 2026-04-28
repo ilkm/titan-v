@@ -1,6 +1,7 @@
 //! Host node library: control-plane server and VM orchestration (binary is `titan-host`).
 
-#![forbid(unsafe_code)]
+// `unsafe` is confined to `desktop_snapshot_win` (Windows GDI); that module opts in locally.
+#![deny(unsafe_code)]
 
 pub mod agent_bindings;
 pub mod batch;
@@ -35,3 +36,7 @@ pub mod vmm {
 pub mod scripts {
     pub use titan_scripts::*;
 }
+/// Shared egui UI primitives (aligned with Titan Center).
+pub use titan_egui_widgets;
+/// Shared UI strings (EN/ZH) for Center and Host.
+pub use titan_i18n;

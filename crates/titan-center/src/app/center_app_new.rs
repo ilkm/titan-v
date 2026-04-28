@@ -28,10 +28,26 @@ impl CenterApp {
         }
         self.tray_icon_init_attempted = true;
 
-        match titan_tray::build_tray_icon() {
+        match titan_tray::build_tray_icon(self.ui_lang) {
             Ok(t) => self._tray = Some(t),
             Err(e) => tracing::warn!("system tray unavailable: {e}"),
         }
+    }
+
+    pub(crate) fn sync_tray_glyph_lang(&mut self) {
+        let Some(tray) = self._tray.as_ref() else {
+            return;
+        };
+        if self.tray_glyph_lang == self.ui_lang {
+            return;
+        }
+        if let Err(e) =
+            titan_tray::refresh_tray_icon(tray, titan_tray::DesktopProduct::Center, self.ui_lang)
+        {
+            tracing::warn!("tray icon refresh: {e}");
+            return;
+        }
+        self.tray_glyph_lang = self.ui_lang;
     }
 
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
@@ -89,7 +105,7 @@ impl CenterApp {
             .map(|e| e.addr.clone())
             .unwrap_or_default();
         let ui_lang = persist.ui_lang;
-        let active_nav = persist.active_nav;
+        let active_nav = persist.active_nav.normalize();
         let desktop_poll_accum = if active_nav == NavTab::Connect {
             DESKTOP_PREVIEW_POLL_SECS
         } else {
@@ -132,11 +148,8 @@ impl CenterApp {
             host_collect_register_udp_port: persist.host_collect_register_udp_port,
             discovery_if_rows: Vec::new(),
             discovery_if_scan_secs: -1.0e6_f64,
-            spoof_target_vm: String::new(),
-            spoof_dynamic_mac: true,
-            spoof_disable_checkpoints: false,
-            pending_spoof_confirm_apply: false,
             ui_lang,
+            host_synced_ui_lang: ui_lang,
             settings_open: false,
             settings_lang_btn_rect: None,
             add_host_dialog_open: false,
@@ -153,6 +166,7 @@ impl CenterApp {
             hidden_to_tray: false,
             _tray: None,
             tray_icon_init_attempted: false,
+            tray_glyph_lang: ui_lang,
             device_remark_edit_index: None,
             device_remark_edit_focus_next: false,
             device_masonry_heights: HashMap::new(),
@@ -163,9 +177,6 @@ impl CenterApp {
             fleet_by_endpoint: HashMap::new(),
             fleet_busy: false,
             vm_inventory: Vec::new(),
-            bulk_vm_names: String::new(),
-            pending_confirm_stop: false,
-            pending_confirm_start: false,
             last_action: String::new(),
             control_addr,
             net_tx,

@@ -1,5 +1,5 @@
-use super::msg::Msg;
-use super::UiLang;
+use crate::msg::Msg;
+use crate::UiLang;
 
 pub(super) fn translate(lang: UiLang, msg: Msg) -> Option<&'static str> {
     host_collect_block(lang, msg)
@@ -114,6 +114,8 @@ fn add_host_dialog(lang: UiLang, msg: Msg) -> Option<&'static str> {
         (UiLang::Zh, Msg::AddHostPortLabel) => Some("TCP 端口"),
         (UiLang::En, Msg::AddHostConfirm) => Some("Add"),
         (UiLang::Zh, Msg::AddHostConfirm) => Some("添加"),
+        (UiLang::En, Msg::BtnCancel) => Some("Cancel"),
+        (UiLang::Zh, Msg::BtnCancel) => Some("取消"),
         _ => None,
     }
 }

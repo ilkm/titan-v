@@ -11,16 +11,27 @@ use super::i18n::UiLang;
 
 /// Left-nav module (persisted).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
-#[repr(u8)]
 #[serde(rename_all = "snake_case")]
 pub enum NavTab {
     #[default]
     Connect,
     HostsVms,
     Monitor,
-    Spoof,
-    Power,
     Settings,
+    /// Removed tabs (`spoof`, `power`, …) deserialize here; map to [`Connect`](Self::Connect) at load.
+    #[serde(other)]
+    Legacy,
+}
+
+impl NavTab {
+    /// Maps persisted [`Legacy`](Self::Legacy) to a real tab for UI and routing.
+    #[must_use]
+    pub fn normalize(self) -> Self {
+        match self {
+            Self::Legacy => Self::Connect,
+            other => other,
+        }
+    }
 }
 
 #[derive(Clone, Default, Serialize, Deserialize)]

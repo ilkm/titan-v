@@ -1,6 +1,6 @@
 //! Host UI JSON draft: floating window from device card preview (SQLite + push over control plane).
 
-use egui::{Align, Layout, RichText, TextStyle, Vec2};
+use egui::{Align, Layout, RichText, Vec2};
 
 use titan_common::ControlRequest;
 
@@ -9,10 +9,11 @@ use super::super::i18n::{t, Msg, UiLang};
 use super::super::net_client::exchange_one;
 use super::super::net_msg::NetUiMsg;
 use super::super::widgets::{
-    inset_editor_shell, opaque_dialog_frame_ctx, primary_button_large, subtle_button_large,
+    multiline_inset, primary_button_large, show_opaque_modal, subtle_button_large,
+    OpaqueFrameSource,
 };
 use super::super::CenterApp;
-use super::helpers::{ADD_HOST_DLG_BODY, ADD_HOST_DLG_MUTED};
+use super::helpers::ADD_HOST_DLG_MUTED;
 
 fn host_ui_push_exchange(addr: &str, json: String) -> (bool, String) {
     let rt = match tokio::runtime::Builder::new_current_thread()
@@ -75,14 +76,7 @@ fn host_config_win_load_save_row(app: &mut CenterApp, ui: &mut egui::Ui, lang: U
 
 fn host_config_win_json_block(app: &mut CenterApp, ui: &mut egui::Ui) {
     const MIN_H: f32 = 220.0;
-    inset_editor_shell(ui, MIN_H, |ui| {
-        egui::TextEdit::multiline(&mut app.host_managed_draft_json)
-            .frame(false)
-            .font(TextStyle::Monospace)
-            .text_color(ADD_HOST_DLG_BODY)
-            .desired_width(ui.available_width())
-            .show(ui);
-    });
+    multiline_inset(ui, MIN_H, &mut app.host_managed_draft_json, "");
 }
 
 fn host_config_win_footer(
@@ -194,22 +188,18 @@ impl CenterApp {
         close: &mut bool,
     ) {
         const DIALOG_INNER: Vec2 = Vec2::new(520.0, 440.0);
-        let center_pos = ctx.screen_rect().center() - 0.5 * DIALOG_INNER;
         let lang = self.ui_lang;
-        egui::Window::new(title)
-            .id(egui::Id::new("titan_center_host_config_window"))
-            .frame(opaque_dialog_frame_ctx(ctx))
-            .open(win_open)
-            .collapsible(false)
-            .resizable(false)
-            .fade_in(false)
-            .fade_out(false)
-            .default_pos(center_pos)
-            .fixed_size(DIALOG_INNER)
-            .order(egui::Order::Foreground)
-            .show(ctx, |ui| {
+        show_opaque_modal(
+            ctx,
+            egui::Id::new("titan_center_host_config_window"),
+            title,
+            win_open,
+            DIALOG_INNER,
+            OpaqueFrameSource::Ctx(ctx),
+            |ui| {
                 host_config_win_body(self, ui, lang, idx, addr, close);
-            });
+            },
+        );
     }
 
     pub(crate) fn render_host_config_window(&mut self, ctx: &egui::Context) {

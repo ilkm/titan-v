@@ -3,6 +3,7 @@
 #[cfg(not(target_os = "macos"))]
 use std::time::Duration;
 
+use titan_common::UiLang;
 use tokio::sync::watch;
 use tray_icon::menu::{MenuEvent, MenuId};
 use tray_icon::TrayIconBuilder;
@@ -27,7 +28,7 @@ fn poll_host_tray_until_quit(shutdown_tx: &watch::Sender<bool>, quit_id: &MenuId
 }
 
 #[cfg(not(target_os = "macos"))]
-fn non_macos_tray_host_thread(shutdown_tx: watch::Sender<bool>, tooltip: String) {
+fn non_macos_tray_host_thread(shutdown_tx: watch::Sender<bool>, tooltip: String, lang: UiLang) {
     let menu = match menu::build_tray_menu(DesktopProduct::Host) {
         Ok(m) => m,
         Err(e) => {
@@ -35,7 +36,7 @@ fn non_macos_tray_host_thread(shutdown_tx: watch::Sender<bool>, tooltip: String)
             return;
         }
     };
-    let icon = crate::icon::tray_icon_for(DesktopProduct::Host);
+    let icon = crate::icon::tray_icon_for_lang(DesktopProduct::Host, lang);
     let _tray = match TrayIconBuilder::new()
         .with_menu(Box::new(menu))
         .with_menu_on_left_click(false)
@@ -63,11 +64,15 @@ fn host_tooltip(tooltip: &str) -> String {
 
 /// Windows / Linux: tray thread polls [`MenuEvent`] (when the platform supports `tray-icon`).
 #[cfg(not(target_os = "macos"))]
-pub fn spawn_tray_shutdown_for_serve(shutdown_tx: watch::Sender<bool>, tooltip: String) {
+pub fn spawn_tray_shutdown_for_serve(
+    shutdown_tx: watch::Sender<bool>,
+    tooltip: String,
+    lang: UiLang,
+) {
     let tooltip = host_tooltip(&tooltip);
     std::thread::Builder::new()
         .name("titan-tray-host".to_string())
-        .spawn(move || non_macos_tray_host_thread(shutdown_tx, tooltip))
+        .spawn(move || non_macos_tray_host_thread(shutdown_tx, tooltip, lang))
         .expect("spawn titan-tray-host thread");
 }
 
@@ -84,9 +89,9 @@ fn macos_set_accessory_activation_policy() {
 }
 
 #[cfg(target_os = "macos")]
-fn macos_install_tray_icon_and_tick_runloop(tooltip: &str) -> Result<(), String> {
+fn macos_install_tray_icon_and_tick_runloop(tooltip: &str, lang: UiLang) -> Result<(), String> {
     let menu = menu::build_tray_menu(DesktopProduct::Host).map_err(|e| e.to_string())?;
-    let icon = crate::icon::tray_icon_for(DesktopProduct::Host);
+    let icon = crate::icon::tray_icon_for_lang(DesktopProduct::Host, lang);
     let tray = TrayIconBuilder::new()
         .with_menu(Box::new(menu))
         .with_menu_on_left_click(false)
@@ -105,6 +110,7 @@ fn macos_install_tray_icon_and_tick_runloop(tooltip: &str) -> Result<(), String>
 fn macos_install_host_tray_for_serve(
     shutdown_tx: &watch::Sender<bool>,
     tooltip: &str,
+    lang: UiLang,
 ) -> Result<(), String> {
     macos_set_accessory_activation_policy();
     let quit_id = MenuId::new(MENU_HOST_QUIT);
@@ -114,21 +120,26 @@ fn macos_install_host_tray_for_serve(
             let _ = shutdown_cb.send(true);
         }
     }));
-    macos_install_tray_icon_and_tick_runloop(tooltip)
+    macos_install_tray_icon_and_tick_runloop(tooltip, lang)
 }
 
 /// macOS: `muda::Menu` / NSStatusItem must be created on the **main thread** — dispatch there, then
 /// use [`MenuEvent::set_event_handler`] (no polling thread).
 #[cfg(target_os = "macos")]
-pub fn spawn_tray_shutdown_for_serve(shutdown_tx: watch::Sender<bool>, tooltip: String) {
+pub fn spawn_tray_shutdown_for_serve(
+    shutdown_tx: watch::Sender<bool>,
+    tooltip: String,
+    lang: UiLang,
+) {
     let tooltip = host_tooltip(&tooltip);
     let on_main = unsafe { libc::pthread_main_np() != 0 };
     let res = if on_main {
-        macos_install_host_tray_for_serve(&shutdown_tx, &tooltip)
+        macos_install_host_tray_for_serve(&shutdown_tx, &tooltip, lang)
     } else {
         let stx = shutdown_tx.clone();
         let tip = tooltip.clone();
-        dispatch::Queue::main().exec_sync(move || macos_install_host_tray_for_serve(&stx, &tip))
+        dispatch::Queue::main()
+            .exec_sync(move || macos_install_host_tray_for_serve(&stx, &tip, lang))
     };
     if let Err(e) = res {
         tracing::warn!("system tray unavailable: {e}");

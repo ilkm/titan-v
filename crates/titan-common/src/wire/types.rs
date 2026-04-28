@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use crate::capabilities::Capabilities;
 use crate::plan::VmSpoofProfile;
 use crate::state::VmPowerState;
+use crate::UiLang;
 
 /// Center → host control request.
 ///
@@ -57,6 +58,8 @@ pub enum ControlRequest {
     HostResourceSnapshot,
     /// Replace host UI / serve binding JSON (same JSON key as `titan_host_ui_v1` in Titan Host persistence).
     ApplyHostUiPersistJson { json: String },
+    /// Center asks the host UI to switch display language (egui thread applies on next frame).
+    SetUiLang { lang: UiLang },
 }
 
 /// One row in a [`ControlResponse::VmList`] payload.
@@ -131,6 +134,10 @@ pub enum ControlResponse {
     HostUiPersistAck {
         ok: bool,
         detail: String,
+    },
+    /// Result of [`ControlRequest::SetUiLang`].
+    SetUiLangAck {
+        ok: bool,
     },
 }
 

@@ -10,9 +10,6 @@ pub const CONTENT_COLUMN_GAP: f32 = 20.0;
 /// Card surface — reads clearly against [`theme`] page background.
 pub const CARD_SURFACE: egui::Color32 = egui::Color32::from_rgb(248, 250, 255);
 
-/// Max width of the label column in [`widgets::form_field_row`] (CJK lines wrap; left-aligned).
-pub const FORM_LABEL_WIDTH: f32 = 132.0;
-
 /// Minimum host tile width in the settings grid; actual width scales with window.
 pub const HOST_TILE_MIN_WIDTH: f32 = 168.0;
 
@@ -69,6 +66,9 @@ pub const VIRTUAL_SLOTS: usize = 8000;
 /// Tech-blue accent for headings, links, and primary actions (light theme).
 pub const ACCENT: egui::Color32 = egui::Color32::from_rgb(37, 99, 235);
 pub const ACCENT_DIM: egui::Color32 = egui::Color32::from_rgb(29, 78, 216);
+
+/// Default value text on light inset fields and opaque dialogs (slate-900).
+pub const FORM_VALUE_TEXT: egui::Color32 = egui::Color32::from_rgb(15, 23, 42);
 
 /// Left nav row hit target height (no frame fill; typography shows selection).
 pub const NAV_ITEM_HEIGHT: f32 = 32.0;

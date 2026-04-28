@@ -4,6 +4,8 @@ use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 
+use titan_common::UiLang;
+
 use crate::menu::{self, DesktopProduct};
 use tray_icon::menu::{MenuEvent, MenuId};
 use tray_icon::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
@@ -60,28 +62,28 @@ pub fn register_host_tray_wakeup(ctx: &egui::Context) {
     register_tray_wakeup_impl(ctx, DesktopProduct::Host);
 }
 
-pub fn build_tray_icon() -> tray_icon::Result<TrayIcon> {
-    build_tray_icon_for(DesktopProduct::Center, "Titan Center")
+pub fn build_tray_icon(lang: UiLang) -> tray_icon::Result<TrayIcon> {
+    build_tray_icon_for(DesktopProduct::Center, "Titan Center", lang)
 }
 
-pub fn build_host_tray_icon() -> tray_icon::Result<TrayIcon> {
-    build_tray_icon_for(DesktopProduct::Host, "Titan")
+pub fn build_host_tray_icon(lang: UiLang) -> tray_icon::Result<TrayIcon> {
+    build_tray_icon_for(DesktopProduct::Host, "Titan Host", lang)
 }
 
-fn build_tray_icon_for(product: DesktopProduct, tooltip: &str) -> tray_icon::Result<TrayIcon> {
+fn build_tray_icon_for(
+    product: DesktopProduct,
+    tooltip: &str,
+    lang: UiLang,
+) -> tray_icon::Result<TrayIcon> {
     let m = menu::build_tray_menu(product)
         .map_err(|e| std::io::Error::other(format!("tray menu: {e}")))?;
     let builder = TrayIconBuilder::new()
         .with_menu(Box::new(m))
         .with_menu_on_left_click(false)
         .with_tooltip(tooltip)
-        .with_icon(crate::icon::tray_icon_for(product));
+        .with_icon(crate::icon::tray_icon_for_lang(product, lang));
     #[cfg(target_os = "macos")]
-    let builder = match product {
-        DesktopProduct::Center => builder.with_icon_as_template(true),
-        // No `with_title`: menu bar would show a redundant text label beside the icon.
-        DesktopProduct::Host => builder.with_icon_as_template(false),
-    };
+    let builder = builder.with_icon_as_template(false);
     builder.build()
 }
 

@@ -7,7 +7,8 @@ use egui::{
 
 use super::super::i18n::{t, Msg};
 use super::super::widgets::{
-    dialog_underline_text_row, opaque_dialog_frame, primary_button_large, subtle_button_large,
+    dialog_underline_text_row, primary_button_large, show_opaque_modal, subtle_button_large,
+    OpaqueFrameSource,
 };
 use super::super::CenterApp;
 use super::helpers::{
@@ -48,21 +49,17 @@ impl CenterApp {
     ) {
         let title = t(lang, Msg::AddHostDialogTitle);
         const DIALOG_INNER: Vec2 = Vec2::new(440.0, 312.0);
-        let center_pos = ctx.screen_rect().center() - 0.5 * DIALOG_INNER;
-        egui::Window::new(title)
-            .id(egui::Id::new("titan_center_add_host_dialog"))
-            .frame(opaque_dialog_frame(outer_ui))
-            .open(win_open)
-            .collapsible(false)
-            .resizable(false)
-            .fade_in(false)
-            .fade_out(false)
-            .default_pos(center_pos)
-            .fixed_size(DIALOG_INNER)
-            .order(egui::Order::Foreground)
-            .show(ctx, |ui| {
+        show_opaque_modal(
+            ctx,
+            egui::Id::new("titan_center_add_host_dialog"),
+            title,
+            win_open,
+            DIALOG_INNER,
+            OpaqueFrameSource::Ui(outer_ui),
+            |ui| {
                 self.add_host_dialog_window_body(ui, lang, force_close);
-            });
+            },
+        );
     }
 
     fn add_host_dialog_window_body(

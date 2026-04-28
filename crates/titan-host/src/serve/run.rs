@@ -8,7 +8,7 @@ use std::time::Duration;
 use titan_common::{
     control_plane_quic_addr, control_plane_telemetry_addr, encode_control_host_frame,
     encode_telemetry_push_frame, telemetry_push_payload_fits, ControlHostFrame, ControlPush,
-    ControlRequestFrame, ControlResponse, HostRuntimeProbes,
+    ControlRequestFrame, ControlResponse, HostRuntimeProbes, UiLang,
 };
 use tokio::io::AsyncWriteExt;
 use tokio::net::{TcpListener, TcpStream};
@@ -54,6 +54,7 @@ async fn build_serve_state_inner(
     agents: Arc<AgentBindingTable>,
     host_notice: String,
     persist_apply_tx: Option<sync_mpsc::Sender<HostUiPersist>>,
+    lang_apply_tx: Option<sync_mpsc::Sender<UiLang>>,
 ) -> Result<Arc<ServeState>, ServeError> {
     let host_notice = std::sync::Mutex::new(host_notice);
     let (gpu_partition_available, runtime_probes) = tokio::task::spawn_blocking(|| {
@@ -76,12 +77,14 @@ async fn build_serve_state_inner(
         gpu_partition_available,
         runtime_probes,
         persist_apply_tx,
+        lang_apply_tx,
     )))
 }
 
 async fn build_serve_state_from_spec(
     spec: &AgentBindingsSpec,
     persist_apply_tx: Option<sync_mpsc::Sender<HostUiPersist>>,
+    lang_apply_tx: Option<sync_mpsc::Sender<UiLang>>,
 ) -> Result<Arc<ServeState>, ServeError> {
     match spec {
         AgentBindingsSpec::Path(path) => {
@@ -90,11 +93,18 @@ async fn build_serve_state_from_spec(
                 Arc::new(table),
                 bindings_notice.unwrap_or_default(),
                 persist_apply_tx,
+                lang_apply_tx,
             )
             .await
         }
         AgentBindingsSpec::Inline { agents, notice } => {
-            build_serve_state_inner(agents.clone(), notice.clone(), persist_apply_tx).await
+            build_serve_state_inner(
+                agents.clone(),
+                notice.clone(),
+                persist_apply_tx,
+                lang_apply_tx,
+            )
+            .await
         }
     }
 }
@@ -223,15 +233,18 @@ fn spawn_telemetry_accept_loop(listener: TcpListener, state: Arc<ServeState>) {
 /// Listens until `shutdown` becomes true or the sender is dropped.
 ///
 /// System tray / window lifecycle should own the matching [`watch::Sender`] and call
-/// [`spawn_tray_shutdown_for_serve`](titan_tray::spawn_tray_shutdown_for_serve) or equivalent.
+/// [`titan_tray::spawn_tray_shutdown_for_serve`] with `tooltip` and [`UiLang`](titan_common::UiLang),
+/// or equivalent.
 pub async fn run_serve(
     bind: SocketAddr,
     agent_bindings: AgentBindingsSpec,
     announce: HostAnnounceConfig,
     shutdown: watch::Receiver<bool>,
     persist_apply_tx: Option<sync_mpsc::Sender<HostUiPersist>>,
+    lang_apply_tx: Option<sync_mpsc::Sender<UiLang>>,
 ) -> Result<(), ServeError> {
-    let state = build_serve_state_from_spec(&agent_bindings, persist_apply_tx).await?;
+    let state =
+        build_serve_state_from_spec(&agent_bindings, persist_apply_tx, lang_apply_tx).await?;
     let listener = tcp_listen_tokio(bind).map_err(ServeError::Io)?;
     let local = listener.local_addr().map_err(ServeError::Io)?;
     spawn_host_announce_background(announce, bind, local);

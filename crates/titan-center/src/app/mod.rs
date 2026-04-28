@@ -4,17 +4,15 @@ mod constants;
 pub mod device_store;
 mod discovery;
 mod fleet_state;
-mod i18n;
+pub use titan_i18n as i18n;
 mod lan_host_register;
 pub mod net_client;
 mod net_msg;
 mod panels_control;
-mod panels_danger;
 mod panels_hosts;
 mod panels_inventory;
 mod panels_misc;
 mod panels_monitor;
-mod panels_spoof;
 mod persist_data;
 mod spawn;
 mod tcp_tune;
@@ -62,9 +60,6 @@ pub struct CenterApp {
     pub(crate) fleet_by_endpoint: HashMap<String, HostLiveState>,
     pub(crate) fleet_busy: bool,
     pub(crate) vm_inventory: Vec<titan_common::VmBrief>,
-    pub(crate) bulk_vm_names: String,
-    pub(crate) pending_confirm_stop: bool,
-    pub(crate) pending_confirm_start: bool,
     pub(crate) last_action: String,
     pub(crate) control_addr: String,
     pub(crate) net_tx: Sender<NetUiMsg>,
@@ -119,11 +114,9 @@ pub struct CenterApp {
     pub(crate) host_collect_register_udp_port: u16,
     pub(crate) discovery_if_rows: Vec<discovery::LanIpv4Row>,
     pub(crate) discovery_if_scan_secs: f64,
-    pub(crate) spoof_target_vm: String,
-    pub(crate) spoof_dynamic_mac: bool,
-    pub(crate) spoof_disable_checkpoints: bool,
-    pub(crate) pending_spoof_confirm_apply: bool,
     pub(crate) ui_lang: UiLang,
+    /// Last language pushed to registered hosts via [`ControlRequest::SetUiLang`]; resync when it diverges from [`Self::ui_lang`].
+    pub(crate) host_synced_ui_lang: UiLang,
     pub(crate) settings_open: bool,
     /// Last frame's 🌐 button rect (screen space); used to anchor the settings popup.
     pub(crate) settings_lang_btn_rect: Option<egui::Rect>,
@@ -147,6 +140,8 @@ pub struct CenterApp {
     pub(crate) _tray: Option<titan_tray::TrayIcon>,
     /// macOS/Winit: tray must be created after the event loop has started (`StartCause::Init`); see tray-icon docs.
     tray_icon_init_attempted: bool,
+    /// Last UI language applied to the tray bitmap (see [`titan_tray::refresh_tray_icon`]).
+    tray_glyph_lang: UiLang,
     /// Device card: index into `endpoints` whose remark is being edited (`None` = display mode).
     pub(crate) device_remark_edit_index: Option<usize>,
     /// Request focus on the remark `TextEdit` the first frame after opening edit mode.
@@ -196,6 +191,7 @@ impl eframe::App for CenterApp {
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.maybe_init_tray_icon_once();
+        self.sync_tray_glyph_lang();
         if let Some(until) = self.ui_toast_until {
             if ctx.input(|i| i.time) >= until {
                 self.ui_toast_until = None;

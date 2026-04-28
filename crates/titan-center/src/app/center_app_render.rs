@@ -1,8 +1,8 @@
 //! Main window layout: top bar, side nav, central stack, settings popup, device persistence hook.
 
 use egui::{
-    Align, Align2, Frame, Layout, Margin, RichText, ScrollArea, Sense, Stroke, TextStyle,
-    TextWrapMode, WidgetText,
+    Align, Frame, Layout, Margin, RichText, ScrollArea, Sense, Stroke, TextStyle, TextWrapMode,
+    WidgetText,
 };
 
 use super::constants::{
@@ -11,6 +11,9 @@ use super::constants::{
 use super::device_store;
 use super::i18n::{self, Msg, UiLang};
 use super::persist_data::NavTab;
+use super::widgets::{
+    inset_single_select_dropdown, show_settings_tool_window, InsetDropdownLayout,
+};
 use super::CenterApp;
 
 fn effective_content_width(full_w: f32) -> f32 {
@@ -24,8 +27,33 @@ fn settings_popup_right_top_under_btn(btn: egui::Rect) -> egui::Pos2 {
     btn.right_bottom() + egui::vec2(0.0, GAP_Y)
 }
 
+fn lang_label_for_combo_choice(ui_lang: UiLang, lang: UiLang) -> &'static str {
+    match ui_lang {
+        UiLang::En => i18n::t(lang, Msg::LangRadioEn),
+        UiLang::Zh => i18n::t(lang, Msg::LangRadioZh),
+    }
+}
+
+fn settings_window_contents(ui: &mut egui::Ui, ui_lang: &mut UiLang, lang: UiLang) {
+    let full_w = ui.available_width();
+    inset_single_select_dropdown(
+        ui,
+        "titan_center_ui_lang",
+        full_w,
+        lang_label_for_combo_choice(*ui_lang, lang),
+        72.0,
+        InsetDropdownLayout::compact(),
+        |ui| {
+            ui.selectable_value(ui_lang, UiLang::En, i18n::t(lang, Msg::LangRadioEn));
+            ui.selectable_value(ui_lang, UiLang::Zh, i18n::t(lang, Msg::LangRadioZh));
+        },
+    );
+}
+
 impl CenterApp {
     pub(crate) fn render_top_panel(&mut self, ctx: &egui::Context) {
+        let title = i18n::t(self.ui_lang, Msg::BrandTitle).to_string();
+        ctx.send_viewport_cmd_to(egui::ViewportId::ROOT, egui::ViewportCommand::Title(title));
         let visuals = ctx.style().visuals.clone();
         let top_fill = visuals.panel_fill;
         egui::TopBottomPanel::top("status")
@@ -79,8 +107,6 @@ impl CenterApp {
             (NavTab::Monitor, Msg::NavMonitor),
             (NavTab::Connect, Msg::NavConnect),
             (NavTab::HostsVms, Msg::NavHostsVms),
-            (NavTab::Spoof, Msg::NavSpoof),
-            (NavTab::Power, Msg::NavPower),
             (NavTab::Settings, Msg::NavSettings),
         ];
         for &(tab, msg) in &tabs {
@@ -107,7 +133,7 @@ impl CenterApp {
             });
     }
 
-    fn central_panel_horizontal_padded(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+    fn central_panel_horizontal_padded(&mut self, ui: &mut egui::Ui) {
         let full_w = ui.available_width();
         let content_w = effective_content_width(full_w);
         let column_w = content_w.min(full_w);
@@ -127,8 +153,7 @@ impl CenterApp {
                     NavTab::Settings => self.panel_settings_host(ui),
                     NavTab::HostsVms => self.panel_window_management(ui),
                     NavTab::Monitor => self.panel_resource_monitor(ui),
-                    NavTab::Spoof => self.panel_spoof_pipeline(ui, ctx),
-                    NavTab::Power => self.panel_danger(ui, ctx),
+                    NavTab::Legacy => self.panel_device_management_redirect(ui),
                 }
             });
             ui.add_space(right_pad);
@@ -148,45 +173,32 @@ impl CenterApp {
                     .id_salt(self.active_nav as u8)
                     .auto_shrink([false, false])
                     .show(ui, |ui| {
-                        self.central_panel_horizontal_padded(ui, ctx);
+                        self.central_panel_horizontal_padded(ui);
                     });
             });
     }
 
-    fn settings_window_lang_radios(ui: &mut egui::Ui, ui_lang: &mut UiLang, lang: UiLang) {
-        ui.radio_value(ui_lang, UiLang::En, i18n::t(lang, Msg::LangRadioEn));
-        ui.radio_value(ui_lang, UiLang::Zh, i18n::t(lang, Msg::LangRadioZh));
-    }
-
     pub(crate) fn render_settings_window(&mut self, ctx: &egui::Context) {
         let lang = self.ui_lang;
-        let mut close_clicked = false;
         let anchor = self
             .settings_lang_btn_rect
             .map(settings_popup_right_top_under_btn);
-        let mut window = egui::Window::new(i18n::t(lang, Msg::SettingsTitle))
-            .open(&mut self.settings_open)
-            .collapsible(false)
-            .resizable(false)
-            .default_width(420.0);
-        window = match anchor {
-            Some(p) => window.pivot(Align2::RIGHT_TOP).fixed_pos(p),
-            None => window.default_pos(ctx.screen_rect().right_top() + egui::vec2(-256.0, 48.0)),
-        };
-        window.show(ctx, |ui| {
-            Self::settings_window_lang_radios(ui, &mut self.ui_lang, lang);
-            ui.add_space(8.0);
-            if ui.button(i18n::t(lang, Msg::SettingsClose)).clicked() {
-                close_clicked = true;
-            }
-        });
-        if close_clicked {
-            self.settings_open = false;
-        }
+        show_settings_tool_window(
+            ctx,
+            &mut self.settings_open,
+            i18n::t(lang, Msg::SettingsLangWindowTitle),
+            anchor,
+            egui::vec2(-256.0, 48.0),
+            egui::vec2(208.0, 84.0),
+            |ui| {
+                settings_window_contents(ui, &mut self.ui_lang, lang);
+            },
+        );
     }
 
     pub(crate) fn center_app_tick_frame(&mut self, ctx: &egui::Context) {
         self.maybe_flush_center_sqlite(ctx);
+        self.tick_sync_ui_lang_to_hosts_if_needed();
         self.drain_net_inbox();
         self.tick_add_host_verify_watchdog(ctx);
         self.tick_telemetry_staleness();

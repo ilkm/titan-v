@@ -1,0 +1,9 @@
+[package]
+name = "titan-egui-widgets"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Shared egui UI primitives for Titan Center and Titan Host."
+
+[dependencies]
+egui = "0.31"

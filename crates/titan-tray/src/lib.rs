@@ -12,7 +12,7 @@ mod menu;
 #[cfg(feature = "tokio")]
 mod serve;
 
-pub use icon::tray_icon_for;
+pub use icon::{refresh_tray_icon, tray_icon_for_lang};
 pub use menu::{build_tray_menu, DesktopProduct};
 
 #[cfg(feature = "egui")]

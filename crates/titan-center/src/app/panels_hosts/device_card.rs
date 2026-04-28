@@ -11,15 +11,18 @@ use egui::{
     Sense, TextStyle, TextWrapMode, Vec2, WidgetText,
 };
 
-use super::super::constants::{card_shadow, ACCENT, CARD_CORNER_RADIUS, CARD_SURFACE, OK_GREEN};
+use super::super::constants::{
+    card_shadow, ACCENT, CARD_CORNER_RADIUS, CARD_SURFACE, FORM_VALUE_TEXT, OK_GREEN,
+};
 use super::super::i18n::{host_running_windows_line, t, Msg, UiLang};
-use super::super::widgets::dialog_underline_text_row_gap;
+use super::super::widgets::{
+    danger_preview_delete_button, dialog_underline_text_row_gap, preview_overlay_configure_button,
+};
 use super::super::CenterApp;
 use super::helpers::{
     card_outline, device_card_resource_values, device_card_stat_label_value_gap,
-    device_card_two_col_row, device_mgmt_remark_row_interact, ADD_HOST_DLG_BODY,
-    ADD_HOST_DLG_MUTED, DEVICE_CARD_BODY_COL_GAP, DEVICE_PREVIEW_PLACEHOLDER_BG,
-    DEVICE_PREVIEW_PLACEHOLDER_TEXT,
+    device_card_two_col_row, device_mgmt_remark_row_interact, ADD_HOST_DLG_MUTED,
+    DEVICE_CARD_BODY_COL_GAP, DEVICE_PREVIEW_PLACEHOLDER_BG, DEVICE_PREVIEW_PLACEHOLDER_TEXT,
 };
 
 const CARD_BODY_GRID_PX: f32 = 13.0;
@@ -172,11 +175,7 @@ fn paint_preview_delete_btn(
     app: &mut CenterApp,
     card_index: usize,
 ) {
-    let red = Color32::from_rgb(255, 72, 72);
-    let btn = egui::Button::new(RichText::new(t(lang, Msg::DeviceMgmtPreviewDelete)).color(red))
-        .fill(Color32::from_black_alpha(45))
-        .stroke(egui::Stroke::new(1.0, Color32::from_rgb(200, 55, 55)));
-    if ui.put(btn_rect, btn).clicked() {
+    if danger_preview_delete_button(ui, btn_rect, t(lang, Msg::DeviceMgmtPreviewDelete)).clicked() {
         app.pending_remove_endpoint = Some(card_index);
         ui.ctx().request_repaint();
     }
@@ -189,12 +188,9 @@ fn paint_preview_configure_btn(
     app: &mut CenterApp,
     card_index: usize,
 ) {
-    let btn = egui::Button::new(
-        RichText::new(t(lang, Msg::DeviceMgmtPreviewConfigure)).color(Color32::WHITE),
-    )
-    .fill(Color32::from_white_alpha(36))
-    .stroke(egui::Stroke::new(1.0, Color32::from_white_alpha(90)));
-    if ui.put(btn_rect, btn).clicked() {
+    if preview_overlay_configure_button(ui, btn_rect, t(lang, Msg::DeviceMgmtPreviewConfigure))
+        .clicked()
+    {
         app.open_host_config_from_card(card_index);
     }
 }
@@ -655,7 +651,7 @@ fn remark_edit_underlined_field(
                         .font(remark_font.clone())
                         .color(ADD_HOST_DLG_MUTED),
                 )
-                .text_color(ADD_HOST_DLG_BODY)
+                .text_color(FORM_VALUE_TEXT)
                 .show(ui)
         },
         0.0,

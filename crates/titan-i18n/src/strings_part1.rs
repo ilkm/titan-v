@@ -1,5 +1,5 @@
-use super::msg::Msg;
-use super::UiLang;
+use crate::msg::Msg;
+use crate::UiLang;
 
 pub(super) fn translate(lang: UiLang, msg: Msg) -> Option<&'static str> {
     brand_settings_lang(lang, msg)
@@ -11,13 +11,11 @@ pub(super) fn translate(lang: UiLang, msg: Msg) -> Option<&'static str> {
 fn brand_settings_lang(lang: UiLang, msg: Msg) -> Option<&'static str> {
     match (lang, msg) {
         (UiLang::En, Msg::BrandTitle) => Some("Titan Center"),
-        (UiLang::Zh, Msg::BrandTitle) => Some("Titan 中控"),
+        (UiLang::Zh, Msg::BrandTitle) => Some("Titan 中控端"),
         (UiLang::En, Msg::SettingsTooltip) => Some("Settings"),
         (UiLang::Zh, Msg::SettingsTooltip) => Some("设置"),
-        (UiLang::En, Msg::SettingsTitle) => Some("Settings"),
-        (UiLang::Zh, Msg::SettingsTitle) => Some("设置"),
-        (UiLang::En, Msg::SettingsClose) => Some("Close"),
-        (UiLang::Zh, Msg::SettingsClose) => Some("关闭"),
+        (UiLang::En, Msg::SettingsLangWindowTitle) => Some("Language settings"),
+        (UiLang::Zh, Msg::SettingsLangWindowTitle) => Some("语言设置"),
         (UiLang::En, Msg::LangRadioEn) => Some("English"),
         (UiLang::Zh, Msg::LangRadioEn) => Some("English"),
         (UiLang::En, Msg::LangRadioZh) => Some("中文"),
@@ -36,10 +34,6 @@ fn nav_all(lang: UiLang, msg: Msg) -> Option<&'static str> {
         (UiLang::Zh, Msg::NavHostsVms) => Some("窗口管理"),
         (UiLang::En, Msg::NavMonitor) => Some("Usage"),
         (UiLang::Zh, Msg::NavMonitor) => Some("资源监控"),
-        (UiLang::En, Msg::NavSpoof) => Some("Spoof"),
-        (UiLang::Zh, Msg::NavSpoof) => Some("主机伪装"),
-        (UiLang::En, Msg::NavPower) => Some("Power"),
-        (UiLang::Zh, Msg::NavPower) => Some("批量电源"),
         _ => None,
     }
 }

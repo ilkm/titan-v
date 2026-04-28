@@ -1,5 +1,5 @@
-use super::msg::Msg;
-use super::UiLang;
+use crate::msg::Msg;
+use crate::UiLang;
 
 pub(super) fn translate(lang: UiLang, msg: Msg) -> Option<&'static str> {
     inventory_and_preview(lang, msg)
@@ -58,8 +58,6 @@ fn monitor_hints_and_actions(lang: UiLang, msg: Msg) -> Option<&'static str> {
         (UiLang::Zh, Msg::MonitorWindowsScopeHint) => {
             Some("在线=运行中；统计来自当前选中设备最近一次「列出虚拟机」。")
         }
-        (UiLang::En, Msg::CardActions) => Some("Actions"),
-        (UiLang::Zh, Msg::CardActions) => Some("操作"),
         _ => None,
     }
 }

@@ -7,19 +7,6 @@ pub enum NetUiMsg {
         summary: String,
     },
     VmInventory(Vec<VmBrief>),
-    BatchStop {
-        succeeded: u32,
-        failures: Vec<String>,
-    },
-    BatchStart {
-        succeeded: u32,
-        failures: Vec<String>,
-    },
-    SpoofApply {
-        dry_run: bool,
-        steps: Vec<String>,
-        notes: String,
-    },
     /// Result of background Hello used by the manual add-host dialog (online check + `device_id`).
     AddHostVerifyDone {
         /// Must match [`CenterApp::add_host_verify_session`] or the result is ignored (cancel / watchdog).

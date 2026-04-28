@@ -1,6 +1,7 @@
 use crate::capabilities::{Capabilities, HypervSpoofHostCaps};
 use crate::plan::VmSpoofProfile;
 use crate::state::VmPowerState;
+use crate::UiLang;
 use std::borrow::Cow;
 
 use crate::PROTOCOL_VERSION;
@@ -194,6 +195,25 @@ fn host_ui_persist_ack_roundtrip() {
         ok: true,
         detail: "ok".into(),
     };
+    let frame = encode_response_frame(&res).unwrap();
+    let out = read_response_frame(&mut frame.as_slice()).unwrap();
+    assert_eq!(out, res);
+}
+
+#[test]
+fn set_ui_lang_request_roundtrip() {
+    let req = ControlRequest::SetUiLang { lang: UiLang::Zh };
+    let frame = encode_request_frame(&req).unwrap();
+    let out = read_control_request_frame(&mut frame.as_slice()).unwrap();
+    assert!(matches!(
+        out.body,
+        ControlRequest::SetUiLang { lang: UiLang::Zh }
+    ));
+}
+
+#[test]
+fn set_ui_lang_ack_roundtrip() {
+    let res = ControlResponse::SetUiLangAck { ok: true };
     let frame = encode_response_frame(&res).unwrap();
     let out = read_response_frame(&mut frame.as_slice()).unwrap();
     assert_eq!(out, res);

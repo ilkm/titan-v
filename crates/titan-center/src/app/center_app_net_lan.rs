@@ -33,6 +33,7 @@ impl CenterApp {
             self.merge_announced_empty_device_id(&addr, &resolved_label);
         }
         self.finish_net_host_announced_merge(&resolved_label, &addr);
+        self.spawn_ui_lang_push_to_host_control_addr(&control_addr);
     }
 
     fn finish_net_host_announced_merge(&mut self, resolved_label: &str, addr: &str) {

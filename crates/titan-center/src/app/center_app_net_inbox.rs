@@ -34,7 +34,6 @@ impl CenterApp {
 
     fn try_net_inventory_ops(&mut self, msg: &NetUiMsg) -> Option<bool> {
         self.try_net_inventory_caps_and_vm(msg)
-            .or_else(|| self.try_net_inventory_batches_and_spoof(msg))
     }
 
     fn try_net_inventory_caps_and_vm(&mut self, msg: &NetUiMsg) -> Option<bool> {
@@ -45,34 +44,6 @@ impl CenterApp {
             }
             NetUiMsg::VmInventory(vms) => {
                 self.on_net_vm_inventory(vms.clone());
-                Some(false)
-            }
-            _ => None,
-        }
-    }
-
-    fn try_net_inventory_batches_and_spoof(&mut self, msg: &NetUiMsg) -> Option<bool> {
-        match msg {
-            NetUiMsg::BatchStop {
-                succeeded,
-                failures,
-            } => {
-                self.on_net_batch_stop(*succeeded, failures.clone());
-                Some(false)
-            }
-            NetUiMsg::BatchStart {
-                succeeded,
-                failures,
-            } => {
-                self.on_net_batch_start(*succeeded, failures.clone());
-                Some(false)
-            }
-            NetUiMsg::SpoofApply {
-                dry_run,
-                steps,
-                notes,
-            } => {
-                self.on_net_spoof_apply(*dry_run, steps.clone(), notes.clone());
                 Some(false)
             }
             _ => None,
@@ -212,6 +183,7 @@ impl CenterApp {
         self.last_action = i18n::log_host_responded(self.ui_lang);
         self.spawn_telemetry_reader();
         self.recompute_host_connected();
+        self.spawn_ui_lang_push_to_host_control_addr(&self.control_addr);
         self.ctx.request_repaint();
     }
 
@@ -231,30 +203,6 @@ impl CenterApp {
         self.last_action = i18n::log_list_vms(self.ui_lang, n);
     }
 
-    fn on_net_batch_stop(&mut self, succeeded: u32, failures: Vec<String>) {
-        self.net_busy = false;
-        self.last_net_error.clear();
-        self.last_action = i18n::log_stop_vm_group(self.ui_lang, succeeded, failures.len());
-        if !failures.is_empty() {
-            self.last_net_error = failures.join("; ");
-        }
-    }
-
-    fn on_net_batch_start(&mut self, succeeded: u32, failures: Vec<String>) {
-        self.net_busy = false;
-        self.last_net_error.clear();
-        self.last_action = i18n::log_start_vm_group(self.ui_lang, succeeded, failures.len());
-        if !failures.is_empty() {
-            self.last_net_error = failures.join("; ");
-        }
-    }
-
-    fn on_net_spoof_apply(&mut self, dry_run: bool, steps: Vec<String>, notes: String) {
-        self.net_busy = false;
-        self.last_net_error.clear();
-        self.last_action = i18n::log_spoof_apply(self.ui_lang, dry_run, &steps.join(", "), &notes);
-    }
-
     fn on_net_add_host_verify_done(
         &mut self,
         session_id: u64,
@@ -270,12 +218,13 @@ impl CenterApp {
         self.add_host_verify_busy = false;
         self.add_host_verify_deadline = None;
         if ok {
-            self.merge_add_host_after_verify(addr, device_id, caps_summary);
+            self.merge_add_host_after_verify(addr.clone(), device_id, caps_summary);
             self.add_host_dialog_open = false;
             self.add_host_dialog_err.clear();
             self.persist_registered_devices();
             self.last_net_error.clear();
             self.last_action = i18n::t(self.ui_lang, Msg::AddHostSavedLog).to_string();
+            self.spawn_ui_lang_push_to_host_control_addr(&addr);
         } else {
             tracing::debug!(%addr, %error, "add host: Hello verify failed");
             self.ui_toast_text = i18n::t(self.ui_lang, Msg::AddHostOfflineToast).to_string();

@@ -1,7 +1,8 @@
 //! Titan Host: egui settings + batch provision; control-plane `serve` on a background Tokio runtime.
 
 use egui::ViewportBuilder;
-use titan_host::host_app::HostApp;
+use titan_common::UiLang;
+use titan_host::host_app::{HostApp, HostUiPersist, PERSIST_KEY};
 use tracing_subscriber::EnvFilter;
 
 fn init_tracing() {
@@ -29,11 +30,19 @@ fn host_native_options() -> eframe::NativeOptions {
     }
 }
 
+fn tray_lang_from_storage(cc: &eframe::CreationContext<'_>) -> UiLang {
+    cc.storage
+        .and_then(|s| s.get_string(PERSIST_KEY))
+        .and_then(|j| serde_json::from_str::<HostUiPersist>(&j).ok())
+        .map(|p| p.ui_lang)
+        .unwrap_or_default()
+}
+
 fn host_initial_tray(cc: &eframe::CreationContext<'_>) -> Option<titan_tray::TrayIcon> {
     titan_tray::macos_ensure_regular_activation_for_egui_app();
     titan_tray::register_host_tray_wakeup(&cc.egui_ctx);
 
-    match titan_tray::build_host_tray_icon() {
+    match titan_tray::build_host_tray_icon(tray_lang_from_storage(cc)) {
         Ok(t) => Some(t),
         Err(e) => {
             tracing::warn!("system tray unavailable: {e}");

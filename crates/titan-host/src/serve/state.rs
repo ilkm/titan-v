@@ -2,7 +2,7 @@ use std::sync::mpsc as sync_mpsc;
 use std::sync::{Arc, Mutex, OnceLock};
 
 use dashmap::DashMap;
-use titan_common::{Capabilities, ControlPush, ControlResponse, HostRuntimeProbes};
+use titan_common::{Capabilities, ControlPush, ControlResponse, HostRuntimeProbes, UiLang};
 use titan_vmm::hyperv::AgentBindingTable;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc;
@@ -37,6 +37,8 @@ pub struct ServeState {
     pub(super) runtime_probes: HostRuntimeProbes,
     /// When set, control-plane may queue a full [`HostUiPersist`] for the egui thread to apply + restart serve.
     pub(crate) persist_apply_tx: Option<sync_mpsc::Sender<HostUiPersist>>,
+    /// When set, [`titan_common::ControlRequest::SetUiLang`] queues only language (no serve restart).
+    pub(crate) lang_apply_tx: Option<sync_mpsc::Sender<UiLang>>,
 }
 
 impl ServeState {
@@ -48,6 +50,7 @@ impl ServeState {
         gpu_partition_available: bool,
         runtime_probes: HostRuntimeProbes,
         persist_apply_tx: Option<sync_mpsc::Sender<HostUiPersist>>,
+        lang_apply_tx: Option<sync_mpsc::Sender<UiLang>>,
     ) -> Self {
         let (telemetry_tx, _) = broadcast::channel(1024);
         Self {
@@ -58,6 +61,7 @@ impl ServeState {
             gpu_partition_available,
             runtime_probes,
             persist_apply_tx,
+            lang_apply_tx,
         }
     }
 
@@ -99,6 +103,7 @@ impl ServeState {
             gpu_partition_available: false,
             runtime_probes: HostRuntimeProbes::default(),
             persist_apply_tx: None,
+            lang_apply_tx: None,
         })
     }
 }

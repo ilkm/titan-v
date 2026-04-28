@@ -10,7 +10,7 @@ const CJK_FONT_ID: &str = "titan_host_cjk_system";
 fn cjk_font_family_names() -> &'static [&'static str] {
     &[
         "PingFang SC",
-        "PingFang TC",
+        "PingFang C",
         "Heiti SC",
         "Songti SC",
         "STHeiti",

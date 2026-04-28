@@ -11,6 +11,9 @@ egui = ["dep:egui"]
 tokio = ["dep:tokio"]
 
 [dependencies]
+fontdb = { version = "0.23", default-features = true }
+fontdue = "0.9"
+titan-common = { path = "../titan-common" }
 tray-icon = "0.19"
 tracing = "0.1"
 

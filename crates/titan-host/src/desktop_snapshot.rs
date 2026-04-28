@@ -2,18 +2,37 @@
 //!
 //! Production **`titan-host`** targets Windows; this module may still compile on other OSes for
 //! workspace checks. Capture errors surface as plain strings.
+//!
+//! The **primary** display is chosen explicitly (`DisplayInfo::is_primary`), not the first entry
+//! from enumeration. On Windows, capture uses GDI `SRCCOPY | CAPTUREBLT` so layered windows match
+//! the visually top desktop (see `desktop_snapshot_win`).
 
 use image::codecs::jpeg::JpegEncoder;
 use image::ImageEncoder;
 use image::{DynamicImage, ExtendedColorType, RgbaImage};
-use screenshots::Screen;
 
-fn map_screen_list_error(e: impl std::fmt::Display) -> String {
-    format!("{e}")
+#[cfg(windows)]
+mod desktop_snapshot_win;
+
+#[cfg(windows)]
+fn capture_primary_rgba_unscaled() -> Result<RgbaImage, String> {
+    desktop_snapshot_win::capture_primary_display_rgba()
 }
 
-fn map_screen_capture_error(e: impl std::fmt::Display) -> String {
-    format!("{e}")
+#[cfg(not(windows))]
+fn capture_primary_rgba_unscaled() -> Result<RgbaImage, String> {
+    use screenshots::{display_info::DisplayInfo, Screen};
+    let displays = DisplayInfo::all().map_err(|e| e.to_string())?;
+    let primary = displays
+        .iter()
+        .find(|d| d.is_primary)
+        .or_else(|| displays.first())
+        .ok_or_else(|| "no displays found".to_string())?;
+    let shot = Screen::new(primary).capture().map_err(|e| e.to_string())?;
+    let w = shot.width();
+    let h = shot.height();
+    let raw = shot.into_raw();
+    RgbaImage::from_raw(w, h, raw).ok_or_else(|| "invalid capture buffer".to_string())
 }
 
 /// Encode a downscaled RGBA buffer as baseline JPEG (`image` crate JPEG does not accept `Rgba8`).
@@ -38,17 +57,10 @@ pub fn capture_primary_display_jpeg(
     max_height: u32,
     jpeg_quality: u8,
 ) -> Result<(Vec<u8>, u32, u32), String> {
-    let screens = Screen::all().map_err(map_screen_list_error)?;
-    let screen = screens
-        .into_iter()
-        .next()
-        .ok_or_else(|| "no displays found".to_string())?;
-    let shot = screen.capture().map_err(map_screen_capture_error)?;
+    let shot = capture_primary_rgba_unscaled()?;
     let w = shot.width();
     let h = shot.height();
-    let raw = shot.into_raw();
-    let mut img =
-        RgbaImage::from_raw(w, h, raw).ok_or_else(|| "invalid capture buffer".to_string())?;
+    let mut img = shot;
 
     let (tw, th) = thumbnail_dims(w, h, max_width.max(1), max_height.max(1));
     if tw != w || th != h {

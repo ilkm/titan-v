@@ -259,6 +259,7 @@ async fn dispatch_request_rest(
         ControlRequest::ApplyHostUiPersistJson { json } => {
             super::apply_host_ui::handle_apply_host_ui_persist_json(json, state).await
         }
+        ControlRequest::SetUiLang { lang } => super::apply_host_ui::handle_set_ui_lang(lang, state),
         ControlRequest::Ping | ControlRequest::Hello => Err(ServeError::Io(std::io::Error::other(
             "internal: dispatch_request_rest received Ping/Hello",
         ))),
