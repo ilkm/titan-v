@@ -169,7 +169,7 @@ fn ensure_kv_schema(conn: &Connection) -> rusqlite::Result<()> {
     Ok(())
 }
 
-fn open(path: &Path) -> rusqlite::Result<Connection> {
+pub(crate) fn open(path: &Path) -> rusqlite::Result<Connection> {
     if let Some(parent) = path.parent()
         && let Err(e) = std::fs::create_dir_all(parent)
     {
@@ -179,10 +179,11 @@ fn open(path: &Path) -> rusqlite::Result<Connection> {
     if !table_exists(&conn, "registered_devices")? {
         conn.execute_batch(SCHEMA_V2)?;
         ensure_kv_schema(&conn)?;
-        return Ok(conn);
+    } else {
+        ensure_device_id_pk_schema(&conn)?;
+        ensure_kv_schema(&conn)?;
     }
-    ensure_device_id_pk_schema(&conn)?;
-    ensure_kv_schema(&conn)?;
+    super::vm_window_db::ensure_table(&conn)?;
     Ok(conn)
 }
 

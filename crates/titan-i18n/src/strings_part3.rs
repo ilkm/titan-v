@@ -5,7 +5,6 @@ pub(super) fn translate(lang: UiLang, msg: Msg) -> Option<&'static str> {
     inventory_and_preview(lang, msg)
         .or_else(|| monitor_counts(lang, msg))
         .or_else(|| monitor_hints_and_actions(lang, msg))
-        .or_else(|| slots(lang, msg))
         .or_else(|| tray(lang, msg))
 }
 
@@ -21,20 +20,22 @@ fn tray(lang: UiLang, msg: Msg) -> Option<&'static str> {
 
 fn inventory_and_preview(lang: UiLang, msg: Msg) -> Option<&'static str> {
     match (lang, msg) {
-        (UiLang::En, Msg::VmInventoryTitle) => Some("VM inventory"),
-        (UiLang::Zh, Msg::VmInventoryTitle) => Some("虚拟机清单"),
+        (UiLang::En, Msg::WinMgmtReloadDb) => Some("Reload list"),
+        (UiLang::Zh, Msg::WinMgmtReloadDb) => Some("重新加载列表"),
+        (UiLang::En, Msg::WinMgmtNoWindows) => Some("No registered VM windows yet"),
+        (UiLang::Zh, Msg::WinMgmtNoWindows) => Some("暂无已登记的虚拟机窗口"),
+        (UiLang::En, Msg::WinMgmtEmptyHint) => {
+            Some("Create a window from Titan Host on each machine; rows sync here over LAN (UDP).")
+        }
+        (UiLang::Zh, Msg::WinMgmtEmptyHint) => {
+            Some("在各节点 Titan Host 的「窗口管理」中创建窗口后，将通过局域网（UDP）同步到此处。")
+        }
         (UiLang::En, Msg::ColState) => Some("State"),
         (UiLang::Zh, Msg::ColState) => Some("状态"),
         (UiLang::En, Msg::VmTileHostPrefix) => Some("Host"),
         (UiLang::Zh, Msg::VmTileHostPrefix) => Some("宿主"),
-        (UiLang::En, Msg::WindowPreviewTitle) => Some("VM preview"),
-        (UiLang::Zh, Msg::WindowPreviewTitle) => Some("画面预览"),
-        (UiLang::En, Msg::WindowPreviewHint) => {
-            Some("Placeholder for per-window video (host · VM · slot 1–40 wiring comes later).")
-        }
-        (UiLang::Zh, Msg::WindowPreviewHint) => {
-            Some("视频预览占位。后续按「宿主机名 · 虚拟机 · 窗口编号 1–40」接入推流。")
-        }
+        (UiLang::En, Msg::NoHost) => Some("no-host"),
+        (UiLang::Zh, Msg::NoHost) => Some("未选主机"),
         _ => None,
     }
 }
@@ -69,18 +70,6 @@ fn monitor_hints_and_actions(lang: UiLang, msg: Msg) -> Option<&'static str> {
         (UiLang::Zh, Msg::MonitorWindowsScopeHint) => {
             Some("在线=运行中；统计来自当前选中设备最近一次「列出虚拟机」。")
         }
-        _ => None,
-    }
-}
-
-fn slots(lang: UiLang, msg: Msg) -> Option<&'static str> {
-    match (lang, msg) {
-        (UiLang::En, Msg::SlotGridTitle) => Some("Slot grid (virtualized)"),
-        (UiLang::Zh, Msg::SlotGridTitle) => Some("槽位网格（虚拟化示例）"),
-        (UiLang::En, Msg::SlotEmpty) => Some("empty"),
-        (UiLang::Zh, Msg::SlotEmpty) => Some("空"),
-        (UiLang::En, Msg::NoHost) => Some("no-host"),
-        (UiLang::Zh, Msg::NoHost) => Some("未选主机"),
         _ => None,
     }
 }

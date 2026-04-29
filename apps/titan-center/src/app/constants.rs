@@ -2,16 +2,11 @@
 
 use egui::{CornerRadius, Shadow};
 
-pub const PANEL_SPACING: f32 = 12.0;
-
 /// Gap between the two main columns (Hosts/VMs, Monitor).
 pub const CONTENT_COLUMN_GAP: f32 = 20.0;
 
 /// Card surface — reads clearly against [`theme`] page background.
 pub const CARD_SURFACE: egui::Color32 = egui::Color32::from_rgb(248, 250, 255);
-
-/// Minimum host tile width in the settings grid; actual width scales with window.
-pub const HOST_TILE_MIN_WIDTH: f32 = 168.0;
 
 /// Device management grid: horizontal gap between cards.
 pub const DEVICE_CARD_GAP: f32 = 12.0;
@@ -61,7 +56,6 @@ pub fn card_shadow() -> Shadow {
     }
 }
 pub const PERSIST_KEY: &str = "titan_center_state_v1";
-pub const VIRTUAL_SLOTS: usize = 8000;
 
 /// Tech-blue accent for headings, links, and primary actions (light theme).
 pub const ACCENT: egui::Color32 = egui::Color32::from_rgb(37, 99, 235);

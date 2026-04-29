@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
@@ -8,7 +9,7 @@ use crate::agent_binding_table::AgentBindingTable;
 use crate::host_font;
 use crate::serve::{HostAnnounceConfig, run_serve};
 
-use crate::host_app::model::{HostApp, HostUiPersist, PERSIST_KEY, ServeRun};
+use crate::host_app::model::{CreateWindowForm, HostApp, HostUiPersist, PERSIST_KEY, ServeRun};
 use crate::host_app::ui::theme::apply_host_chrome_theme;
 
 fn host_try_build_serve_runtime() -> Option<tokio::runtime::Runtime> {
@@ -96,6 +97,13 @@ impl HostApp {
             boot_window_focus_once: false,
             settings_open: false,
             settings_lang_btn_rect: None,
+            create_window: CreateWindowForm::with_defaults(),
+            window_mgmt_feedback: String::new(),
+            vm_window_records: crate::vm_window_local::load_vm_windows(),
+            vm_window_masonry_heights: HashMap::new(),
+            host_desktop_textures: HashMap::new(),
+            host_resource_stats: HashMap::new(),
+            pending_remove_endpoint: None,
         }
     }
 

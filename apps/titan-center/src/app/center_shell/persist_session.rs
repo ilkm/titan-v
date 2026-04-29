@@ -28,16 +28,6 @@ impl CenterApp {
         &self.vm_inventory
     }
 
-    pub(crate) fn disk_volumes_slice(&self) -> &[titan_common::DiskVolume] {
-        if let Some(k) = self.selected_endpoint_key()
-            && let Some(s) = self.fleet_by_endpoint.get(&k)
-            && !s.volumes.is_empty()
-        {
-            return s.volumes.as_slice();
-        }
-        &self.host_disk_volumes
-    }
-
     /// Stops telemetry thread, clears session flags (command + telemetry + `host_connected`).
     pub(crate) fn stop_dual_channels(&mut self) {
         for link in self.telemetry_links.values() {

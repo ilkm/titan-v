@@ -61,31 +61,6 @@ pub fn log_request_failed(lang: UiLang) -> String {
 }
 
 #[must_use]
-pub fn fmt_slot_grid_header(lang: UiLang, rows: usize, host: &str) -> String {
-    match lang {
-        UiLang::En => format!("{rows} rows · selected host: {host}"),
-        UiLang::Zh => format!("{rows} 行 · 当前主机：{host}"),
-    }
-}
-
-#[must_use]
-pub fn fmt_slot_line_empty(lang: UiLang, host: &str, i: usize) -> String {
-    let empty = t(lang, Msg::SlotEmpty);
-    format!("{host} · {i:04} — {empty}")
-}
-
-#[must_use]
-pub fn fmt_slot_line_vm(
-    _lang: UiLang,
-    host: &str,
-    i: usize,
-    vm_name: &str,
-    state_dbg: &str,
-) -> String {
-    format!("{host} · {i:04} → {vm_name} · {state_dbg}")
-}
-
-#[must_use]
 pub fn hp_env_listen_applied(lang: UiLang) -> String {
     match lang {
         UiLang::En => "Applied environment variable TITAN_HOST_LISTEN.".into(),

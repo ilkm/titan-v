@@ -8,6 +8,7 @@ pub mod error;
 pub mod plan;
 pub mod state;
 pub mod ui_lang;
+pub mod vm_window;
 pub mod wire;
 
 pub use capabilities::{Capabilities, HostRuntimeProbes, HostSpoofProbeCaps};
@@ -21,6 +22,10 @@ pub use error::{Error, Result};
 pub use plan::VmSpoofProfile;
 pub use state::{NodeState, VmPowerState};
 pub use ui_lang::UiLang;
+pub use vm_window::{
+    VM_WINDOW_REGISTER_BEACON_KIND, VM_WINDOW_REGISTER_SCHEMA_VERSION, VmWindowRecord,
+    VmWindowRegisterBeacon,
+};
 pub use wire::{
     CONTROL_PLANE_TELEMETRY_PORT_OFFSET, ControlHostFrame, ControlPush, ControlRequest,
     ControlRequestFrame, ControlResponse, DiskVolume, FRAME_HEADER_LEN, HostResourceStats,

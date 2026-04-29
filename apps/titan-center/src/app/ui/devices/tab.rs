@@ -55,7 +55,7 @@ impl CenterApp {
         }
     }
 
-    fn apply_pending_endpoint_remove(&mut self) {
+    pub(crate) fn apply_pending_endpoint_remove(&mut self) {
         if let Some(idx) = self.pending_remove_endpoint.take()
             && idx < self.endpoints.len()
         {
@@ -87,7 +87,7 @@ impl CenterApp {
         }
     }
 
-    fn panel_device_mgmt_toolbar_right(
+    pub(crate) fn panel_device_mgmt_toolbar_right(
         &mut self,
         ui: &mut egui::Ui,
         lang: crate::app::i18n::UiLang,

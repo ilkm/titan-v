@@ -1,9 +1,10 @@
-//! Center UI: persisted host table, control-plane (multi-message TCP), VM inventory, scaled grids.
+//! Center UI: persisted host table, control-plane (multi-message TCP), VM inventory, window masonry.
 
 mod constants;
 pub mod device_store;
 mod discovery;
 mod fleet_state;
+mod vm_window_db;
 pub use titan_i18n as i18n;
 mod lan_host_register;
 pub mod net;
@@ -19,7 +20,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64};
 use std::sync::mpsc::{Receiver, Sender};
 use std::time::Instant;
 
-use titan_common::HostResourceStats;
+use titan_common::{HostResourceStats, VmWindowRecord};
 
 pub use persist_data::{HostEndpoint, NavTab};
 
@@ -46,6 +47,8 @@ pub struct CenterApp {
     pub(crate) fleet_by_endpoint: HashMap<String, HostLiveState>,
     pub(crate) fleet_busy: bool,
     pub(crate) vm_inventory: Vec<titan_common::VmBrief>,
+    /// Host-reported planned VM windows (SQLite + LAN UDP).
+    pub(crate) vm_window_records: Vec<VmWindowRecord>,
     pub(crate) last_action: String,
     pub(crate) control_addr: String,
     pub(crate) net_tx: Sender<NetUiMsg>,
@@ -134,6 +137,8 @@ pub struct CenterApp {
     device_remark_edit_focus_next: bool,
     /// Last painted card height per control addr key (Connect tab masonry / waterfall).
     pub(crate) device_masonry_heights: HashMap<String, f32>,
+    /// Window management tab: last painted card height per `VmWindowRecord::record_id`.
+    pub(crate) vm_window_masonry_heights: HashMap<String, f32>,
     /// Card overlay delete: applied before painting so the same frame never reads `endpoints[i]` after removal.
     pub(crate) pending_remove_endpoint: Option<usize>,
     /// Host JSON draft window (device card preview → Configure).

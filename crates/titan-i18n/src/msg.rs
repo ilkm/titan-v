@@ -82,13 +82,15 @@ pub enum Msg {
     /// Device toolbar: open telemetry stream for the selected host.
     BtnHostTelemetry,
 
-    VmInventoryTitle,
+    /// Window management: reload VM window rows from local SQLite.
+    WinMgmtReloadDb,
+    /// Window management: empty list headline (same placement as device management).
+    WinMgmtNoWindows,
+    /// Window management: empty list hint (create on Titan Host).
+    WinMgmtEmptyHint,
     ColState,
     /// VM tile second line: "Host · {device label}".
     VmTileHostPrefix,
-
-    WindowPreviewTitle,
-    WindowPreviewHint,
 
     MonitorCardDevices,
     MonitorCardWindows,
@@ -98,15 +100,13 @@ pub enum Msg {
     MonitorDevicesScopeHint,
     MonitorWindowsScopeHint,
 
-    SlotGridTitle,
-    SlotEmpty,
     NoHost,
 
     /// Titan Host window title and top chrome.
     HpWinTitle,
     /// Host sidebar: listen / announce / persist (formerly “Service”).
     HpTabSettings,
-    /// Host sidebar: window-management tab (content TBD).
+    /// Host sidebar: window-management tab (aligned with Titan Center window page).
     HpTabWindowMgmt,
     HpLangLabel,
     HpListen,
@@ -123,6 +123,22 @@ pub enum Msg {
     HpSectionLanAnnounce,
     /// Host settings card: display identity overrides.
     HpSectionIdentity,
+
+    /// Host: open dialog to define a new VM window.
+    HpWinMgmtCreateBtn,
+    HpWinMgmtDialogTitle,
+    HpWinMgmtCpu,
+    /// Memory field label: MiB where 1024 MiB ≈ 1 GiB.
+    HpWinMgmtMem,
+    /// Disk field label: MiB where 1024 MiB ≈ 1 GiB.
+    HpWinMgmtDisk,
+    HpWinMgmtVmDir,
+    HpWinMgmtVmDirHint,
+    HpWinMgmtConfirm,
+    HpWinMgmtErrDir,
+    /// After create: local save + UDP notify to center succeeded.
+    HpWinMgmtSavedNotified,
+    HpWinMgmtSaveErr,
 
     /// System tray: restore main window (egui apps).
     TrayShowMainWindow,

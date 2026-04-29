@@ -6,6 +6,7 @@ pub(super) fn translate(lang: UiLang, msg: Msg) -> Option<&'static str> {
     translate_hp_chrome(lang, msg)
         .or_else(|| translate_hp_service_listen(lang, msg))
         .or_else(|| translate_hp_settings_sections(lang, msg))
+        .or_else(|| translate_hp_window_mgmt(lang, msg))
 }
 
 fn translate_hp_chrome(lang: UiLang, msg: Msg) -> Option<&'static str> {
@@ -52,6 +53,47 @@ fn translate_hp_settings_sections(lang: UiLang, msg: Msg) -> Option<&'static str
         (UiLang::Zh, Msg::HpSectionLanAnnounce) => Some("局域网注册"),
         (UiLang::En, Msg::HpSectionIdentity) => Some("Host identity"),
         (UiLang::Zh, Msg::HpSectionIdentity) => Some("主机标识"),
+        _ => None,
+    }
+}
+
+fn translate_hp_window_mgmt(lang: UiLang, msg: Msg) -> Option<&'static str> {
+    translate_hp_window_mgmt_fields(lang, msg)
+        .or_else(|| translate_hp_window_mgmt_status(lang, msg))
+}
+
+fn translate_hp_window_mgmt_fields(lang: UiLang, msg: Msg) -> Option<&'static str> {
+    match (lang, msg) {
+        (UiLang::En, Msg::HpWinMgmtCreateBtn) => Some("Create window"),
+        (UiLang::Zh, Msg::HpWinMgmtCreateBtn) => Some("创建窗口"),
+        (UiLang::En, Msg::HpWinMgmtDialogTitle) => Some("New window"),
+        (UiLang::Zh, Msg::HpWinMgmtDialogTitle) => Some("新建窗口"),
+        (UiLang::En, Msg::HpWinMgmtCpu) => Some("CPU count"),
+        (UiLang::Zh, Msg::HpWinMgmtCpu) => Some("CPU 数量"),
+        (UiLang::En, Msg::HpWinMgmtMem) => Some("Memory (MiB, 1024 = 1 GiB)"),
+        (UiLang::Zh, Msg::HpWinMgmtMem) => Some("内存 (MiB，1024 = 1 GiB)"),
+        (UiLang::En, Msg::HpWinMgmtDisk) => Some("Disk (MiB, 1024 = 1 GiB)"),
+        (UiLang::Zh, Msg::HpWinMgmtDisk) => Some("磁盘 (MiB，1024 = 1 GiB)"),
+        (UiLang::En, Msg::HpWinMgmtVmDir) => Some("VM directory"),
+        (UiLang::Zh, Msg::HpWinMgmtVmDir) => Some("虚拟机目录"),
+        (UiLang::En, Msg::HpWinMgmtVmDirHint) => Some("~/titan/vm/001 (auto-increment)"),
+        (UiLang::Zh, Msg::HpWinMgmtVmDirHint) => Some("~/titan/vm/001（编号自动递增）"),
+        (UiLang::En, Msg::HpWinMgmtConfirm) => Some("Create"),
+        (UiLang::Zh, Msg::HpWinMgmtConfirm) => Some("创建"),
+        _ => None,
+    }
+}
+
+fn translate_hp_window_mgmt_status(lang: UiLang, msg: Msg) -> Option<&'static str> {
+    match (lang, msg) {
+        (UiLang::En, Msg::HpWinMgmtErrDir) => Some("VM directory is required."),
+        (UiLang::Zh, Msg::HpWinMgmtErrDir) => Some("请填写虚拟机目录。"),
+        (UiLang::En, Msg::HpWinMgmtSavedNotified) => {
+            Some("Saved locally and notified Titan Center (SQLite).")
+        }
+        (UiLang::Zh, Msg::HpWinMgmtSavedNotified) => Some("已保存并已通知中控（写入数据库）。"),
+        (UiLang::En, Msg::HpWinMgmtSaveErr) => Some("Could not save the window list locally."),
+        (UiLang::Zh, Msg::HpWinMgmtSaveErr) => Some("无法将窗口列表保存到本地。"),
         _ => None,
     }
 }
