@@ -5,12 +5,8 @@
 pub mod capabilities;
 pub mod discovery;
 pub mod error;
-pub mod need_mapping;
 pub mod plan;
-pub mod proxy_pool;
 pub mod state;
-pub mod stubs;
-pub mod transport;
 pub mod ui_lang;
 pub mod wire;
 
@@ -23,16 +19,7 @@ pub use discovery::{
 };
 pub use error::{Error, Result};
 pub use plan::VmSpoofProfile;
-pub use proxy_pool::{ProxyPoolEntry, VmProxyBinding};
 pub use state::{NodeState, VmPowerState};
-pub use stubs::{
-    GpuPartitioner, HardwareSpoofer, NoopGpuPartitioner, NoopHardwareSpoofer, NoopStreamEncoder,
-    NoopVmbusInput, StreamEncoder, VmbusInput,
-};
-pub use transport::{
-    DdsControlBus, GrpcControlPlane, NoopDdsControlBus, NoopGrpcControlPlane, TcpWirePingClient,
-    TracingHeartbeatBus,
-};
 pub use ui_lang::UiLang;
 pub use wire::compress::{maybe_zstd_compress, zstd_compress_all, zstd_decompress_all};
 pub use wire::fleet_rkyv::{FleetRkyvPing, fleet_rkyv_decode_ping, fleet_rkyv_encode_ping};

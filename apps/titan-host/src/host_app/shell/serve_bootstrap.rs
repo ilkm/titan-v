@@ -1,10 +1,12 @@
 use std::net::SocketAddr;
+use std::sync::Arc;
 
 use titan_common::UiLang;
 use tokio::sync::watch;
 
+use crate::agent_binding_table::AgentBindingTable;
 use crate::host_font;
-use crate::serve::{AgentBindingsSpec, HostAnnounceConfig, run_serve};
+use crate::serve::{HostAnnounceConfig, run_serve};
 
 use crate::host_app::model::{HostApp, HostUiPersist, PERSIST_KEY, ServeRun};
 use crate::host_app::ui::theme::apply_host_chrome_theme;
@@ -24,7 +26,8 @@ fn host_try_build_serve_runtime() -> Option<tokio::runtime::Runtime> {
 
 fn serve_thread_main(
     listen: SocketAddr,
-    spec: AgentBindingsSpec,
+    agents: Arc<AgentBindingTable>,
+    agent_notice: String,
     announce: HostAnnounceConfig,
     shutdown_rx: watch::Receiver<bool>,
     persist_apply_tx: Option<std::sync::mpsc::Sender<crate::ui_persist::HostUiPersist>>,
@@ -35,7 +38,8 @@ fn serve_thread_main(
     };
     let res = rt.block_on(run_serve(
         listen,
-        spec,
+        agents,
+        agent_notice,
         announce,
         shutdown_rx,
         persist_apply_tx,
@@ -97,7 +101,12 @@ impl HostApp {
 
     fn start_serve_resolve(
         &mut self,
-    ) -> Option<(SocketAddr, AgentBindingsSpec, HostAnnounceConfig)> {
+    ) -> Option<(
+        SocketAddr,
+        Arc<AgentBindingTable>,
+        String,
+        HostAnnounceConfig,
+    )> {
         let listen = match self.persist.parse_listen() {
             Ok(a) => a,
             Err(e) => {
@@ -105,21 +114,15 @@ impl HostApp {
                 return None;
             }
         };
-        let spec = match HostUiPersist::build_agent_bindings_spec() {
-            Ok(s) => s,
-            Err(e) => {
-                self.status_line = e;
-                return None;
-            }
-        };
-        Some((listen, spec, self.persist.to_announce()))
+        let (agents, notice) = HostUiPersist::agent_bindings_for_serve();
+        Some((listen, agents, notice, self.persist.to_announce()))
     }
 
     pub(crate) fn start_serve(&mut self) {
         if let Some(r) = self.serve_run.take() {
             r.stop();
         }
-        let Some((listen, spec, announce)) = self.start_serve_resolve() else {
+        let Some((listen, agents, agent_notice, announce)) = self.start_serve_resolve() else {
             return;
         };
         let (shutdown_tx, shutdown_rx) = watch::channel(false);
@@ -128,7 +131,15 @@ impl HostApp {
         let join = std::thread::Builder::new()
             .name("titan-host-serve".into())
             .spawn(move || {
-                serve_thread_main(listen, spec, announce, shutdown_rx, persist_tx, lang_tx)
+                serve_thread_main(
+                    listen,
+                    agents,
+                    agent_notice,
+                    announce,
+                    shutdown_rx,
+                    persist_tx,
+                    lang_tx,
+                )
             })
             .expect("spawn serve thread");
         self.serve_run = Some(ServeRun { shutdown_tx, join });

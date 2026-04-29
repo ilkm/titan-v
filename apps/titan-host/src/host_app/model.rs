@@ -8,7 +8,7 @@ use eframe::egui;
 use tokio::sync::watch;
 
 use crate::agent_binding_table::AgentBindingTable;
-use crate::serve::{AgentBindingsSpec, HostAnnounceConfig};
+use crate::serve::HostAnnounceConfig;
 
 pub const PERSIST_KEY: &str = "titan_host_ui_v1";
 
@@ -43,12 +43,9 @@ impl HostUiPersist {
         }
     }
 
-    /// VM→agent addresses are configured out-of-band (e.g. `agent-bindings.toml`); UI JSON does not carry a table.
-    pub(crate) fn build_agent_bindings_spec() -> Result<AgentBindingsSpec, String> {
-        Ok(AgentBindingsSpec::Inline {
-            agents: Arc::new(AgentBindingTable::new()),
-            notice: String::new(),
-        })
+    /// In-memory empty VM→agent table (no on-disk `agent-bindings.toml` in this build).
+    pub(crate) fn agent_bindings_for_serve() -> (Arc<AgentBindingTable>, String) {
+        (Arc::new(AgentBindingTable::new()), String::new())
     }
 }
 

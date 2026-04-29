@@ -3,7 +3,7 @@ name = "titan-host"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Host node: egui settings + TCP/QUIC control-plane server (`titan_host::serve`, `titan_host::control_plane`)."
+description = "Host node: egui settings + TCP control-plane server (`titan_host::serve`)."
 
 # See `titan-center` crate for packaging notes (`cargo-packager`).
 [package.metadata.packager]
@@ -38,9 +38,6 @@ serde_json = "1.0"
 screenshots = "0.8"
 image = { version = "0.25", default-features = false, features = ["jpeg"] }
 thiserror = "2.0"
-quinn = { version = "0.11", default-features = false, features = ["runtime-tokio", "rustls-ring"] }
-rcgen = "0.13"
-rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
 socket2 = { version = "0.5", features = ["all"] }
 tokio = { version = "1.43", features = [
     "io-util",
@@ -52,7 +49,6 @@ tokio = { version = "1.43", features = [
     "time",
 ] }
 sysinfo = { version = "0.33", default-features = false, features = ["system", "disk", "network"] }
-toml = "0.8"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 machine-uid = "0.5"

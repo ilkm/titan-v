@@ -1,6 +1,6 @@
 # 需求说明
 
-> **仓库当前交付阶段（Phase 1）**：与 PR 验收默认对齐「中控↔宿主 TCP 控制面 + **OpenVMM** 虚拟化能力集成（不再自研完整 Hyper-V 管理栈）+ 协作式 Guest Agent」及配套 Lua/配置能力。下文描述**长期产品形态**（高级虚拟机 fabric）与 **titan-host 元能力**意图 API；**哪些已在代码中闭环**以 `crates/titan-common/src/need_mapping.rs`（Phase 1 Definition of Done / Phase 2+ 边界）为准，避免将路线图误读为已交付能力。
+> **仓库当前交付阶段（Phase 1）**：与 PR 验收默认对齐「中控↔宿主 TCP 控制面 + **OpenVMM** 虚拟化能力集成（不再自研完整 Hyper-V 管理栈）+ 协作式 Guest Agent」及配套 Lua/配置能力。下文描述**长期产品形态**（高级虚拟机 fabric）与 **titan-host 元能力**意图 API；**哪些已在代码中闭环**以 **`need.md` 相关章节与当前 PR 说明**（Phase 1 Definition of Done / Phase 2+ 边界）为准，避免将路线图误读为已交付能力。
 >
 > 本文档描述的技术可用于合法自动化、安全研究与自有软件测试；对第三方软件与在线服务的滥用可能违反服务条款或法律。工程文档**不**保证反作弊或 EULA 合规；宿主/来宾安全启动与驱动策略见 `docs/openvmm-secure-boot-matrix.md`。
 
@@ -28,7 +28,7 @@
 
 ## titan-host 元能力（宿主侧抽象 API）
 
-以下名称为**产品/契约层**意图；下列出 **Windows / OpenVMM** 主要底层落点。**并非**所有调用都会或应该以 TCP `ControlRequest` 暴露（调试与 orchestrator 内部路径见 `need_mapping.rs` 对照表）。
+以下名称为**产品/契约层**意图；下列出 **Windows / OpenVMM** 主要底层落点。**并非**所有调用都会或应该以 TCP `ControlRequest` 暴露（调试与 orchestrator 内部路径见 **`need.md` 与 PR 说明** 的对照约定）。
 
 ### 一、内存操控元能力（Memory Sovereignty）
 
@@ -41,7 +41,7 @@
 | `vm_virt_to_phys(cr3: u64, virt_addr: u64) -> u64` | 软件页表遍历，虚拟地址 → guest 物理地址 | 不依赖 Windows 来宾用户态 API |
 | `vm_scan_pattern(pattern: String) -> Vec<u64>` | 多线程等在物理内存范围内做特征扫描 | 利用多核扫较大 guest RAM |
 
-**Phase 提示**：真 WinHv/WHV 无协作路径属 Phase 2+；Phase 1 协作式读内存等见 `need_mapping.rs`。`Capabilities::winhv_guest_memory` 等位须与探测一致。
+**Phase 提示**：真 WinHv/WHV 无协作路径属 Phase 2+；Phase 1 协作式读内存等见 **`need.md` 与 PR 说明** 的 Phase 划分。`Capabilities::winhv_guest_memory` 等位须与探测一致。
 
 ### 二、硬件伪装元能力（Spoofing & Stealth）
 
@@ -83,9 +83,9 @@
 
 | 意图 API | 能力说明 | Windows 轨（目标底层） |
 |----------|----------|-------------------------|
-| `vm_set_proxy(proxy_url: String)` | 将该 VM 相关流量导入代理隧道 | WinDivert 等内核态分流/转发与配置 schema：`proxy_pool`、`windivert` |
+| `vm_set_proxy(proxy_url: String)` | 将该 VM 相关流量导入代理隧道 | WinDivert 等内核态分流/转发（路线图）；当前收敛版仓库不含 `proxy_pool` / 宿主 WinDivert 转发栈 |
 
-**Phase 提示**：Phase 1 对代理 / WinDivert 配置多为 **TOML 校验与 schema**，不接内核转发；`Capabilities::windivert_forward` 等位诚实反映探测结果。
+**Phase 提示**：代理 / WinDivert 真转发为路线图；`Capabilities::windivert_forward` 等位诚实反映宿主探测结果（当前收敛构建无 WinDivert 用户态栈）。
 
 ---
 
@@ -106,7 +106,7 @@
 
 | 文档 | 用途 |
 |------|------|
-| `crates/titan-common/src/need_mapping.rs` | Phase 1 DoD、Phase 2+ 列表、主题 → crate 对照 |
+| `need.md` 与当前 PR | Phase 1 DoD、Phase 2+ 边界与主题 → 代码对照（以文档与 PR 为准，无单独 `need_mapping` 模块） |
 | `docs/requirements-traceability.md` | 元能力 / API → 实现轨 / 代码锚点 / 测试 |
 | `docs/host-windows-architecture.md` | titan-host Windows 分层、**OpenVMM** 与适配层关系、Capabilities/Lua 约束 |
 | `docs/openvmm-secure-boot-matrix.md` | **OpenVMM 上下文** 的宿主/来宾 SB 与驱动矩阵 |

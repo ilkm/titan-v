@@ -2,11 +2,31 @@
 
 use titan_common::HostRuntimeProbes;
 
-/// Runs lightweight host probes (driver pipe, etc.). VM / spoof probes align with OpenVMM integration milestones.
+#[cfg(windows)]
+fn probe_kernel_driver_ipc_blocking() -> bool {
+    match std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(r"\\.\pipe\TitanVHostDriver")
+    {
+        Ok(f) => {
+            drop(f);
+            true
+        }
+        Err(_) => false,
+    }
+}
+
+#[cfg(not(windows))]
+fn probe_kernel_driver_ipc_blocking() -> bool {
+    false
+}
+
+/// Runs lightweight host probes (driver pipe, etc.).
 #[must_use]
 pub fn probe_host_runtime_blocking() -> HostRuntimeProbes {
     HostRuntimeProbes {
-        kernel_driver_ipc: crate::driver_bridge::probe_kernel_driver_ipc_blocking(),
+        kernel_driver_ipc: probe_kernel_driver_ipc_blocking(),
         ..Default::default()
     }
 }

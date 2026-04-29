@@ -2,9 +2,9 @@
 
 ## 范围与权威来源
 
-本文描述 **Windows 宿主 + OpenVMM 能力** 下的分层、控制面与能力探测；**不**改变 Phase 1 验收范围（以 `need_mapping.rs` 与当前 PR 为准）。
+本文描述 **Windows 宿主 + OpenVMM 能力** 下的分层、控制面与能力探测；**不**改变 Phase 1 验收范围（以 **`need.md` 与当前 PR** 为准）。
 
-- **Phase 1 DoD、主题 → crate 对照**：以 [`crates/titan-common/src/need_mapping.rs`](../crates/titan-common/src/need_mapping.rs) 为准。
+- **Phase 1 DoD、主题 → crate 对照**：以 [`need.md`](../need.md) 与 [requirements-traceability.md](requirements-traceability.md) 为准（已无独立 `need_mapping` 源文件）。
 - **元能力 → 实现轨 → 测试**：以 [requirements-traceability.md](requirements-traceability.md) 追溯表为准。
 - **合法用途与免责声明**：见 [`need.md`](../need.md) 文首段落。
 - **OpenVMM 权威说明与构建指引**：[The OpenVMM Guide](https://aka.ms/openvmmguide)（上游仓库：[openvmm](https://github.com/microsoft/openvmm)）。
@@ -83,7 +83,7 @@ flowchart TB
 ## 代码里程碑（与文档基线）
 
 - **控制面**：`titan-host::serve`、`titan-common::wire`；具体 VM 列表 / 电源等语义以 **OpenVMM 集成 PR** 为准（当前未接线时见 `dispatch` 等降级行为）。
-- **非 Windows** 上宿主相关控制面保持 stub 或 **501**，与 `need_mapping` 一致。
+- **非 Windows** 上宿主相关控制面保持 stub 或 **501**，与 **`need.md` / PR Phase 约定** 一致。
 
 ---
 
