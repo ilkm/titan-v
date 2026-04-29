@@ -17,9 +17,11 @@ mod menu;
 mod serve;
 #[cfg(all(feature = "tokio", windows))]
 mod serve_win;
+mod theme;
 
-pub use icon::{refresh_tray_icon, tray_icon_for_lang};
+pub use icon::{refresh_tray_icon, sync_tray_if_needed, tray_icon_for_lang};
 pub use menu::{DesktopProduct, build_tray_menu};
+pub use theme::{TrayTheme, current_tray_theme};
 
 #[cfg(feature = "egui")]
 pub use egui::{

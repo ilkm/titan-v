@@ -129,8 +129,6 @@ pub struct CenterApp {
     pub(crate) _tray: Option<titan_tray::TrayIcon>,
     /// macOS/Winit: tray must be created after the event loop has started (`StartCause::Init`); see tray-icon docs.
     tray_icon_init_attempted: bool,
-    /// Last UI language applied to the tray (icon, menu, tooltip); see [`titan_tray::refresh_tray_icon`].
-    tray_glyph_lang: UiLang,
     /// Device card: index into `endpoints` whose remark is being edited (`None` = display mode).
     pub(crate) device_remark_edit_index: Option<usize>,
     /// Request focus on the remark `TextEdit` the first frame after opening edit mode.
@@ -180,7 +178,9 @@ impl eframe::App for CenterApp {
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.maybe_init_tray_icon_once();
-        self.sync_tray_glyph_lang();
+        if let Some(tray) = self._tray.as_ref() {
+            titan_tray::sync_tray_if_needed(tray, titan_tray::DesktopProduct::Center, self.ui_lang);
+        }
         if let Some(until) = self.ui_toast_until
             && ctx.input(|i| i.time) >= until
         {

@@ -83,7 +83,6 @@ impl HostApp {
             really_quitting: false,
             hidden_to_tray: false,
             _tray: initial_tray,
-            tray_glyph_lang: persist.ui_lang,
             serve_run: None,
             persist_apply_tx: Some(persist_apply_tx),
             persist_apply_rx,

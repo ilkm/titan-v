@@ -35,23 +35,6 @@ impl CenterApp {
         }
     }
 
-    /// Sync tray icon, context menu, and tooltip when [`Self::ui_lang`] changes.
-    pub(crate) fn sync_tray_glyph_lang(&mut self) {
-        let Some(tray) = self._tray.as_ref() else {
-            return;
-        };
-        if self.tray_glyph_lang == self.ui_lang {
-            return;
-        }
-        if let Err(e) =
-            titan_tray::refresh_tray_icon(tray, titan_tray::DesktopProduct::Center, self.ui_lang)
-        {
-            tracing::warn!("tray icon refresh: {e}");
-            return;
-        }
-        self.tray_glyph_lang = self.ui_lang;
-    }
-
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         apply_center_theme(&cc.egui_ctx);
         let (net_tx, net_rx) = mpsc::channel();
@@ -172,7 +155,6 @@ impl CenterApp {
             hidden_to_tray: false,
             _tray: None,
             tray_icon_init_attempted: false,
-            tray_glyph_lang: ui_lang,
             device_remark_edit_index: None,
             device_remark_edit_focus_next: false,
             device_masonry_heights: HashMap::new(),

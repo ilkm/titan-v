@@ -1,12 +1,17 @@
-//! Compose tray RGBA:
+//! Compose tray RGBA bitmaps that follow the active [`crate::TrayTheme`]:
 //!
-//! - **Windows**: black rounded chip + solid white glyph (高对比，适配 Win11 深色托盘，不会被 Shell 当模板图反色)
-//! - **macOS / 其他**: Zh = solid white chip + cutout text; En = white ring + solid white letter (ABC tile).
+//! - **Windows**: rounded chip (`theme.chip_color()`) + solid glyph (`theme.glyph_color()`). High
+//!   contrast, adapts to Win10/11 light ↔ dark notification area.
+//! - **macOS / Linux**: legacy distinctive design — **Zh** paints a chip and erodes the glyph out
+//!   of it (letter shows menu bar background); **En** paints an IME-style ring with a solid letter
+//!   inside. Both ring and letter share the theme chip color so the icon auto-flips on dark ↔
+//!   light menu bars.
 
 use fontdue::Font;
 use titan_common::UiLang;
 
 use crate::menu::DesktopProduct;
+use crate::theme::TrayTheme;
 
 use super::font;
 use super::geom;
@@ -22,12 +27,18 @@ const TRAY_LABEL_PX_LESS_FRAC: f32 = 0.05;
 /// Minimum rasterized label size as a fraction of the short edge.
 const TRAY_LABEL_PX_FLOOR_FRAC: f32 = 0.35;
 
-pub(crate) fn compose_tray_rgba(product: DesktopProduct, lang: UiLang, w: u32, h: u32) -> Vec<u8> {
+pub(crate) fn compose_tray_rgba(
+    product: DesktopProduct,
+    lang: UiLang,
+    theme: TrayTheme,
+    w: u32,
+    h: u32,
+) -> Vec<u8> {
     let wu = w as usize;
     let hu = h as usize;
     let rad = tray_corner_radius_px_for(w, h);
     let mut rgba = vec![0u8; wu * hu * 4];
-    compose_tray_body(&mut rgba, wu, hu, rad, product, lang);
+    compose_tray_body(&mut rgba, wu, hu, rad, product, lang, theme);
     rgba
 }
 
@@ -39,12 +50,13 @@ fn compose_tray_body(
     rad: i32,
     product: DesktopProduct,
     lang: UiLang,
+    theme: TrayTheme,
 ) {
-    fill_chip_rgba(rgba, w, h, rad, [0, 0, 0, 255]);
+    fill_chip_rgba(rgba, w, h, rad, theme.chip_color());
     let Some(font) = font::tray_font() else {
         return;
     };
-    paint_label_white_on_chip(rgba, w, h, rad, font, product, lang);
+    paint_label_solid_on_chip(rgba, w, h, rad, font, product, lang, theme.glyph_color());
 }
 
 #[cfg(not(windows))]
@@ -55,17 +67,19 @@ fn compose_tray_body(
     rad: i32,
     product: DesktopProduct,
     lang: UiLang,
+    theme: TrayTheme,
 ) {
     if lang == UiLang::Zh {
-        fill_white_chip(rgba, w, h, rad);
+        fill_chip_rgba(rgba, w, h, rad, theme.chip_color());
     }
     if let Some(font) = font::tray_font() {
-        paint_label(rgba, w, h, rad, font, product, lang);
+        paint_label(rgba, w, h, rad, font, product, lang, theme);
     }
 }
 
 #[cfg(windows)]
-fn paint_label_white_on_chip(
+#[allow(clippy::too_many_arguments)]
+fn paint_label_solid_on_chip(
     buf: &mut [u8],
     w: usize,
     h: usize,
@@ -73,6 +87,7 @@ fn paint_label_white_on_chip(
     font: &Font,
     product: DesktopProduct,
     lang: UiLang,
+    color: [u8; 3],
 ) {
     let label = tray_label(product, lang);
     let wi = w as i32;
@@ -88,7 +103,7 @@ fn paint_label_white_on_chip(
         rad,
     };
     let mut layer = TrayPix { buf, w: wi, h: hi };
-    layer.paint_string_solid(font, label, lay.px, lay.x0, lay.base, &clip);
+    layer.paint_string_solid(font, label, lay.px, lay.x0, lay.base, color, &clip);
 }
 
 #[inline]
@@ -116,16 +131,18 @@ fn fill_chip_rgba(rgba: &mut [u8], w: usize, h: usize, rad: i32, color: [u8; 4])
 }
 
 #[cfg(not(windows))]
-fn fill_white_chip(rgba: &mut [u8], w: usize, h: usize, rad: i32) {
-    fill_chip_rgba(rgba, w, h, rad, [255, 255, 255, 255]);
-}
-
-#[cfg(not(windows))]
-fn fill_white_round_rect_ring(rgba: &mut [u8], w: usize, h: usize, rad: i32, stroke: i32) {
+fn fill_round_rect_ring(
+    rgba: &mut [u8],
+    w: usize,
+    h: usize,
+    rad: i32,
+    stroke: i32,
+    color: [u8; 4],
+) {
     let wi = w as i32;
     let hi = h as i32;
     let Some((ox, oy, iw, ih, rad_i)) = inner_round_rect_params(wi, hi, stroke) else {
-        fill_white_chip(rgba, w, h, rad);
+        fill_chip_rgba(rgba, w, h, rad, color);
         return;
     };
     for y in 0..hi {
@@ -136,7 +153,7 @@ fn fill_white_round_rect_ring(rgba: &mut [u8], w: usize, h: usize, rad: i32, str
                 continue;
             }
             let i = ((y * wi + x) * 4) as usize;
-            rgba[i..i + 4].copy_from_slice(&[255, 255, 255, 255]);
+            rgba[i..i + 4].copy_from_slice(&color);
         }
     }
 }
@@ -162,6 +179,7 @@ fn paint_label(
     font: &Font,
     product: DesktopProduct,
     lang: UiLang,
+    theme: TrayTheme,
 ) {
     let label = tray_label(product, lang);
     let wi = w as i32;
@@ -171,7 +189,7 @@ fn paint_label(
     };
     match lang {
         UiLang::Zh => paint_zh_cutout(buf, wi, hi, rad, font, label, &lay),
-        UiLang::En => paint_en_ring_solid(buf, w, h, rad, font, label, &lay),
+        UiLang::En => paint_en_ring_solid(buf, w, h, rad, font, label, &lay, theme),
     }
 }
 
@@ -195,6 +213,7 @@ fn paint_zh_cutout(
 }
 
 #[cfg(not(windows))]
+#[allow(clippy::too_many_arguments)]
 fn paint_en_ring_solid(
     buf: &mut [u8],
     w: usize,
@@ -203,11 +222,14 @@ fn paint_en_ring_solid(
     font: &Font,
     label: &str,
     lay: &LabelLayout,
+    theme: TrayTheme,
 ) {
     let wi = w as i32;
     let hi = h as i32;
     let stroke = tray_en_ring_stroke_px(wi, hi);
-    fill_white_round_rect_ring(buf, w, h, rad, stroke);
+    let chip_rgba = theme.chip_color();
+    let letter_rgb = [chip_rgba[0], chip_rgba[1], chip_rgba[2]];
+    fill_round_rect_ring(buf, w, h, rad, stroke, chip_rgba);
     let Some(clip) = inner_clip_en(wi, hi, stroke) else {
         return;
     };
@@ -217,7 +239,7 @@ fn paint_en_ring_solid(
         h: hi,
         rad,
     };
-    layer.paint_string_solid(font, label, lay.px, lay.x0, lay.base, &clip);
+    layer.paint_string_solid(font, label, lay.px, lay.x0, lay.base, letter_rgb, &clip);
 }
 
 #[cfg(not(windows))]

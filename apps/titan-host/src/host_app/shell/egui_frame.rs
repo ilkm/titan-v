@@ -5,25 +5,6 @@ use crate::titan_i18n::{self as i18n, Msg};
 use crate::host_app::model::{HostApp, PERSIST_KEY};
 
 impl HostApp {
-    /// Sync tray icon, context menu, and tooltip when [`Self::persist.ui_lang`] changes.
-    fn sync_tray_glyph_lang(&mut self) {
-        let Some(tray) = self._tray.as_ref() else {
-            return;
-        };
-        if self.tray_glyph_lang == self.persist.ui_lang {
-            return;
-        }
-        if let Err(e) = titan_tray::refresh_tray_icon(
-            tray,
-            titan_tray::DesktopProduct::Host,
-            self.persist.ui_lang,
-        ) {
-            tracing::warn!("tray icon refresh: {e}");
-            return;
-        }
-        self.tray_glyph_lang = self.persist.ui_lang;
-    }
-
     fn boot_focus_once_if_needed(&mut self, ctx: &egui::Context) {
         if !self.boot_window_focus_once && !self.hidden_to_tray {
             self.boot_window_focus_once = true;
@@ -103,7 +84,13 @@ impl eframe::App for HostApp {
             self.persist.ui_lang = lang;
             ctx.request_repaint();
         }
-        self.sync_tray_glyph_lang();
+        if let Some(tray) = self._tray.as_ref() {
+            titan_tray::sync_tray_if_needed(
+                tray,
+                titan_tray::DesktopProduct::Host,
+                self.persist.ui_lang,
+            );
+        }
         self.boot_focus_once_if_needed(ctx);
         self.sync_tray_wakeup_and_repaint(ctx);
         if !self.initial_serve_attempted {
