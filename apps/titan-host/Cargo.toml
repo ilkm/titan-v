@@ -23,10 +23,10 @@ name = "titan-host"
 path = "src/main.rs"
 
 [dependencies]
-titan-common = { path = "../titan-common" }
-titan-egui-widgets = { path = "../titan-egui-widgets" }
-titan-i18n = { path = "../titan-i18n" }
-titan-tray = { path = "../titan-tray", features = ["egui"] }
+titan-common = { path = "../../crates/titan-common" }
+titan-egui-widgets = { path = "../../crates/titan-egui-widgets" }
+titan-i18n = { path = "../../crates/titan-i18n" }
+titan-tray = { path = "../../crates/titan-tray", features = ["egui"] }
 eframe = { version = "0.31" }
 egui = "0.31"
 fontdb = "0.23"

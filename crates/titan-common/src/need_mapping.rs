@@ -17,7 +17,7 @@
 //! - Hyper-V / 母盘 / Lua / driver：**原 `titan-vmm` / `titan-scripts` / `titan-driver` / `titan-offline-spoof` crate 已删除**；路线图与 `need.md` 仍以 Phase 描述为准，验收须对照 PR 是否恢复实现。
 //! - `titan-host::config`：TOML schema 可保留供外部工具；宿主二进制不再内置批处理 provision。
 //! - 代理配置：`proxy_pool`、`windivert` TOML **仅校验与 schema**，不接内核转发。
-//! - **示例 host 配置**（可复制后改路径）：`crates/titan-host/tests/fixtures/host.phase1.example.toml`。
+//! - **示例 host 配置**（可复制后改路径）：`apps/titan-host/tests/fixtures/host.phase1.example.toml`。
 //!
 //! ## Phase 1 Definition of Done（DoD）
 //!

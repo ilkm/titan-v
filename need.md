@@ -8,8 +8,8 @@
 
 | 组件 | 职责 |
 |------|------|
-| **titan-center（中控端）** | 编排多台宿主机及其上的虚拟机：状态聚合、策略下发、脚本（Lua）与资源视图；长期目标含多路预览与流式交互。代码：`crates/titan-center`。 |
-| **titan-host（被控端）** | 安装在每台宿主机上，对接具体虚拟化后端，向上暴露**元能力**（内存、伪装、输入、视觉、网络）；执行 provision、电源、每 VM Lua 运行时等。代码：`crates/titan-host`。 |
+| **titan-center（中控端）** | 编排多台宿主机及其上的虚拟机：状态聚合、策略下发、脚本（Lua）与资源视图；长期目标含多路预览与流式交互。代码：`apps/titan-center`。 |
+| **titan-host（被控端）** | 安装在每台宿主机上，对接具体虚拟化后端，向上暴露**元能力**（内存、伪装、输入、视觉、网络）；执行 provision、电源、每 VM Lua 运行时等。代码：`apps/titan-host`。 |
 | **来宾 VM** | 承载业务负载的隔离环境；与宿主协作或通过底层 API 被宿主观测/操控（取决于阶段与能力位）。 |
 
 ## 规模用例（非架构前提）
@@ -18,7 +18,7 @@
 
 ## 宿主虚拟化后端
 
-**产品路径**：宿主 OS **仅 Windows**，虚拟化后端 **Hyper-V**，存储目标为母盘（只读）+ 差分 VHDX；实作轨为 `crates/titan-vmm::hyperv`、宿主 provision / 电源 / GPU-PV 可选路径。`titan-center` 可在其他桌面 OS 上运行以连接 Windows 宿主。
+**产品路径**：宿主 OS **仅 Windows**，虚拟化后端 **Hyper-V**，存储目标为母盘（只读）+ 差分 VHDX；实作轨为 `crates/titan-vmm::hyperv`、宿主 provision / 电源 / GPU-PV 可选路径。`titan-center`（`apps/titan-center`）可在其他桌面 OS 上运行以连接 Windows 宿主。
 
 中控与宿主之间的**默认控制面**为带版本号的二进制帧（`crates/titan-common` 中 `wire` / `PROTOCOL_VERSION`）；能力协商见 `Capabilities` 与宿主启动探测。
 

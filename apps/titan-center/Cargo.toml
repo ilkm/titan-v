@@ -21,9 +21,9 @@ name = "titan-center"
 path = "src/main.rs"
 
 [dependencies]
-titan-common = { path = "../titan-common" }
-titan-egui-widgets = { path = "../titan-egui-widgets" }
-titan-i18n = { path = "../titan-i18n" }
+titan-common = { path = "../../crates/titan-common" }
+titan-egui-widgets = { path = "../../crates/titan-egui-widgets" }
+titan-i18n = { path = "../../crates/titan-i18n" }
 anyhow = "1.0"
 eframe = { version = "0.31" }
 egui = "0.31"
@@ -37,4 +37,4 @@ if-addrs = "0.15"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 fontdb = "0.23"
-titan-tray = { path = "../titan-tray", features = ["egui"] }
+titan-tray = { path = "../../crates/titan-tray", features = ["egui"] }

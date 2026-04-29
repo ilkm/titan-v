@@ -5,8 +5,8 @@ members = [
     "crates/titan-egui-widgets",
     "crates/titan-i18n",
     "crates/titan-tray",
-    "crates/titan-host",
-    "crates/titan-center",
+    "apps/titan-host",
+    "apps/titan-center",
 ]
 
 [workspace.package]

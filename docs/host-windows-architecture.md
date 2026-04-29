@@ -58,7 +58,7 @@ flowchart TB
 2. **Hypervisor 直连**（guest 物理内存、总线级输入、CPUID/MSR 级策略）按阶段实现；**未实现**时须通过错误与 **`Capabilities`** 位诚实反映。
 3. **内存语义**：区分 **guest 物理地址**（hypervisor/WinHv 等视角）与 **经 agent 的虚拟地址 / 载荷语义**。`ReadMemory` 的文档注释已说明：在 Windows / Hyper-V 下，ring-3 **未必**能无协作地读任意 guest RAM。
 
-能力探测入口：[`Capabilities::from_host_runtime_probes`](../crates/titan-common/src/capabilities.rs) 与 [`host_runtime_probes`](../crates/titan-host/src/host_runtime_probes.rs)（`titan-host serve` 启动时）。
+能力探测入口：[`Capabilities::from_host_runtime_probes`](../crates/titan-common/src/capabilities.rs) 与 [`host_runtime_probes`](../apps/titan-host/src/host_runtime_probes.rs)（`titan-host serve` 启动时）。
 
 ---
 
@@ -74,7 +74,7 @@ flowchart TB
 
 ## Lua 自动化约束
 
-- 引擎：**`titan-scripts`**（`mlua`），由 **`titan-host::runtime`** 调度：有界队列、**每 VM 串行**、墙钟超时（见 `crates/titan-host/src/runtime.rs`）。
+- 引擎：**`titan-scripts`**（`mlua`），由 **`titan-host::runtime`** 调度：有界队列、**每 VM 串行**、墙钟超时（见 `apps/titan-host/src/runtime.rs`）。
 - 脚本 **不得** 假设存在 guest 物理内存直连；同一 Lua 入口的语义必须由 **后端实现 + Capabilities** 定义，未实现时返回 **明确错误**。
 
 ---

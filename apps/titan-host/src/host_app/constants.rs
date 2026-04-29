@@ -1,4 +1,4 @@
-//! Layout tokens aligned with Titan Center (`crates/titan-center/src/app/constants.rs`).
+//! Layout tokens aligned with Titan Center (`apps/titan-center/src/app/constants.rs`).
 
 use egui::Color32;
 
