@@ -6,8 +6,7 @@ use titan_common::{ControlRequest, ControlResponse};
 use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
 
-use super::super::net_client::exchange_one;
-use super::super::net_msg::NetUiMsg;
+use super::super::net::{exchange_one, NetUiMsg};
 use super::super::CenterApp;
 
 impl CenterApp {

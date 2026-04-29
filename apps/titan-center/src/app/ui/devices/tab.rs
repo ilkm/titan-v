@@ -9,12 +9,12 @@ use egui::{
     WidgetText,
 };
 
-use super::super::constants::DEVICE_CARD_GAP;
-use super::super::discovery;
-use super::super::i18n::{t, Msg};
-use super::super::widgets::subtle_button_toolbar;
-use super::super::CenterApp;
 use super::helpers::{device_mgmt_card_height_hint, device_mgmt_cols_and_card_width};
+use crate::app::constants::DEVICE_CARD_GAP;
+use crate::app::discovery;
+use crate::app::i18n::{t, Msg};
+use crate::app::ui::widgets::subtle_button_toolbar;
+use crate::app::CenterApp;
 
 impl CenterApp {
     /// Device management: cards sit directly in the page scroll (no inner list container).
@@ -34,7 +34,7 @@ impl CenterApp {
         self.show_add_host_dialog(ui, lang);
     }
 
-    fn panel_device_mgmt_toolbar(&mut self, ui: &mut egui::Ui, lang: super::super::i18n::UiLang) {
+    fn panel_device_mgmt_toolbar(&mut self, ui: &mut egui::Ui, lang: crate::app::i18n::UiLang) {
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = 8.0;
             self.panel_device_mgmt_toolbar_left(ui, lang);
@@ -45,7 +45,7 @@ impl CenterApp {
     fn panel_device_mgmt_toolbar_left(
         &mut self,
         ui: &mut egui::Ui,
-        lang: super::super::i18n::UiLang,
+        lang: crate::app::i18n::UiLang,
     ) {
         if subtle_button_toolbar(ui, t(lang, Msg::BtnAddHost), true).clicked() {
             self.add_host_dialog_ip = discovery::default_manual_host_ipv4_string();
@@ -90,7 +90,7 @@ impl CenterApp {
     fn panel_device_mgmt_toolbar_right(
         &mut self,
         ui: &mut egui::Ui,
-        lang: super::super::i18n::UiLang,
+        lang: crate::app::i18n::UiLang,
     ) {
         if subtle_button_toolbar(
             ui,
@@ -112,7 +112,7 @@ impl CenterApp {
         }
     }
 
-    fn panel_device_mgmt_empty_state(&self, ui: &mut egui::Ui, lang: super::super::i18n::UiLang) {
+    fn panel_device_mgmt_empty_state(&self, ui: &mut egui::Ui, lang: crate::app::i18n::UiLang) {
         let w = ui.available_width();
         let h = ui.available_height().max(180.0);
         ui.allocate_ui_with_layout(egui::vec2(w, h), Layout::top_down(Align::Min), |ui| {
@@ -122,7 +122,7 @@ impl CenterApp {
 
     fn device_mgmt_empty_main_galley(
         ui: &mut egui::Ui,
-        lang: super::super::i18n::UiLang,
+        lang: crate::app::i18n::UiLang,
         text_width: f32,
         color: egui::Color32,
     ) -> Arc<Galley> {
@@ -136,7 +136,7 @@ impl CenterApp {
 
     fn device_mgmt_empty_hint_galley(
         ui: &mut egui::Ui,
-        lang: super::super::i18n::UiLang,
+        lang: crate::app::i18n::UiLang,
         text_width: f32,
         color: egui::Color32,
     ) -> Arc<Galley> {
@@ -151,7 +151,7 @@ impl CenterApp {
 
     fn device_mgmt_empty_galleys(
         ui: &mut egui::Ui,
-        lang: super::super::i18n::UiLang,
+        lang: crate::app::i18n::UiLang,
         text_width: f32,
     ) -> (Arc<Galley>, Arc<Galley>, egui::Color32, egui::Color32) {
         let main_color = ui.visuals().widgets.inactive.text_color();
@@ -161,11 +161,7 @@ impl CenterApp {
         (main_galley, hint_galley, main_color, hint_color)
     }
 
-    fn paint_device_mgmt_empty_centered(
-        ui: &mut egui::Ui,
-        lang: super::super::i18n::UiLang,
-        w: f32,
-    ) {
+    fn paint_device_mgmt_empty_centered(ui: &mut egui::Ui, lang: crate::app::i18n::UiLang, w: f32) {
         let rect = ui.max_rect();
         let text_width = (w * 0.92).clamp(1.0, 520.0);
         let (main_galley, hint_galley, main_color, hint_color) =
@@ -198,7 +194,7 @@ impl CenterApp {
             .collect()
     }
 
-    fn panel_device_mgmt_masonry(&mut self, ui: &mut egui::Ui, lang: super::super::i18n::UiLang) {
+    fn panel_device_mgmt_masonry(&mut self, ui: &mut egui::Ui, lang: crate::app::i18n::UiLang) {
         let inner = ui.available_width();
         let (cols, card_w, gap, _row_w, lead) = Self::device_masonry_outer_metrics(inner);
         let n = self.endpoints.len();
@@ -260,7 +256,7 @@ impl CenterApp {
     fn device_masonry_paint_columns(
         &mut self,
         ui: &mut egui::Ui,
-        lang: super::super::i18n::UiLang,
+        lang: crate::app::i18n::UiLang,
         columns: &[Vec<usize>],
         col_x: &[f32],
         col_y: &mut [f32],
@@ -292,7 +288,7 @@ impl CenterApp {
     fn device_masonry_paint_one_slot(
         &mut self,
         ui: &mut egui::Ui,
-        lang: super::super::i18n::UiLang,
+        lang: crate::app::i18n::UiLang,
         i: usize,
         c: usize,
         col_x: &[f32],

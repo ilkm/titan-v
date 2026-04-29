@@ -11,19 +11,19 @@ use egui::{
     Sense, TextStyle, TextWrapMode, Vec2, WidgetText,
 };
 
-use super::super::constants::{
-    card_shadow, ACCENT, CARD_CORNER_RADIUS, CARD_SURFACE, FORM_VALUE_TEXT, OK_GREEN,
-};
-use super::super::i18n::{host_running_windows_line, t, Msg, UiLang};
-use super::super::widgets::{
-    danger_preview_delete_button, dialog_underline_text_row_gap, preview_overlay_configure_button,
-};
-use super::super::CenterApp;
 use super::helpers::{
     card_outline, device_card_resource_values, device_card_stat_label_value_gap,
     device_card_two_col_row, device_mgmt_remark_row_interact, ADD_HOST_DLG_MUTED,
     DEVICE_CARD_BODY_COL_GAP, DEVICE_PREVIEW_PLACEHOLDER_BG, DEVICE_PREVIEW_PLACEHOLDER_TEXT,
 };
+use crate::app::constants::{
+    card_shadow, ACCENT, CARD_CORNER_RADIUS, CARD_SURFACE, FORM_VALUE_TEXT, OK_GREEN,
+};
+use crate::app::i18n::{host_running_windows_line, t, Msg, UiLang};
+use crate::app::ui::widgets::{
+    danger_preview_delete_button, dialog_underline_text_row_gap, preview_overlay_configure_button,
+};
+use crate::app::CenterApp;
 
 const CARD_BODY_GRID_PX: f32 = 13.0;
 const METRIC_BODY_ROW_GAP: f32 = 5.0;

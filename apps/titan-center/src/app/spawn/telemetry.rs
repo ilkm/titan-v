@@ -8,9 +8,9 @@ use std::time::Duration;
 use tokio::net::TcpStream;
 
 use super::super::constants::TELEMETRY_MAX_CONCURRENT;
-use super::super::net_client::{read_telemetry_push, telemetry_addr_for_control};
-use super::super::net_msg::NetUiMsg;
-use super::super::tcp_tune::tune_connected_stream;
+use super::super::net::{
+    read_telemetry_push, telemetry_addr_for_control, tune_connected_stream, NetUiMsg,
+};
 use super::super::{CenterApp, TelemetryLink};
 
 impl CenterApp {

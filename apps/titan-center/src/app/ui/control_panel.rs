@@ -2,15 +2,15 @@
 
 use egui::{RichText, ScrollArea};
 
-use super::constants::ACCENT;
-use super::i18n::{t, Msg};
-use super::widgets::{
+use crate::app::constants::ACCENT;
+use crate::app::i18n::{t, Msg};
+use crate::app::ui::widgets::{
     form_field_row, inset_single_select_dropdown, section_card, subtle_button, InsetDropdownLayout,
 };
-use super::CenterApp;
+use crate::app::CenterApp;
 
 impl CenterApp {
-    pub(super) fn top_status_bar(&mut self, ui: &mut egui::Ui) {
+    pub(crate) fn top_status_bar(&mut self, ui: &mut egui::Ui) {
         let lang = self.ui_lang;
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = 14.0;
@@ -45,7 +45,11 @@ impl CenterApp {
         });
     }
 
-    fn settings_discovery_udp_controls(&mut self, ui: &mut egui::Ui, lang: super::i18n::UiLang) {
+    fn settings_discovery_udp_controls(
+        &mut self,
+        ui: &mut egui::Ui,
+        lang: crate::app::i18n::UiLang,
+    ) {
         ui.label(
             RichText::new(t(lang, Msg::DiscoveryUdpBlurb))
                 .small()
@@ -72,7 +76,7 @@ impl CenterApp {
         );
     }
 
-    fn settings_discovery_bind_block(&mut self, ui: &mut egui::Ui, lang: super::i18n::UiLang) {
+    fn settings_discovery_bind_block(&mut self, ui: &mut egui::Ui, lang: crate::app::i18n::UiLang) {
         ui.label(
             RichText::new(t(lang, Msg::DiscoveryBindBlurb))
                 .small()
@@ -91,10 +95,14 @@ impl CenterApp {
         self.settings_discovery_bind_list(ui, lang);
     }
 
-    fn settings_discovery_bind_toolbar(&mut self, ui: &mut egui::Ui, lang: super::i18n::UiLang) {
+    fn settings_discovery_bind_toolbar(
+        &mut self,
+        ui: &mut egui::Ui,
+        lang: crate::app::i18n::UiLang,
+    ) {
         ui.horizontal(|ui| {
             if subtle_button(ui, t(lang, Msg::DiscoveryRefreshIfaces), true).clicked() {
-                self.discovery_if_rows = super::discovery::list_lan_ipv4_rows();
+                self.discovery_if_rows = crate::app::discovery::list_lan_ipv4_rows();
                 self.discovery_if_scan_secs = ui.ctx().input(|i| i.time);
             }
             if subtle_button(
@@ -109,7 +117,7 @@ impl CenterApp {
         });
     }
 
-    fn discovery_quick_add_menu_rows(&mut self, ui: &mut egui::Ui, lang: super::i18n::UiLang) {
+    fn discovery_quick_add_menu_rows(&mut self, ui: &mut egui::Ui, lang: crate::app::i18n::UiLang) {
         if self.discovery_if_rows.is_empty() {
             ui.weak(t(lang, Msg::DiscoveryNoIpv4Ifaces));
         }
@@ -133,7 +141,11 @@ impl CenterApp {
         }
     }
 
-    fn settings_discovery_quick_add_combo(&mut self, ui: &mut egui::Ui, lang: super::i18n::UiLang) {
+    fn settings_discovery_quick_add_combo(
+        &mut self,
+        ui: &mut egui::Ui,
+        lang: crate::app::i18n::UiLang,
+    ) {
         let w = ui.available_width();
         inset_single_select_dropdown(
             ui,
@@ -146,7 +158,7 @@ impl CenterApp {
         );
     }
 
-    fn settings_discovery_bind_list(&mut self, ui: &mut egui::Ui, lang: super::i18n::UiLang) {
+    fn settings_discovery_bind_list(&mut self, ui: &mut egui::Ui, lang: crate::app::i18n::UiLang) {
         if self.discovery_if_rows.is_empty() {
             ui.add_space(4.0);
             ui.label(
@@ -203,7 +215,11 @@ impl CenterApp {
         });
     }
 
-    fn settings_host_collect_port_fields(&mut self, ui: &mut egui::Ui, lang: super::i18n::UiLang) {
+    fn settings_host_collect_port_fields(
+        &mut self,
+        ui: &mut egui::Ui,
+        lang: crate::app::i18n::UiLang,
+    ) {
         form_field_row(
             ui,
             RichText::new(t(lang, Msg::HostCollectIntervalLabel)).small(),
@@ -230,7 +246,7 @@ impl CenterApp {
     }
 
     /// Settings: LAN discovery + LAN host registration only.
-    pub(super) fn panel_settings_host(&mut self, ui: &mut egui::Ui) {
+    pub(crate) fn panel_settings_host(&mut self, ui: &mut egui::Ui) {
         self.refresh_discovery_iface_rows(ui);
         ui.with_layout(egui::Layout::top_down(egui::Align::Min), |ui| {
             self.settings_discovery_section(ui);
@@ -239,7 +255,7 @@ impl CenterApp {
     }
 
     /// Device management tab: large per-host cards (no titled host-grid card).
-    pub(super) fn panel_device_management_redirect(&mut self, ui: &mut egui::Ui) {
+    pub(crate) fn panel_device_management_redirect(&mut self, ui: &mut egui::Ui) {
         self.panel_device_management(ui);
     }
 }

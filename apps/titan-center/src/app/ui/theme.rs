@@ -5,7 +5,7 @@ use std::borrow::Cow;
 use egui::{FontData, FontFamily, FontId, Margin, Stroke, TextStyle, Vec2};
 use fontdb::{Database, Family, Query};
 
-use super::constants::{ACCENT, ACCENT_DIM, CARD_SURFACE, ERR_ROSE};
+use crate::app::constants::{ACCENT, ACCENT_DIM, CARD_SURFACE, ERR_ROSE};
 
 const CJK_FONT_ID: &str = "titan_cjk_system";
 

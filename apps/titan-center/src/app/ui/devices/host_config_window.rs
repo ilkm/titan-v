@@ -4,16 +4,15 @@ use egui::{Align, Layout, RichText, Vec2};
 
 use titan_common::ControlRequest;
 
-use super::super::device_store;
-use super::super::i18n::{t, Msg, UiLang};
-use super::super::net_client::exchange_one;
-use super::super::net_msg::NetUiMsg;
-use super::super::widgets::{
+use super::helpers::ADD_HOST_DLG_MUTED;
+use crate::app::device_store;
+use crate::app::i18n::{t, Msg, UiLang};
+use crate::app::net::{exchange_one, NetUiMsg};
+use crate::app::ui::widgets::{
     multiline_inset, primary_button_large, show_opaque_modal, subtle_button_large,
     OpaqueFrameSource,
 };
-use super::super::CenterApp;
-use super::helpers::ADD_HOST_DLG_MUTED;
+use crate::app::CenterApp;
 
 fn host_ui_push_exchange(addr: &str, json: String) -> (bool, String) {
     let rt = match tokio::runtime::Builder::new_current_thread()

@@ -6,16 +6,16 @@ use std::sync::mpsc;
 use std::sync::Arc;
 use std::time::Instant;
 
-use super::constants::{DESKTOP_PREVIEW_POLL_SECS, REACHABILITY_PROBE_SECS};
-use super::device_store;
-use super::i18n::UiLang;
-use super::lan_host_register;
-use super::persist_data::{
+use crate::app::constants::{DESKTOP_PREVIEW_POLL_SECS, REACHABILITY_PROBE_SECS};
+use crate::app::device_store;
+use crate::app::i18n::UiLang;
+use crate::app::lan_host_register;
+use crate::app::persist_data::{
     default_discovery_interval_secs, default_discovery_udp_port,
     default_host_collect_interval_secs, default_list_vms_poll_secs, CenterPersist, NavTab,
 };
-use super::theme::apply_center_theme;
-use super::CenterApp;
+use crate::app::ui::theme::apply_center_theme;
+use crate::app::CenterApp;
 
 impl CenterApp {
     /// Interval between automatic `Hello` attempts when not connected (`control_addr` non-empty).

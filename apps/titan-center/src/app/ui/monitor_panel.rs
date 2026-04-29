@@ -3,13 +3,13 @@
 use egui::RichText;
 use titan_common::VmPowerState;
 
-use super::constants::CONTENT_COLUMN_GAP;
-use super::i18n::{t, Msg, UiLang};
-use super::widgets::section_card;
-use super::CenterApp;
+use crate::app::constants::CONTENT_COLUMN_GAP;
+use crate::app::i18n::{t, Msg, UiLang};
+use crate::app::ui::widgets::section_card;
+use crate::app::CenterApp;
 
 impl CenterApp {
-    pub(super) fn panel_resource_monitor(&self, ui: &mut egui::Ui) {
+    pub(crate) fn panel_resource_monitor(&self, ui: &mut egui::Ui) {
         let inner = ui.available_width();
         let gap = CONTENT_COLUMN_GAP;
         let half = ((inner - gap).max(0.0)) * 0.5;

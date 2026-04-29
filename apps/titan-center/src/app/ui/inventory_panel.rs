@@ -3,10 +3,10 @@
 use egui::{CornerRadius, RichText, Sense, Stroke};
 use titan_common::{DiskVolume, VmBrief};
 
-use super::constants::{CONTENT_COLUMN_GAP, HOST_TILE_MIN_WIDTH, PANEL_SPACING};
-use super::i18n::{t, Msg};
-use super::widgets::section_card;
-use super::CenterApp;
+use crate::app::constants::{CONTENT_COLUMN_GAP, HOST_TILE_MIN_WIDTH, PANEL_SPACING};
+use crate::app::i18n::{t, Msg};
+use crate::app::ui::widgets::section_card;
+use crate::app::CenterApp;
 
 impl CenterApp {
     fn panel_window_management_empty(&mut self, ui: &mut egui::Ui) {
@@ -53,7 +53,7 @@ impl CenterApp {
     }
 
     /// Window management: VM-centric tiles; empty inventory → only 暂无数据.
-    pub(super) fn panel_window_management(&mut self, ui: &mut egui::Ui) {
+    pub(crate) fn panel_window_management(&mut self, ui: &mut egui::Ui) {
         if self.inventory_slice().is_empty() {
             self.panel_window_management_empty(ui);
             return;

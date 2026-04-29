@@ -2,7 +2,7 @@
 
 use egui::{Align, Color32, Label, Layout, RichText, Sense, Stroke, TextStyle, WidgetText};
 
-use super::super::constants::{DEVICE_CARD_GAP, DEVICE_CARD_MAX_WIDTH, DEVICE_CARD_MIN_WIDTH};
+use crate::app::constants::{DEVICE_CARD_GAP, DEVICE_CARD_MAX_WIDTH, DEVICE_CARD_MIN_WIDTH};
 
 /// Horizontal gap between the two text columns on device cards (CPU/mem, disk, remark…).
 pub(super) const DEVICE_CARD_BODY_COL_GAP: f32 = 10.0;

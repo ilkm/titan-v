@@ -3,7 +3,7 @@
 use std::sync::mpsc::Sender;
 use std::time::Duration;
 
-use super::super::net_msg::NetUiMsg;
+use super::super::net::NetUiMsg;
 
 /// Per-host Hello in reachability batch: avoid long OS TCP connect stalls on offline hosts.
 pub(super) const HELLO_REACHABILITY_TIMEOUT: Duration = Duration::from_secs(2);

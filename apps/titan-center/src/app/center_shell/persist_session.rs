@@ -5,10 +5,10 @@ use std::time::{Duration, Instant};
 
 use egui::{pos2, Area, Color32, CornerRadius, Frame, Margin, Order, RichText};
 
-use super::device_store;
-use super::i18n::{self, Msg};
-use super::persist_data::{CenterPersist, HostEndpoint};
-use super::CenterApp;
+use crate::app::device_store;
+use crate::app::i18n::{self, Msg};
+use crate::app::persist_data::{CenterPersist, HostEndpoint};
+use crate::app::CenterApp;
 
 impl CenterApp {
     pub(crate) fn selected_endpoint_key(&self) -> Option<String> {

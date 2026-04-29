@@ -2,9 +2,9 @@
 
 use std::time::Instant;
 
-use super::i18n::{self, Msg};
-use super::net_msg::NetUiMsg;
-use super::CenterApp;
+use crate::app::i18n::{self, Msg};
+use crate::app::net::NetUiMsg;
+use crate::app::CenterApp;
 
 impl CenterApp {
     pub(crate) fn drain_net_inbox(&mut self) {

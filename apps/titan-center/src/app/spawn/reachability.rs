@@ -6,8 +6,7 @@ use titan_common::ControlResponse;
 use tokio::task::JoinSet;
 use tokio::time::timeout;
 
-use super::super::net_client::hello_host;
-use super::super::net_msg::NetUiMsg;
+use super::super::net::{hello_host, NetUiMsg};
 use super::super::CenterApp;
 use super::common::{run_blocking_net, HELLO_REACHABILITY_TIMEOUT};
 

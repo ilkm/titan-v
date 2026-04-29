@@ -1,8 +1,8 @@
-//! LAN host announce merge for [`NetUiMsg::HostAnnounced`](super::net_msg::NetUiMsg).
+//! LAN host announce merge for [`NetUiMsg::HostAnnounced`](crate::app::net::NetUiMsg).
 
-use super::i18n;
-use super::persist_data::HostEndpoint;
-use super::CenterApp;
+use crate::app::i18n;
+use crate::app::persist_data::HostEndpoint;
+use crate::app::CenterApp;
 
 impl CenterApp {
     pub(crate) fn apply_net_host_announced(

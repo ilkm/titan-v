@@ -5,22 +5,22 @@ use egui::{
     Align, Color32, CornerRadius, Frame, Layout, Margin, RichText, Stroke, TextStyle, Vec2,
 };
 
-use super::super::i18n::{t, Msg};
-use super::super::widgets::{
-    dialog_underline_text_row, primary_button_large, show_opaque_modal, subtle_button_large,
-    OpaqueFrameSource,
-};
-use super::super::CenterApp;
 use super::helpers::{
     ADD_HOST_DLG_BODY, ADD_HOST_DLG_LABEL, ADD_HOST_DLG_MUTED, ADD_HOST_ERR_BG,
     ADD_HOST_ERR_BORDER, ADD_HOST_ERR_TEXT,
 };
+use crate::app::i18n::{t, Msg};
+use crate::app::ui::widgets::{
+    dialog_underline_text_row, primary_button_large, show_opaque_modal, subtle_button_large,
+    OpaqueFrameSource,
+};
+use crate::app::CenterApp;
 
 impl CenterApp {
     pub(crate) fn show_add_host_dialog(
         &mut self,
         ui: &mut egui::Ui,
-        lang: super::super::i18n::UiLang,
+        lang: crate::app::i18n::UiLang,
     ) {
         if !self.add_host_dialog_open {
             return;
@@ -43,7 +43,7 @@ impl CenterApp {
         &mut self,
         outer_ui: &mut egui::Ui,
         ctx: &egui::Context,
-        lang: super::super::i18n::UiLang,
+        lang: crate::app::i18n::UiLang,
         win_open: &mut bool,
         force_close: &mut bool,
     ) {
@@ -65,7 +65,7 @@ impl CenterApp {
     fn add_host_dialog_window_body(
         &mut self,
         ui: &mut egui::Ui,
-        lang: super::super::i18n::UiLang,
+        lang: crate::app::i18n::UiLang,
         force_close: &mut bool,
     ) {
         let full_w = ui.available_width();
@@ -83,7 +83,7 @@ impl CenterApp {
         self.add_host_dialog_action_row(ui, lang, full_w, force_close);
     }
 
-    fn add_host_dialog_subtitle(ui: &mut egui::Ui, lang: super::super::i18n::UiLang) {
+    fn add_host_dialog_subtitle(ui: &mut egui::Ui, lang: crate::app::i18n::UiLang) {
         ui.add(
             egui::Label::new(
                 RichText::new(t(lang, Msg::AddHostDialogSubtitle))
@@ -95,7 +95,7 @@ impl CenterApp {
         );
     }
 
-    fn add_host_dialog_ip_field(&mut self, ui: &mut egui::Ui, lang: super::super::i18n::UiLang) {
+    fn add_host_dialog_ip_field(&mut self, ui: &mut egui::Ui, lang: crate::app::i18n::UiLang) {
         ui.label(
             RichText::new(t(lang, Msg::AddHostIpLabel))
                 .size(13.0)
@@ -116,7 +116,7 @@ impl CenterApp {
         });
     }
 
-    fn add_host_dialog_port_field(&mut self, ui: &mut egui::Ui, lang: super::super::i18n::UiLang) {
+    fn add_host_dialog_port_field(&mut self, ui: &mut egui::Ui, lang: crate::app::i18n::UiLang) {
         ui.label(
             RichText::new(t(lang, Msg::AddHostPortLabel))
                 .size(13.0)
@@ -159,7 +159,7 @@ impl CenterApp {
             });
     }
 
-    fn add_host_dialog_verify_busy(&self, ui: &mut egui::Ui, lang: super::super::i18n::UiLang) {
+    fn add_host_dialog_verify_busy(&self, ui: &mut egui::Ui, lang: crate::app::i18n::UiLang) {
         if !self.add_host_verify_busy {
             return;
         }
@@ -174,7 +174,7 @@ impl CenterApp {
     fn add_host_dialog_action_row(
         &mut self,
         ui: &mut egui::Ui,
-        lang: super::super::i18n::UiLang,
+        lang: crate::app::i18n::UiLang,
         full_w: f32,
         force_close: &mut bool,
     ) {
@@ -195,7 +195,7 @@ impl CenterApp {
     fn add_host_dialog_confirm_or_err(
         &mut self,
         ui: &mut egui::Ui,
-        lang: super::super::i18n::UiLang,
+        lang: crate::app::i18n::UiLang,
     ) {
         if !primary_button_large(ui, t(lang, Msg::AddHostConfirm), !self.add_host_verify_busy)
             .clicked()

@@ -6,26 +6,12 @@ mod discovery;
 mod fleet_state;
 pub use titan_i18n as i18n;
 mod lan_host_register;
-pub mod net_client;
-mod net_msg;
-mod panels_control;
-mod panels_hosts;
-mod panels_inventory;
-mod panels_misc;
-mod panels_monitor;
+pub mod net;
 mod persist_data;
 mod spawn;
-mod tcp_tune;
-mod theme;
-mod widgets;
+mod ui;
 
-mod center_app_net;
-mod center_app_net_inbox;
-mod center_app_net_lan;
-mod center_app_new;
-mod center_app_render;
-mod center_app_session;
-mod center_app_ticks;
+mod center_shell;
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicU64};
@@ -39,7 +25,7 @@ pub use persist_data::{HostEndpoint, NavTab};
 
 use self::fleet_state::HostLiveState;
 use self::i18n::UiLang;
-use self::net_msg::NetUiMsg;
+use self::net::NetUiMsg;
 
 /// Center manager application state (UI thread).
 /// One background telemetry TCP session for a given endpoint key ([`CenterApp::endpoint_addr_key`]).

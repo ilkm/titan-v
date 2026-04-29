@@ -2,8 +2,7 @@
 
 use titan_common::{ControlRequest, ControlResponse};
 
-use super::super::net_client::{capabilities_summary, exchange_one, hello_host};
-use super::super::net_msg::NetUiMsg;
+use super::super::net::{capabilities_summary, exchange_one, hello_host, NetUiMsg};
 use super::super::CenterApp;
 use super::common::run_blocking_net;
 

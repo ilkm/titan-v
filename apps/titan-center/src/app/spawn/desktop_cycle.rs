@@ -8,8 +8,7 @@ use titan_common::ControlResponse;
 use tokio::time::error::Elapsed;
 use tokio::time::timeout;
 
-use super::super::net_client::{fetch_desktop_snapshot, fetch_host_resource_snapshot};
-use super::super::net_msg::NetUiMsg;
+use super::super::net::{fetch_desktop_snapshot, fetch_host_resource_snapshot, NetUiMsg};
 use super::super::CenterApp;
 use super::common::{
     DesktopFetchCycleGuard, DESKTOP_SNAPSHOT_FETCH_TIMEOUT, DESKTOP_SNAPSHOT_FETCH_TIMEOUT_OFFLINE,

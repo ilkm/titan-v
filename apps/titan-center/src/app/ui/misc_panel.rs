@@ -2,10 +2,10 @@
 
 use egui::{CornerRadius, RichText, Sense, Stroke};
 
-use super::constants::VIRTUAL_SLOTS;
-use super::i18n::{fmt_slot_grid_header, fmt_slot_line_empty, fmt_slot_line_vm, t, Msg};
-use super::widgets::section_card;
-use super::CenterApp;
+use crate::app::constants::VIRTUAL_SLOTS;
+use crate::app::i18n::{fmt_slot_grid_header, fmt_slot_line_empty, fmt_slot_line_vm, t, Msg};
+use crate::app::ui::widgets::section_card;
+use crate::app::CenterApp;
 
 impl CenterApp {
     /// Placeholder preview region until streaming is wired (window grid 1–40 per host).

@@ -4,12 +4,12 @@ use std::collections::HashSet;
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
-use super::constants::{
+use crate::app::constants::{
     DESKTOP_PREVIEW_POLL_SECS, REACHABILITY_PROBE_SECS, TELEMETRY_STALE_AFTER_SECS,
 };
-use super::discovery;
-use super::persist_data::NavTab;
-use super::CenterApp;
+use crate::app::discovery;
+use crate::app::persist_data::NavTab;
+use crate::app::CenterApp;
 
 impl CenterApp {
     pub(crate) fn prune_host_desktop_textures(&mut self) {

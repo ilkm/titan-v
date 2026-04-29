@@ -6,7 +6,7 @@ use egui::Context;
 use titan_common::{ControlRequest, ControlResponse, UiLang};
 use tokio::runtime::Builder;
 
-use super::super::net_client::exchange_one;
+use super::super::net::exchange_one;
 use super::super::CenterApp;
 
 impl CenterApp {

@@ -2,7 +2,7 @@
 
 use std::time::Instant;
 
-use super::CenterApp;
+use crate::app::CenterApp;
 
 impl CenterApp {
     pub(crate) fn apply_control_push_for_telemetry(

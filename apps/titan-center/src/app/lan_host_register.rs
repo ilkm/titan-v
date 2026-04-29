@@ -6,7 +6,7 @@ use std::sync::mpsc::Sender;
 use egui::Context;
 use titan_common::HostAnnounceBeacon;
 
-use super::net_msg::NetUiMsg;
+use super::net::NetUiMsg;
 
 pub fn spawn_center_lan_host_register_listener(
     tx: Sender<NetUiMsg>,
