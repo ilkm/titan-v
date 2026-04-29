@@ -1,20 +1,22 @@
 //! Tray for `titan-host serve`: no main window — only **Quit** stops the listener via a watch flag.
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(all(not(target_os = "macos"), not(windows)))]
 use std::time::Duration;
 
 use titan_common::UiLang;
 use titan_i18n::{Msg, t};
 use tokio::sync::watch;
 use tray_icon::TrayIconBuilder;
-use tray_icon::menu::{MenuEvent, MenuId};
+#[cfg(all(not(target_os = "macos"), not(windows)))]
+use tray_icon::menu::MenuEvent;
+use tray_icon::menu::MenuId;
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(all(not(target_os = "macos"), not(windows)))]
 use tray_icon::TrayIconEvent;
 
 use crate::menu::{self, DesktopProduct, MENU_HOST_QUIT};
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(all(not(target_os = "macos"), not(windows)))]
 fn poll_host_tray_until_quit(shutdown_tx: &watch::Sender<bool>, quit_id: &MenuId) {
     loop {
         while let Ok(ev) = MenuEvent::receiver().try_recv() {
@@ -52,6 +54,9 @@ fn non_macos_tray_host_thread(shutdown_tx: watch::Sender<bool>, tooltip: String,
         }
     };
     let quit_id = MenuId::new(MENU_HOST_QUIT);
+    #[cfg(windows)]
+    crate::serve_win::poll_host_tray_until_quit(&shutdown_tx, &quit_id);
+    #[cfg(not(windows))]
     poll_host_tray_until_quit(&shutdown_tx, &quit_id);
 }
 
@@ -63,7 +68,8 @@ fn host_tooltip(lang: UiLang, tooltip: &str) -> String {
     }
 }
 
-/// Windows / Linux: tray thread polls [`MenuEvent`] (when the platform supports `tray-icon`).
+/// Non-macOS: tray runs on a dedicated thread. **Windows** pumps Win32 messages for tray-icon’s
+/// hidden `HWND`; **Linux** still needs a GTK loop on that thread (not implemented here).
 #[cfg(not(target_os = "macos"))]
 pub fn spawn_tray_shutdown_for_serve(
     shutdown_tx: watch::Sender<bool>,

@@ -17,10 +17,14 @@ pub(crate) struct TrayPix<'a> {
     pub(crate) buf: &'a mut [u8],
     pub(crate) w: i32,
     pub(crate) h: i32,
+    /// Round-rect corner radius for the Zh "cutout" alpha mask — only used on non-Windows (the
+    /// Windows tray uses a solid black chip with white glyphs, see `icon/draw.rs`).
+    #[cfg(not(windows))]
     pub(crate) rad: i32,
 }
 
 impl TrayPix<'_> {
+    #[cfg(not(windows))]
     pub(crate) fn paint_string(
         &mut self,
         font: &Font,
@@ -66,6 +70,7 @@ impl TrayPix<'_> {
         }
     }
 
+    #[cfg(not(windows))]
     fn blit_glyph_cutout(&mut self, bitmap: &[u8], pen_x: f32, baseline: f32, m: fontdue::Metrics) {
         let gx = (pen_x + m.xmin as f32).round() as i32;
         let gy = (baseline + m.ymin as f32).round() as i32;
@@ -98,6 +103,7 @@ impl TrayPix<'_> {
         }
     }
 
+    #[cfg(not(windows))]
     fn blit_one_cutout(
         &mut self,
         bitmap: &[u8],
@@ -131,6 +137,7 @@ impl TrayPix<'_> {
     }
 
     /// Erode alpha where the glyph is dark: “transparent” letter on an opaque white chip.
+    #[cfg(not(windows))]
     fn punch_white(&mut self, px: i32, py: i32, glyph_alpha: u8) {
         if px < 0 || py < 0 || px >= self.w || py >= self.h {
             return;

@@ -2,7 +2,9 @@
 
 use titan_common::UiLang;
 use titan_i18n::{Msg, t};
-use tray_icon::menu::{Menu, MenuId, MenuItem, Submenu};
+#[cfg(target_os = "macos")]
+use tray_icon::menu::Submenu;
+use tray_icon::menu::{Menu, MenuId, MenuItem};
 
 /// Stable menu item ids (avoid clashes if multiple Titan apps run).
 pub const MENU_CENTER_SHOW: &str = "titan.center.show";
@@ -17,6 +19,7 @@ pub enum DesktopProduct {
 }
 
 impl DesktopProduct {
+    #[cfg(target_os = "macos")]
     fn submenu_title(self, lang: UiLang) -> &'static str {
         match self {
             DesktopProduct::Center => t(lang, Msg::BrandTitle),

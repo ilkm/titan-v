@@ -75,18 +75,16 @@ impl eframe::App for HostApp {
         if !raw_input.viewport().close_requested() {
             return;
         }
+        #[cfg(windows)]
+        if titan_tray::consume_windows_tray_quit_close_request() {
+            self.really_quitting = true;
+            return;
+        }
         if let Some(vp) = raw_input.viewports.get_mut(&raw_input.viewport_id) {
             vp.events.retain(|e| *e != egui::ViewportEvent::Close);
         }
         ctx.send_viewport_cmd_to(egui::ViewportId::ROOT, egui::ViewportCommand::CancelClose);
-        ctx.send_viewport_cmd_to(
-            egui::ViewportId::ROOT,
-            egui::ViewportCommand::Visible(false),
-        );
-        ctx.request_repaint_after_for(
-            std::time::Duration::from_millis(250),
-            egui::ViewportId::ROOT,
-        );
+        titan_tray::hide_main_window_to_tray(ctx);
         self.hidden_to_tray = true;
     }
 

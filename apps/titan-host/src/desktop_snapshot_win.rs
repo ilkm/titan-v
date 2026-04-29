@@ -86,7 +86,7 @@ struct SelectedBitmap {
 
 impl SelectedBitmap {
     unsafe fn select(mem: HDC, bmp: HBITMAP) -> Result<Self, String> {
-        let previous = SelectObject(mem, bmp);
+        let previous = unsafe { SelectObject(mem, bmp) };
         if previous.is_invalid() {
             return Err("SelectObject failed".to_string());
         }

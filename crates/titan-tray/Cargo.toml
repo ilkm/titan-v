@@ -15,7 +15,7 @@ fontdb = { version = "0.23", default-features = true }
 fontdue = "0.9"
 titan-common = { path = "../titan-common" }
 titan-i18n = { path = "../titan-i18n" }
-tray-icon = "0.19"
+tray-icon = { version = "0.19", features = ["common-controls-v6"] }
 tracing = "0.1"
 
 [dependencies.egui]
@@ -27,6 +27,11 @@ version = "1.43"
 optional = true
 default-features = false
 features = ["sync"]
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", default-features = false, features = [
+    "Win32_UI_WindowsAndMessaging",
+] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 dispatch = "0.2"

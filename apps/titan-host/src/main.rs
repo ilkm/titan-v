@@ -1,5 +1,7 @@
 //! Titan Host: egui control-plane settings + tray; `serve` runs on a background thread.
 
+#![cfg_attr(windows, windows_subsystem = "windows")]
+
 use egui::ViewportBuilder;
 use titan_common::UiLang;
 use titan_host::host_app::{HostApp, HostUiPersist, PERSIST_KEY};
@@ -56,6 +58,17 @@ fn main() -> eframe::Result<()> {
     eframe::run_native(
         "Titan Host",
         host_native_options(),
-        Box::new(|cc| Ok(Box::new(HostApp::new(cc, host_initial_tray(cc))))),
+        Box::new(|cc| {
+            #[cfg(windows)]
+            {
+                use raw_window_handle::{HasWindowHandle as _, RawWindowHandle};
+                if let Ok(h) = cc.window_handle()
+                    && let RawWindowHandle::Win32(w) = h.as_raw()
+                {
+                    titan_tray::set_windows_tray_wake_hwnd(w.hwnd.get());
+                }
+            }
+            Ok(Box::new(HostApp::new(cc, host_initial_tray(cc))))
+        }),
     )
 }

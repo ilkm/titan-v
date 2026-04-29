@@ -12,6 +12,7 @@ use image::codecs::jpeg::JpegEncoder;
 use image::{DynamicImage, ExtendedColorType, RgbaImage};
 
 #[cfg(windows)]
+#[path = "desktop_snapshot_win.rs"]
 mod desktop_snapshot_win;
 
 #[cfg(windows)]

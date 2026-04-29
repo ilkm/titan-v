@@ -1,41 +1,107 @@
-//! Compose tray RGBA: Zh = solid chip + cutout text; En = white ring + solid white letter (ABC tile).
+//! Compose tray RGBA:
+//!
+//! - **Windows**: black rounded chip + solid white glyph (高对比，适配 Win11 深色托盘，不会被 Shell 当模板图反色)
+//! - **macOS / 其他**: Zh = solid white chip + cutout text; En = white ring + solid white letter (ABC tile).
 
 use fontdue::Font;
 use titan_common::UiLang;
 
 use crate::menu::DesktopProduct;
 
-use super::TRAY_ICON_HEIGHT_PX;
-use super::TRAY_ICON_WIDTH_PX;
 use super::font;
 use super::geom;
-use super::tray_corner_radius_px;
+use super::tray_corner_radius_px_for;
 use super::tray_pix::{InnerClip, TrayPix};
 
-/// Padding from the bitmap edge when fitting text (independent of [`tray_corner_radius_px`]).
-const TRAY_TEXT_PAD_PX: f32 = 3.0;
-/// English IME ring stroke in pixels (white outline, interior transparent).
-const TRAY_EN_RING_STROKE_PX: i32 = 2;
-/// Shrink chosen font size vs max fit (“小 2 个号” ≈ −2 px).
-const TRAY_LABEL_PX_LESS: f32 = 2.0;
-/// Minimum rasterized label size after [`TRAY_LABEL_PX_LESS`].
-const TRAY_LABEL_PX_FLOOR: f32 = 6.0;
+/// Padding from the bitmap edge when fitting text, as a fraction of the short edge.
+const TRAY_TEXT_PAD_FRAC: f32 = 0.10;
+/// English IME ring stroke as a fraction of the short edge (min 1 px, max 2 px).
+const TRAY_EN_RING_STROKE_FRAC: f32 = 0.07;
+/// Shrink chosen font size vs max fit, as a fraction of the short edge (≈ 5%).
+const TRAY_LABEL_PX_LESS_FRAC: f32 = 0.05;
+/// Minimum rasterized label size as a fraction of the short edge.
+const TRAY_LABEL_PX_FLOOR_FRAC: f32 = 0.35;
 
-pub(crate) fn compose_tray_rgba(product: DesktopProduct, lang: UiLang) -> Vec<u8> {
-    let w = TRAY_ICON_WIDTH_PX as usize;
-    let h = TRAY_ICON_HEIGHT_PX as usize;
-    let rad = tray_corner_radius_px();
-    let mut rgba = vec![0u8; w * h * 4];
-    if lang == UiLang::Zh {
-        fill_white_chip(&mut rgba, w, h, rad);
-    }
-    if let Some(font) = font::tray_font() {
-        paint_label(&mut rgba, w, h, rad, font, product, lang);
-    }
+pub(crate) fn compose_tray_rgba(product: DesktopProduct, lang: UiLang, w: u32, h: u32) -> Vec<u8> {
+    let wu = w as usize;
+    let hu = h as usize;
+    let rad = tray_corner_radius_px_for(w, h);
+    let mut rgba = vec![0u8; wu * hu * 4];
+    compose_tray_body(&mut rgba, wu, hu, rad, product, lang);
     rgba
 }
 
-fn fill_white_chip(rgba: &mut [u8], w: usize, h: usize, rad: i32) {
+#[cfg(windows)]
+fn compose_tray_body(
+    rgba: &mut [u8],
+    w: usize,
+    h: usize,
+    rad: i32,
+    product: DesktopProduct,
+    lang: UiLang,
+) {
+    fill_chip_rgba(rgba, w, h, rad, [0, 0, 0, 255]);
+    let Some(font) = font::tray_font() else {
+        return;
+    };
+    paint_label_white_on_chip(rgba, w, h, rad, font, product, lang);
+}
+
+#[cfg(not(windows))]
+fn compose_tray_body(
+    rgba: &mut [u8],
+    w: usize,
+    h: usize,
+    rad: i32,
+    product: DesktopProduct,
+    lang: UiLang,
+) {
+    if lang == UiLang::Zh {
+        fill_white_chip(rgba, w, h, rad);
+    }
+    if let Some(font) = font::tray_font() {
+        paint_label(rgba, w, h, rad, font, product, lang);
+    }
+}
+
+#[cfg(windows)]
+fn paint_label_white_on_chip(
+    buf: &mut [u8],
+    w: usize,
+    h: usize,
+    rad: i32,
+    font: &Font,
+    product: DesktopProduct,
+    lang: UiLang,
+) {
+    let label = tray_label(product, lang);
+    let wi = w as i32;
+    let hi = h as i32;
+    let Some(lay) = layout_tray_label(font, label, wi, hi, lang) else {
+        return;
+    };
+    let clip = InnerClip {
+        ox: 0,
+        oy: 0,
+        w: wi,
+        h: hi,
+        rad,
+    };
+    let mut layer = TrayPix { buf, w: wi, h: hi };
+    layer.paint_string_solid(font, label, lay.px, lay.x0, lay.base, &clip);
+}
+
+#[inline]
+fn short_edge(w: i32, h: i32) -> f32 {
+    w.min(h) as f32
+}
+
+#[inline]
+fn tray_en_ring_stroke_px(w: i32, h: i32) -> i32 {
+    ((short_edge(w, h) * TRAY_EN_RING_STROKE_FRAC).round() as i32).clamp(1, 2)
+}
+
+fn fill_chip_rgba(rgba: &mut [u8], w: usize, h: usize, rad: i32, color: [u8; 4]) {
     let wi = w as i32;
     let hi = h as i32;
     for y in 0..hi {
@@ -44,14 +110,17 @@ fn fill_white_chip(rgba: &mut [u8], w: usize, h: usize, rad: i32) {
                 continue;
             }
             let i = ((y * wi + x) * 4) as usize;
-            rgba[i] = 255;
-            rgba[i + 1] = 255;
-            rgba[i + 2] = 255;
-            rgba[i + 3] = 255;
+            rgba[i..i + 4].copy_from_slice(&color);
         }
     }
 }
 
+#[cfg(not(windows))]
+fn fill_white_chip(rgba: &mut [u8], w: usize, h: usize, rad: i32) {
+    fill_chip_rgba(rgba, w, h, rad, [255, 255, 255, 255]);
+}
+
+#[cfg(not(windows))]
 fn fill_white_round_rect_ring(rgba: &mut [u8], w: usize, h: usize, rad: i32, stroke: i32) {
     let wi = w as i32;
     let hi = h as i32;
@@ -67,24 +136,24 @@ fn fill_white_round_rect_ring(rgba: &mut [u8], w: usize, h: usize, rad: i32, str
                 continue;
             }
             let i = ((y * wi + x) * 4) as usize;
-            rgba[i] = 255;
-            rgba[i + 1] = 255;
-            rgba[i + 2] = 255;
-            rgba[i + 3] = 255;
+            rgba[i..i + 4].copy_from_slice(&[255, 255, 255, 255]);
         }
     }
 }
 
+#[cfg(not(windows))]
 fn inner_round_rect_params(wi: i32, hi: i32, stroke: i32) -> Option<(i32, i32, i32, i32, i32)> {
     let iw = wi - 2 * stroke;
     let ih = hi - 2 * stroke;
     if iw < 4 || ih < 4 {
         return None;
     }
-    let rad_i = (tray_corner_radius_px() - stroke).max(1);
+    let rad_outer = tray_corner_radius_px_for(wi as u32, hi as u32);
+    let rad_i = (rad_outer - stroke).max(1);
     Some((stroke, stroke, iw, ih, rad_i))
 }
 
+#[cfg(not(windows))]
 fn paint_label(
     buf: &mut [u8],
     w: usize,
@@ -106,6 +175,7 @@ fn paint_label(
     }
 }
 
+#[cfg(not(windows))]
 fn paint_zh_cutout(
     buf: &mut [u8],
     wi: i32,
@@ -124,6 +194,7 @@ fn paint_zh_cutout(
     layer.paint_string(font, label, lay.px, lay.x0, lay.base);
 }
 
+#[cfg(not(windows))]
 fn paint_en_ring_solid(
     buf: &mut [u8],
     w: usize,
@@ -135,7 +206,7 @@ fn paint_en_ring_solid(
 ) {
     let wi = w as i32;
     let hi = h as i32;
-    let stroke = TRAY_EN_RING_STROKE_PX;
+    let stroke = tray_en_ring_stroke_px(wi, hi);
     fill_white_round_rect_ring(buf, w, h, rad, stroke);
     let Some(clip) = inner_clip_en(wi, hi, stroke) else {
         return;
@@ -149,6 +220,7 @@ fn paint_en_ring_solid(
     layer.paint_string_solid(font, label, lay.px, lay.x0, lay.base, &clip);
 }
 
+#[cfg(not(windows))]
 fn inner_clip_en(wi: i32, hi: i32, stroke: i32) -> Option<InnerClip> {
     let (ox, oy, iw, ih, rad_i) = inner_round_rect_params(wi, hi, stroke)?;
     Some(InnerClip {
@@ -174,11 +246,14 @@ fn layout_tray_label(
     lang: UiLang,
 ) -> Option<LabelLayout> {
     let border_pad = match lang {
-        UiLang::En => TRAY_EN_RING_STROKE_PX as f32,
+        UiLang::En => tray_en_ring_stroke_px(wi, hi) as f32,
         UiLang::Zh => 0.0,
     };
     let px_fit = pick_max_font_px(font, label, wi, hi, border_pad);
-    let px = (px_fit - TRAY_LABEL_PX_LESS).max(TRAY_LABEL_PX_FLOOR);
+    let short = short_edge(wi, hi);
+    let px_less = short * TRAY_LABEL_PX_LESS_FRAC;
+    let px_floor = (short * TRAY_LABEL_PX_FLOOR_FRAC).max(6.0);
+    let px = (px_fit - px_less).max(px_floor);
     let (ink_top, ink_bot) = string_ink_vertical_bounds(font, label, px)?;
     let tw = string_advance_width(font, label, px);
     let x0 = label_center_x(wi, tw);
@@ -187,10 +262,10 @@ fn layout_tray_label(
 }
 
 fn pick_max_font_px(font: &Font, label: &str, w: i32, h: i32, border_pad: f32) -> f32 {
-    let pad = TRAY_TEXT_PAD_PX + border_pad;
+    let pad = short_edge(w, h) * TRAY_TEXT_PAD_FRAC + border_pad;
     let max_w = (w as f32 - 2.0 * pad).max(4.0);
     let max_h = (h as f32 - 2.0 * pad).max(4.0);
-    for px_int in (6..=80).rev() {
+    for px_int in (6..=160).rev() {
         if let Some(px) = try_font_px(font, label, px_int, max_w, max_h) {
             return px;
         }

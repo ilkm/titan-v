@@ -5,6 +5,7 @@ edition.workspace = true
 license.workspace = true
 description = "Center manager desktop app (egui) with SQLite-backed config."
 default-run = "titan-center"
+build = "build.rs"
 
 # Primary packaging: Windows (NSIS) — `cargo packager ... --formats nsis` (requires `makensis` on PATH).
 # Optional: macOS `... --formats dmg`. Linux: `cargo build --release -p titan-center` (tray depends on DE; no packager recipe here).
@@ -38,3 +39,9 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 fontdb = "0.23"
 titan-tray = { path = "../../crates/titan-tray", features = ["egui"] }
+
+[build-dependencies]
+winres = "0.1"
+
+[target.'cfg(windows)'.dependencies]
+raw-window-handle = "0.6"
