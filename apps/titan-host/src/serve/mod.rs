@@ -14,5 +14,5 @@ mod telemetry;
 
 pub use announce::HostAnnounceConfig;
 pub use errors::ServeError;
-pub use run::{handle_connection, run_serve, AgentBindingsSpec};
+pub use run::{AgentBindingsSpec, handle_connection, run_serve};
 pub use state::ServeState;

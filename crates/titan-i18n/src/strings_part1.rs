@@ -1,5 +1,5 @@
-use crate::msg::Msg;
 use crate::UiLang;
+use crate::msg::Msg;
 
 pub(super) fn translate(lang: UiLang, msg: Msg) -> Option<&'static str> {
     brand_settings_lang(lang, msg)
@@ -42,9 +42,9 @@ fn discovery_top(lang: UiLang, msg: Msg) -> Option<&'static str> {
     match (lang, msg) {
         (UiLang::En, Msg::DiscoveryTitle) => Some("LAN discovery (optional)"),
         (UiLang::Zh, Msg::DiscoveryTitle) => Some("局域网发现（可选）"),
-        (UiLang::En, Msg::DiscoveryUdpBlurb) => {
-            Some("UDP broadcast of `DiscoveryBeacon` so in-guest automation can learn this control address.")
-        }
+        (UiLang::En, Msg::DiscoveryUdpBlurb) => Some(
+            "UDP broadcast of `DiscoveryBeacon` so in-guest automation can learn this control address.",
+        ),
         (UiLang::Zh, Msg::DiscoveryUdpBlurb) => {
             Some("通过 UDP 广播 `DiscoveryBeacon`，便于来宾内自动化获知本控制地址。")
         }
@@ -56,12 +56,12 @@ fn discovery_top(lang: UiLang, msg: Msg) -> Option<&'static str> {
 
 fn discovery_bind_ports(lang: UiLang, msg: Msg) -> Option<&'static str> {
     match (lang, msg) {
-        (UiLang::En, Msg::DiscoveryBindBlurb) => {
-            Some("Optional: pick one or more local IPv4 addresses to send subnet broadcasts from (multi-homed). Leave none selected to use the OS default route (255.255.255.255).")
-        }
-        (UiLang::Zh, Msg::DiscoveryBindBlurb) => {
-            Some("可选：选择一个或多个本机 IPv4，从对应网卡向子网广播；不选则走系统默认路由（255.255.255.255）。")
-        }
+        (UiLang::En, Msg::DiscoveryBindBlurb) => Some(
+            "Optional: pick one or more local IPv4 addresses to send subnet broadcasts from (multi-homed). Leave none selected to use the OS default route (255.255.255.255).",
+        ),
+        (UiLang::Zh, Msg::DiscoveryBindBlurb) => Some(
+            "可选：选择一个或多个本机 IPv4，从对应网卡向子网广播；不选则走系统默认路由（255.255.255.255）。",
+        ),
         (UiLang::En, Msg::DiscoveryBindQuickAdd) => Some("Add interface IPv4…"),
         (UiLang::Zh, Msg::DiscoveryBindQuickAdd) => Some("从列表添加 IPv4…"),
         (UiLang::En, Msg::DiscoveryBindScrollHint) => Some("Multi-select (non-loopback IPv4):"),

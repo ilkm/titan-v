@@ -1,5 +1,5 @@
-use crate::msg::Msg;
 use crate::UiLang;
+use crate::msg::Msg;
 
 pub(super) fn translate(lang: UiLang, msg: Msg) -> Option<&'static str> {
     host_collect_block(lang, msg)
@@ -14,12 +14,12 @@ fn host_collect_block(lang: UiLang, msg: Msg) -> Option<&'static str> {
     match (lang, msg) {
         (UiLang::En, Msg::HostCollectTitle) => Some("LAN host registration (scale-out)"),
         (UiLang::Zh, Msg::HostCollectTitle) => Some("局域网宿主注册（批量）"),
-        (UiLang::En, Msg::HostCollectBlurb) => {
-            Some("Broadcasts a short poll on UDP. Each `titan-host serve` on the LAN replies with its control-plane TCP address — no per-host Connect click. Uses the same bind-IPv4 list as guest discovery when set.")
-        }
-        (UiLang::Zh, Msg::HostCollectBlurb) => {
-            Some("在局域网周期性广播唤请包（UDP）。各台 `titan-host serve` 收到后自动向中控上报控制面 TCP 地址，无需在每台机器上单独操作中控。若上方指定了绑定 IPv4，则与本页「来宾发现」共用该列表。")
-        }
+        (UiLang::En, Msg::HostCollectBlurb) => Some(
+            "Broadcasts a short poll on UDP. Each `titan-host serve` on the LAN replies with its control-plane TCP address — no per-host Connect click. Uses the same bind-IPv4 list as guest discovery when set.",
+        ),
+        (UiLang::Zh, Msg::HostCollectBlurb) => Some(
+            "在局域网周期性广播唤请包（UDP）。各台 `titan-host serve` 收到后自动向中控上报控制面 TCP 地址，无需在每台机器上单独操作中控。若上方指定了绑定 IPv4，则与本页「来宾发现」共用该列表。",
+        ),
         (UiLang::En, Msg::HostCollectCheckbox) => Some("Broadcast registration poll"),
         (UiLang::Zh, Msg::HostCollectCheckbox) => Some("广播唤请宿主注册"),
         (UiLang::En, Msg::HostCollectIntervalLabel) => Some("Poll interval (seconds):"),
@@ -29,9 +29,7 @@ fn host_collect_block(lang: UiLang, msg: Msg) -> Option<&'static str> {
         (UiLang::En, Msg::HostCollectRegisterPortLabel) => {
             Some("Host reply UDP port (center listens):")
         }
-        (UiLang::Zh, Msg::HostCollectRegisterPortLabel) => {
-            Some("宿主应答 UDP 端口（中控监听）：")
-        }
+        (UiLang::Zh, Msg::HostCollectRegisterPortLabel) => Some("宿主应答 UDP 端口（中控监听）："),
         _ => None,
     }
 }
@@ -42,18 +40,16 @@ fn device_empty_and_preview(lang: UiLang, msg: Msg) -> Option<&'static str> {
         (UiLang::Zh, Msg::NoDataShort) => Some("暂无数据"),
         (UiLang::En, Msg::DeviceMgmtNoRegistered) => Some("No registered devices yet"),
         (UiLang::Zh, Msg::DeviceMgmtNoRegistered) => Some("暂无注册设备～"),
-        (UiLang::En, Msg::DeviceMgmtEmptyHint) => {
-            Some("No hosts yet. Use **Settings** → LAN discovery / LAN host registration; devices also merge here when they announce on UDP.")
-        }
-        (UiLang::Zh, Msg::DeviceMgmtEmptyHint) => {
-            Some("暂无设备。请打开左侧「设置」使用局域网发现或局域网宿主注册；宿主 UDP 宣告后也会出现在此列表。")
-        }
+        (UiLang::En, Msg::DeviceMgmtEmptyHint) => Some(
+            "No hosts yet. Use **Settings** → LAN discovery / LAN host registration; devices also merge here when they announce on UDP.",
+        ),
+        (UiLang::Zh, Msg::DeviceMgmtEmptyHint) => Some(
+            "暂无设备。请打开左侧「设置」使用局域网发现或局域网宿主注册；宿主 UDP 宣告后也会出现在此列表。",
+        ),
         (UiLang::En, Msg::DeviceMgmtDesktopPreviewNote) => {
             Some("Desktop preview — live capture not connected yet")
         }
-        (UiLang::Zh, Msg::DeviceMgmtDesktopPreviewNote) => {
-            Some("桌面预览 — 尚未接入实时画面")
-        }
+        (UiLang::Zh, Msg::DeviceMgmtDesktopPreviewNote) => Some("桌面预览 — 尚未接入实时画面"),
         _ => None,
     }
 }
@@ -102,12 +98,12 @@ fn add_host_dialog(lang: UiLang, msg: Msg) -> Option<&'static str> {
         (UiLang::Zh, Msg::BtnAddHost) => Some("+ 添加主机"),
         (UiLang::En, Msg::AddHostDialogTitle) => Some("Add host"),
         (UiLang::Zh, Msg::AddHostDialogTitle) => Some("添加主机"),
-        (UiLang::En, Msg::AddHostDialogSubtitle) => {
-            Some("Control-plane address on the machine running `titan-host serve`. The host must be online — we send Hello before adding.")
-        }
-        (UiLang::Zh, Msg::AddHostDialogSubtitle) => {
-            Some("填写运行 `titan-host serve` 的机器上的控制面 TCP 地址。添加前会检测在线（发送 Hello）。")
-        }
+        (UiLang::En, Msg::AddHostDialogSubtitle) => Some(
+            "Control-plane address on the machine running `titan-host serve`. The host must be online — we send Hello before adding.",
+        ),
+        (UiLang::Zh, Msg::AddHostDialogSubtitle) => Some(
+            "填写运行 `titan-host serve` 的机器上的控制面 TCP 地址。添加前会检测在线（发送 Hello）。",
+        ),
         (UiLang::En, Msg::AddHostIpLabel) => Some("IPv4 address"),
         (UiLang::Zh, Msg::AddHostIpLabel) => Some("IPv4 地址"),
         (UiLang::En, Msg::AddHostPortLabel) => Some("TCP port"),

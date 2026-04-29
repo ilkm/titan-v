@@ -8,13 +8,13 @@ use eframe::egui::{
 use titan_common::UiLang;
 
 use crate::titan_egui_widgets::{
-    inset_single_select_dropdown, show_settings_tool_window, subtle_button, InsetDropdownLayout,
+    InsetDropdownLayout, inset_single_select_dropdown, show_settings_tool_window, subtle_button,
 };
 
 use crate::titan_i18n::{self as i18n, Msg};
 
 use crate::host_app::constants::{
-    card_shadow, ACCENT, CONTENT_MAX_WIDTH, NAV_ITEM_HEIGHT, SIDEBAR_DEFAULT_WIDTH,
+    ACCENT, CONTENT_MAX_WIDTH, NAV_ITEM_HEIGHT, SIDEBAR_DEFAULT_WIDTH, card_shadow,
 };
 use crate::host_app::model::HostApp;
 

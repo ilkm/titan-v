@@ -2,9 +2,9 @@
 
 use std::time::Instant;
 
+use crate::app::CenterApp;
 use crate::app::i18n::{self, Msg};
 use crate::app::net::NetUiMsg;
-use crate::app::CenterApp;
 
 impl CenterApp {
     pub(crate) fn drain_net_inbox(&mut self) {
@@ -129,9 +129,9 @@ impl CenterApp {
             }
             NetUiMsg::HostTelemetry {
                 host_key,
-                gen,
+                session_gen,
                 push,
-            } => Some(self.on_net_host_telemetry(host_key.clone(), *gen, push.clone())),
+            } => Some(self.on_net_host_telemetry(host_key.clone(), *session_gen, push.clone())),
             _ => None,
         }
     }
@@ -146,33 +146,44 @@ impl CenterApp {
 
     fn dispatch_net_fleet_and_error(&mut self, msg: NetUiMsg) -> bool {
         match msg {
-            NetUiMsg::TelemetryLinkLost { host_key, gen } => {
-                self.on_net_telemetry_link_lost(host_key, gen);
-                false
-            }
+            NetUiMsg::TelemetryLinkLost {
+                host_key,
+                session_gen,
+            } => self.net_dispatch_telemetry_link_lost(host_key, session_gen),
             NetUiMsg::FleetOpResult {
                 host_key,
                 ok,
                 detail,
-            } => {
-                self.on_net_fleet_op_result(host_key, ok, detail);
-                false
-            }
-            NetUiMsg::FleetOpDone => {
-                self.fleet_busy = false;
-                self.ctx.request_repaint();
-                false
-            }
+            } => self.net_dispatch_fleet_op_result(host_key, ok, detail),
+            NetUiMsg::FleetOpDone => self.net_dispatch_fleet_op_done(),
             NetUiMsg::HostUiPushDone { ok, detail } => {
                 self.on_net_host_ui_push_done(ok, detail);
                 false
             }
-            NetUiMsg::Error(e) => {
-                self.on_net_error(e);
-                false
-            }
+            NetUiMsg::Error(e) => self.net_dispatch_net_error(e),
             _ => false,
         }
+    }
+
+    fn net_dispatch_telemetry_link_lost(&mut self, host_key: String, session_gen: u64) -> bool {
+        self.on_net_telemetry_link_lost(host_key, session_gen);
+        false
+    }
+
+    fn net_dispatch_fleet_op_result(&mut self, host_key: String, ok: bool, detail: String) -> bool {
+        self.on_net_fleet_op_result(host_key, ok, detail);
+        false
+    }
+
+    fn net_dispatch_fleet_op_done(&mut self) -> bool {
+        self.fleet_busy = false;
+        self.ctx.request_repaint();
+        false
+    }
+
+    fn net_dispatch_net_error(&mut self, e: String) -> bool {
+        self.on_net_error(e);
+        false
     }
 
     fn on_net_caps(&mut self, summary: String) {
@@ -288,13 +299,13 @@ impl CenterApp {
     fn on_net_host_telemetry(
         &mut self,
         host_key: String,
-        gen: u64,
+        session_gen: u64,
         push: titan_common::ControlPush,
     ) -> bool {
         if self
             .telemetry_links
             .get(&host_key)
-            .is_none_or(|l| l.session_gen != gen)
+            .is_none_or(|l| l.session_gen != session_gen)
         {
             return true;
         }
@@ -310,11 +321,11 @@ impl CenterApp {
         false
     }
 
-    fn on_net_telemetry_link_lost(&mut self, host_key: String, gen: u64) {
+    fn on_net_telemetry_link_lost(&mut self, host_key: String, session_gen: u64) {
         if self
             .telemetry_links
             .get(&host_key)
-            .is_none_or(|l| l.session_gen != gen)
+            .is_none_or(|l| l.session_gen != session_gen)
         {
             return;
         }

@@ -6,7 +6,7 @@ mod geom;
 mod tray_pix;
 
 use titan_common::UiLang;
-use titan_i18n::{t, Msg};
+use titan_i18n::{Msg, t};
 use tray_icon::Icon;
 
 use crate::menu::{self, DesktopProduct};

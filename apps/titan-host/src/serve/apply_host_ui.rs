@@ -1,4 +1,4 @@
-use titan_common::{ControlResponse, UiLang, MAX_PAYLOAD_BYTES};
+use titan_common::{ControlResponse, MAX_PAYLOAD_BYTES, UiLang};
 
 use crate::ui_persist::HostUiPersist;
 

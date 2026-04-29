@@ -31,10 +31,10 @@ impl TrayPix<'_> {
     ) {
         let mut prev: Option<char> = None;
         for ch in label.chars() {
-            if let Some(p) = prev {
-                if let Some(k) = font.horizontal_kern(p, ch, font_px) {
-                    pen_x += k;
-                }
+            if let Some(p) = prev
+                && let Some(k) = font.horizontal_kern(p, ch, font_px)
+            {
+                pen_x += k;
             }
             let (m, bitmap) = font.rasterize(ch, font_px);
             self.blit_glyph_cutout(&bitmap, pen_x, baseline, m);
@@ -54,10 +54,10 @@ impl TrayPix<'_> {
     ) {
         let mut prev: Option<char> = None;
         for ch in label.chars() {
-            if let Some(p) = prev {
-                if let Some(k) = font.horizontal_kern(p, ch, font_px) {
-                    pen_x += k;
-                }
+            if let Some(p) = prev
+                && let Some(k) = font.horizontal_kern(p, ch, font_px)
+            {
+                pen_x += k;
             }
             let (m, bitmap) = font.rasterize(ch, font_px);
             self.blit_glyph_solid(&bitmap, pen_x, baseline, m, clip);

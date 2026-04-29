@@ -3,10 +3,10 @@
 use rkyv::{Archive, Deserialize as RkyvDeserialize, Serialize as RkyvSerialize};
 use serde::{Deserialize, Serialize};
 
+use crate::UiLang;
 use crate::capabilities::Capabilities;
 use crate::plan::VmSpoofProfile;
 use crate::state::VmPowerState;
-use crate::UiLang;
 
 /// Center → host control request.
 ///

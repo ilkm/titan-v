@@ -1,7 +1,7 @@
+use crate::UiLang;
 use crate::capabilities::{Capabilities, HypervSpoofHostCaps};
 use crate::plan::VmSpoofProfile;
 use crate::state::VmPowerState;
-use crate::UiLang;
 use std::borrow::Cow;
 
 use crate::PROTOCOL_VERSION;

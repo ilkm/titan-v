@@ -5,16 +5,16 @@
 use std::sync::Arc;
 
 use egui::{
-    pos2, Align, Galley, Layout, Rect, RichText, Sense, TextStyle, TextWrapMode, UiBuilder, Vec2,
-    WidgetText,
+    Align, Galley, Layout, Rect, RichText, Sense, TextStyle, TextWrapMode, UiBuilder, Vec2,
+    WidgetText, pos2,
 };
 
 use super::helpers::{device_mgmt_card_height_hint, device_mgmt_cols_and_card_width};
+use crate::app::CenterApp;
 use crate::app::constants::DEVICE_CARD_GAP;
 use crate::app::discovery;
-use crate::app::i18n::{t, Msg};
+use crate::app::i18n::{Msg, t};
 use crate::app::ui::widgets::subtle_button_toolbar;
-use crate::app::CenterApp;
 
 impl CenterApp {
     /// Device management: cards sit directly in the page scroll (no inner list container).
@@ -56,11 +56,11 @@ impl CenterApp {
     }
 
     fn apply_pending_endpoint_remove(&mut self) {
-        if let Some(idx) = self.pending_remove_endpoint.take() {
-            if idx < self.endpoints.len() {
-                self.remove_endpoint_at(idx);
-                self.persist_registered_devices();
-            }
+        if let Some(idx) = self.pending_remove_endpoint.take()
+            && idx < self.endpoints.len()
+        {
+            self.remove_endpoint_at(idx);
+            self.persist_registered_devices();
         }
     }
 

@@ -5,12 +5,12 @@ use titan_common::UiLang;
 
 use crate::menu::DesktopProduct;
 
+use super::TRAY_ICON_HEIGHT_PX;
+use super::TRAY_ICON_WIDTH_PX;
 use super::font;
 use super::geom;
 use super::tray_corner_radius_px;
 use super::tray_pix::{InnerClip, TrayPix};
-use super::TRAY_ICON_HEIGHT_PX;
-use super::TRAY_ICON_WIDTH_PX;
 
 /// Padding from the bitmap edge when fitting text (independent of [`tray_corner_radius_px`]).
 const TRAY_TEXT_PAD_PX: f32 = 3.0;
@@ -244,10 +244,10 @@ fn string_advance_width(font: &Font, s: &str, px: f32) -> f32 {
     let mut prev: Option<char> = None;
     let mut pen = 0.0_f32;
     for c in s.chars() {
-        if let Some(p) = prev {
-            if let Some(k) = font.horizontal_kern(p, c, px) {
-                pen += k;
-            }
+        if let Some(p) = prev
+            && let Some(k) = font.horizontal_kern(p, c, px)
+        {
+            pen += k;
         }
         pen += font.metrics(c, px).advance_width;
         prev = Some(c);

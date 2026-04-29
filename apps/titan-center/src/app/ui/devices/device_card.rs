@@ -7,23 +7,23 @@
 use std::cell::Cell;
 
 use egui::{
-    pos2, vec2, Align, Color32, CornerRadius, FontId, Frame, Label, Layout, Margin, Rect, RichText,
-    Sense, TextStyle, TextWrapMode, Vec2, WidgetText,
+    Align, Color32, CornerRadius, FontId, Frame, Label, Layout, Margin, Rect, RichText, Sense,
+    TextStyle, TextWrapMode, Vec2, WidgetText, pos2, vec2,
 };
 
 use super::helpers::{
-    card_outline, device_card_resource_values, device_card_stat_label_value_gap,
-    device_card_two_col_row, device_mgmt_remark_row_interact, ADD_HOST_DLG_MUTED,
-    DEVICE_CARD_BODY_COL_GAP, DEVICE_PREVIEW_PLACEHOLDER_BG, DEVICE_PREVIEW_PLACEHOLDER_TEXT,
+    ADD_HOST_DLG_MUTED, DEVICE_CARD_BODY_COL_GAP, DEVICE_PREVIEW_PLACEHOLDER_BG,
+    DEVICE_PREVIEW_PLACEHOLDER_TEXT, card_outline, device_card_resource_values,
+    device_card_stat_label_value_gap, device_card_two_col_row, device_mgmt_remark_row_interact,
 };
+use crate::app::CenterApp;
 use crate::app::constants::{
-    card_shadow, ACCENT, CARD_CORNER_RADIUS, CARD_SURFACE, FORM_VALUE_TEXT, OK_GREEN,
+    ACCENT, CARD_CORNER_RADIUS, CARD_SURFACE, FORM_VALUE_TEXT, OK_GREEN, card_shadow,
 };
-use crate::app::i18n::{host_running_windows_line, t, Msg, UiLang};
+use crate::app::i18n::{Msg, UiLang, host_running_windows_line, t};
 use crate::app::ui::widgets::{
     danger_preview_delete_button, dialog_underline_text_row_gap, preview_overlay_configure_button,
 };
-use crate::app::CenterApp;
 
 const CARD_BODY_GRID_PX: f32 = 13.0;
 const METRIC_BODY_ROW_GAP: f32 = 5.0;

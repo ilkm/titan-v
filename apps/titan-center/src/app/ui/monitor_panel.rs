@@ -3,10 +3,10 @@
 use egui::RichText;
 use titan_common::VmPowerState;
 
-use crate::app::constants::CONTENT_COLUMN_GAP;
-use crate::app::i18n::{t, Msg, UiLang};
-use crate::app::ui::widgets::section_card;
 use crate::app::CenterApp;
+use crate::app::constants::CONTENT_COLUMN_GAP;
+use crate::app::i18n::{Msg, UiLang, t};
+use crate::app::ui::widgets::section_card;
 
 impl CenterApp {
     pub(crate) fn panel_resource_monitor(&self, ui: &mut egui::Ui) {

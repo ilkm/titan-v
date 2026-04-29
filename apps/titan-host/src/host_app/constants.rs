@@ -2,7 +2,7 @@
 
 use egui::Color32;
 
-pub use titan_egui_widgets::theme::{card_shadow, ACCENT};
+pub use titan_egui_widgets::theme::{ACCENT, card_shadow};
 
 /// Soft cap for main content column (same as center).
 pub const CONTENT_MAX_WIDTH: f32 = 960.0;

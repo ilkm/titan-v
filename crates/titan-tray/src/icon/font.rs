@@ -2,7 +2,7 @@
 
 use std::sync::OnceLock;
 
-use fontdb::{Database, Family, Query, Stretch, Style, Weight, ID};
+use fontdb::{Database, Family, ID, Query, Stretch, Style, Weight};
 use fontdue::{Font, FontSettings};
 
 static TRAY_FONT: OnceLock<Option<Font>> = OnceLock::new();

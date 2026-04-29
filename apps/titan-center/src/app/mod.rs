@@ -14,9 +14,9 @@ mod ui;
 mod center_shell;
 
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64};
 use std::sync::mpsc::{Receiver, Sender};
-use std::sync::Arc;
 use std::time::Instant;
 
 use titan_common::HostResourceStats;
@@ -30,7 +30,7 @@ use self::net::NetUiMsg;
 /// Center manager application state (UI thread).
 /// One background telemetry TCP session for a given endpoint key ([`CenterApp::endpoint_addr_key`]).
 pub(crate) struct TelemetryLink {
-    /// Generation for [`NetUiMsg::HostTelemetry::gen`] / [`NetUiMsg::TelemetryLinkLost::gen`]; bumps on stop or new reader.
+    /// Generation for [`NetUiMsg::HostTelemetry::session_gen`] / [`NetUiMsg::TelemetryLinkLost::session_gen`]; bumps on stop or new reader.
     pub(crate) session_gen: u64,
     pub(crate) stop: Arc<AtomicBool>,
     pub(crate) running: Arc<AtomicBool>,
@@ -178,11 +178,11 @@ impl eframe::App for CenterApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.maybe_init_tray_icon_once();
         self.sync_tray_glyph_lang();
-        if let Some(until) = self.ui_toast_until {
-            if ctx.input(|i| i.time) >= until {
-                self.ui_toast_until = None;
-                self.ui_toast_text.clear();
-            }
+        if let Some(until) = self.ui_toast_until
+            && ctx.input(|i| i.time) >= until
+        {
+            self.ui_toast_until = None;
+            self.ui_toast_text.clear();
         }
         if titan_tray::poll_tray_for_egui(ctx, &mut self.really_quitting) {
             self.hidden_to_tray = false;

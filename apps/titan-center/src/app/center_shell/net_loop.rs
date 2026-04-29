@@ -40,10 +40,10 @@ impl CenterApp {
         st.last_telemetry_at = Some(Instant::now());
         self.apply_cp_telemetry_selected_host(&host_key, &vms, &volumes, n);
         self.apply_cp_telemetry_endpoint_rows(&host_key, n);
-        if let Some(h) = content_hint {
-            if !h.is_empty() {
-                self.last_action = h;
-            }
+        if let Some(h) = content_hint
+            && !h.is_empty()
+        {
+            self.last_action = h;
         }
     }
 

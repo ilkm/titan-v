@@ -1,5 +1,5 @@
-use crate::msg::Msg;
 use crate::UiLang;
+use crate::msg::Msg;
 
 pub(super) fn translate(lang: UiLang, msg: Msg) -> Option<&'static str> {
     inventory_and_preview(lang, msg)

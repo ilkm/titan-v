@@ -2,8 +2,8 @@
 
 use crate::error::{Error, Result};
 use crate::{
-    decode_control_host_payload, encode_control_request_frame, parse_header, ControlHostFrame,
-    ControlRequest, ControlRequestFrame, ControlResponse, FRAME_HEADER_LEN,
+    ControlHostFrame, ControlRequest, ControlRequestFrame, ControlResponse, FRAME_HEADER_LEN,
+    decode_control_host_payload, encode_control_request_frame, parse_header,
 };
 use std::io::Read;
 use std::io::Write;

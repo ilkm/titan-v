@@ -9,12 +9,12 @@ use super::helpers::{
     ADD_HOST_DLG_BODY, ADD_HOST_DLG_LABEL, ADD_HOST_DLG_MUTED, ADD_HOST_ERR_BG,
     ADD_HOST_ERR_BORDER, ADD_HOST_ERR_TEXT,
 };
-use crate::app::i18n::{t, Msg};
-use crate::app::ui::widgets::{
-    dialog_underline_text_row, primary_button_large, show_opaque_modal, subtle_button_large,
-    OpaqueFrameSource,
-};
 use crate::app::CenterApp;
+use crate::app::i18n::{Msg, t};
+use crate::app::ui::widgets::{
+    OpaqueFrameSource, dialog_underline_text_row, primary_button_large, show_opaque_modal,
+    subtle_button_large,
+};
 
 impl CenterApp {
     pub(crate) fn show_add_host_dialog(

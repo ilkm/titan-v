@@ -1,7 +1,7 @@
 //! Context menu: macOS root [`muda::Menu`] may only contain [`muda::Submenu`] children.
 
 use titan_common::UiLang;
-use titan_i18n::{t, Msg};
+use titan_i18n::{Msg, t};
 use tray_icon::menu::{Menu, MenuId, MenuItem, Submenu};
 
 /// Stable menu item ids (avoid clashes if multiple Titan apps run).

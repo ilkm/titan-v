@@ -6,7 +6,7 @@
 
 use std::path::{Path, PathBuf};
 
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{Connection, OptionalExtension, params};
 
 use super::constants::PERSIST_KEY;
 use super::persist_data::HostEndpoint;
@@ -170,10 +170,10 @@ fn ensure_kv_schema(conn: &Connection) -> rusqlite::Result<()> {
 }
 
 fn open(path: &Path) -> rusqlite::Result<Connection> {
-    if let Some(parent) = path.parent() {
-        if let Err(e) = std::fs::create_dir_all(parent) {
-            tracing::warn!("device_store: create_dir_all {:?}: {e}", parent);
-        }
+    if let Some(parent) = path.parent()
+        && let Err(e) = std::fs::create_dir_all(parent)
+    {
+        tracing::warn!("device_store: create_dir_all {:?}: {e}", parent);
     }
     let conn = Connection::open(path)?;
     if !table_exists(&conn, "registered_devices")? {

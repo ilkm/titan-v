@@ -4,9 +4,9 @@ use titan_common::UiLang;
 use tokio::sync::watch;
 
 use crate::host_font;
-use crate::serve::{run_serve, AgentBindingsSpec, HostAnnounceConfig};
+use crate::serve::{AgentBindingsSpec, HostAnnounceConfig, run_serve};
 
-use crate::host_app::model::{HostApp, HostUiPersist, ServeRun, PERSIST_KEY};
+use crate::host_app::model::{HostApp, HostUiPersist, PERSIST_KEY, ServeRun};
 use crate::host_app::ui::theme::apply_host_chrome_theme;
 
 fn host_try_build_serve_runtime() -> Option<tokio::runtime::Runtime> {
@@ -65,11 +65,11 @@ impl HostApp {
             .unwrap_or_default();
 
         let mut env_listen_hint = None;
-        if let Ok(s) = std::env::var("TITAN_HOST_LISTEN") {
-            if s.parse::<SocketAddr>().is_ok() {
-                persist.listen = s;
-                env_listen_hint = Some(crate::titan_i18n::hp_env_listen_applied(persist.ui_lang));
-            }
+        if let Ok(s) = std::env::var("TITAN_HOST_LISTEN")
+            && s.parse::<SocketAddr>().is_ok()
+        {
+            persist.listen = s;
+            env_listen_hint = Some(crate::titan_i18n::hp_env_listen_applied(persist.ui_lang));
         }
 
         let (persist_apply_tx, persist_apply_rx) = std::sync::mpsc::channel();

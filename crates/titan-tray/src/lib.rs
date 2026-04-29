@@ -13,7 +13,7 @@ mod menu;
 mod serve;
 
 pub use icon::{refresh_tray_icon, tray_icon_for_lang};
-pub use menu::{build_tray_menu, DesktopProduct};
+pub use menu::{DesktopProduct, build_tray_menu};
 
 #[cfg(feature = "egui")]
 pub use egui::{

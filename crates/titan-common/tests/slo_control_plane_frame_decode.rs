@@ -10,8 +10,8 @@
 use std::time::Instant;
 
 use titan_common::{
-    encode_control_host_frame, read_control_host_frame, Capabilities, ControlHostFrame,
-    ControlResponse,
+    Capabilities, ControlHostFrame, ControlResponse, encode_control_host_frame,
+    read_control_host_frame,
 };
 
 #[test]

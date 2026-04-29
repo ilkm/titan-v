@@ -2,7 +2,7 @@
 
 use egui::text::CursorRange;
 use egui::widgets::text_edit::TextEditOutput;
-use egui::{pos2, Color32, Response, Stroke, TextStyle, WidgetText};
+use egui::{Color32, Response, Stroke, TextStyle, WidgetText, pos2};
 
 use crate::frames::inset_editor_shell;
 use crate::theme::{ACCENT, FORM_VALUE_TEXT};
@@ -47,11 +47,7 @@ fn dialog_underline_paint_rule(ui: &mut egui::Ui, r: &Response, gap_below_underl
         UNDERLINE_IDLE
     };
     let stroke_w = if gap_below_underline > 0.0 {
-        if r.has_focus() {
-            1.5
-        } else {
-            1.0
-        }
+        if r.has_focus() { 1.5 } else { 1.0 }
     } else {
         1.0
     };

@@ -3,10 +3,10 @@
 use std::time::Duration;
 
 use titan_common::{
-    encode_request_frame, parse_header, read_control_host_frame, ControlHostFrame, ControlRequest,
-    ControlResponse,
+    ControlHostFrame, ControlRequest, ControlResponse, encode_request_frame, parse_header,
+    read_control_host_frame,
 };
-use titan_host::serve::{handle_connection, ServeState};
+use titan_host::serve::{ServeState, handle_connection};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::task::JoinHandle;

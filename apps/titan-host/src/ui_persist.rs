@@ -3,7 +3,7 @@
 use std::net::SocketAddr;
 
 use serde::{Deserialize, Serialize};
-use titan_common::{UiLang, DEFAULT_CENTER_POLL_UDP_PORT, DEFAULT_CENTER_REGISTER_UDP_PORT};
+use titan_common::{DEFAULT_CENTER_POLL_UDP_PORT, DEFAULT_CENTER_REGISTER_UDP_PORT, UiLang};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HostUiPersist {

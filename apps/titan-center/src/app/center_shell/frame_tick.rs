@@ -4,12 +4,12 @@ use std::collections::HashSet;
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
+use crate::app::CenterApp;
 use crate::app::constants::{
     DESKTOP_PREVIEW_POLL_SECS, REACHABILITY_PROBE_SECS, TELEMETRY_STALE_AFTER_SECS,
 };
 use crate::app::discovery;
 use crate::app::persist_data::NavTab;
-use crate::app::CenterApp;
 
 impl CenterApp {
     pub(crate) fn prune_host_desktop_textures(&mut self) {
@@ -58,34 +58,49 @@ impl CenterApp {
 
     pub(crate) fn tick_discovery_thread(&mut self) {
         let want = self.discovery_broadcast;
-        let sig = discovery::DiscoverySpawnSig::new(
-            self.discovery_interval_secs.max(1),
-            self.discovery_udp_port,
-            self.control_addr.clone(),
-            self.discovery_bind_ipv4s.clone(),
-        );
-
+        let sig = self.discovery_udp_spawn_sig();
         if want {
-            let need_spawn = self.discovery_active_sig.as_ref() != Some(&sig);
-            if need_spawn {
-                if self.discovery_active_sig.is_some() {
-                    self.discovery_gen.fetch_add(1, Ordering::SeqCst);
-                }
-                let my_gen = self.discovery_gen.fetch_add(1, Ordering::SeqCst) + 1;
-                let gen = self.discovery_gen.clone();
-                let interval = Duration::from_secs(u64::from(sig.interval_secs));
-                let port = sig.port;
-                let host_control = sig.host_control.clone();
-                let bind = sig.bind_ipv4s.clone();
-                std::thread::spawn(move || {
-                    discovery::discovery_udp_loop(my_gen, gen, interval, port, host_control, bind);
-                });
-                self.discovery_active_sig = Some(sig);
-            }
+            self.discovery_udp_maybe_respawn(sig);
         } else if self.discovery_active_sig.is_some() {
             self.discovery_gen.fetch_add(1, Ordering::SeqCst);
             self.discovery_active_sig = None;
         }
+    }
+
+    fn discovery_udp_spawn_sig(&self) -> discovery::DiscoverySpawnSig {
+        discovery::DiscoverySpawnSig::new(
+            self.discovery_interval_secs.max(1),
+            self.discovery_udp_port,
+            self.control_addr.clone(),
+            self.discovery_bind_ipv4s.clone(),
+        )
+    }
+
+    fn discovery_udp_maybe_respawn(&mut self, sig: discovery::DiscoverySpawnSig) {
+        let need_spawn = self.discovery_active_sig.as_ref() != Some(&sig);
+        if !need_spawn {
+            return;
+        }
+        if self.discovery_active_sig.is_some() {
+            self.discovery_gen.fetch_add(1, Ordering::SeqCst);
+        }
+        let my_gen = self.discovery_gen.fetch_add(1, Ordering::SeqCst) + 1;
+        let spawn_generation = self.discovery_gen.clone();
+        let interval = Duration::from_secs(u64::from(sig.interval_secs));
+        let port = sig.port;
+        let host_control = sig.host_control.clone();
+        let bind = sig.bind_ipv4s.clone();
+        std::thread::spawn(move || {
+            discovery::discovery_udp_loop(
+                my_gen,
+                spawn_generation,
+                interval,
+                port,
+                host_control,
+                bind,
+            );
+        });
+        self.discovery_active_sig = Some(sig);
     }
 
     pub(crate) fn tick_host_collect_thread(&mut self) {
@@ -113,7 +128,7 @@ impl CenterApp {
             self.host_collect_gen.fetch_add(1, Ordering::SeqCst);
         }
         let my_gen = self.host_collect_gen.fetch_add(1, Ordering::SeqCst) + 1;
-        let gen = self.host_collect_gen.clone();
+        let spawn_generation = self.host_collect_gen.clone();
         let interval = Duration::from_secs(u64::from(sig.interval_secs));
         let poll_port = sig.poll_port;
         let register_port = sig.register_port;
@@ -121,7 +136,7 @@ impl CenterApp {
         std::thread::spawn(move || {
             discovery::center_host_collect_udp_loop(
                 my_gen,
-                gen,
+                spawn_generation,
                 interval,
                 poll_port,
                 register_port,

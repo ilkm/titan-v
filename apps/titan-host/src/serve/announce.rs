@@ -6,8 +6,8 @@ use std::time::Duration;
 
 use serde_json::{from_slice, to_vec};
 use titan_common::{
-    CenterPollBeacon, HostAnnounceBeacon, DEFAULT_CENTER_POLL_UDP_PORT,
-    DEFAULT_CENTER_REGISTER_UDP_PORT,
+    CenterPollBeacon, DEFAULT_CENTER_POLL_UDP_PORT, DEFAULT_CENTER_REGISTER_UDP_PORT,
+    HostAnnounceBeacon,
 };
 
 /// CLI / launch-time options; [`run_serve`](super::run::run_serve) fills public control addr / label before spawning.
@@ -54,10 +54,10 @@ pub fn resolve_public_control_addr(
             if i.is_loopback() {
                 continue;
             }
-            if let if_addrs::IfAddr::V4(v4) = i.addr {
-                if !v4.ip.is_unspecified() {
-                    return format!("{}:{}", v4.ip, port);
-                }
+            if let if_addrs::IfAddr::V4(v4) = i.addr
+                && !v4.ip.is_unspecified()
+            {
+                return format!("{}:{}", v4.ip, port);
             }
         }
     }
@@ -157,10 +157,10 @@ fn start_announce_sidecars(cfg: &HostAnnounceConfig, payload: Vec<u8>) {
     if cfg.center_poll_listen_port > 0 {
         spawn_center_poll_responder(cfg.center_poll_listen_port, payload.clone());
     }
-    if let Some(iv) = cfg.periodic_interval {
-        if !iv.is_zero() {
-            spawn_periodic_announce(iv, cfg.center_register_udp_port, payload);
-        }
+    if let Some(iv) = cfg.periodic_interval
+        && !iv.is_zero()
+    {
+        spawn_periodic_announce(iv, cfg.center_register_udp_port, payload);
     }
 }
 

@@ -45,16 +45,16 @@ pub enum NetUiMsg {
     ReachabilityProbeCycleDone,
     /// Telemetry TCP: framed `ControlPush` (VM/disk `HostTelemetry` or periodic `HostResourceLive`).
     /// `host_key` is [`CenterApp::endpoint_addr_key`] for the host that opened this stream.
-    /// `gen` must match the active telemetry session for that stream or the message is stale.
+    /// `session_gen` must match the active telemetry session for that stream or the message is stale.
     HostTelemetry {
         host_key: String,
-        gen: u64,
+        session_gen: u64,
         push: ControlPush,
     },
-    /// Telemetry TCP read failed or stream ended for `host_key` / `gen`.
+    /// Telemetry TCP read failed or stream ended for `host_key` / `session_gen`.
     TelemetryLinkLost {
         host_key: String,
-        gen: u64,
+        session_gen: u64,
     },
     /// One host result from a fleet fan-out operation (`spawn_fleet_exchange`).
     FleetOpResult {

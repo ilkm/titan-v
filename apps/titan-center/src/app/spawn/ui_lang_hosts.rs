@@ -6,8 +6,8 @@ use egui::Context;
 use titan_common::{ControlRequest, ControlResponse, UiLang};
 use tokio::runtime::Builder;
 
-use super::super::net::exchange_one;
 use super::super::CenterApp;
+use super::super::net::exchange_one;
 
 impl CenterApp {
     fn endpoint_control_addrs_nonempty(&self) -> Vec<String> {

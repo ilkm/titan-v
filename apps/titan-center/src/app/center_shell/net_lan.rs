@@ -1,8 +1,8 @@
 //! LAN host announce merge for [`NetUiMsg::HostAnnounced`](crate::app::net::NetUiMsg).
 
+use crate::app::CenterApp;
 use crate::app::i18n;
 use crate::app::persist_data::HostEndpoint;
-use crate::app::CenterApp;
 
 impl CenterApp {
     pub(crate) fn apply_net_host_announced(
@@ -54,11 +54,7 @@ impl CenterApp {
             })
             .map(|(i, _)| i)
             .collect();
-        if hits.len() == 1 {
-            Some(hits[0])
-        } else {
-            None
-        }
+        if hits.len() == 1 { Some(hits[0]) } else { None }
     }
 
     fn merge_announced_nonempty_device_id(

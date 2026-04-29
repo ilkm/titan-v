@@ -11,13 +11,13 @@ use std::mem;
 
 use image::RgbaImage;
 use screenshots::display_info::DisplayInfo;
-use windows::core::PCWSTR;
 use windows::Win32::Graphics::Gdi::{
-    CreateCompatibleBitmap, CreateCompatibleDC, CreateDCW, DeleteDC, DeleteObject, GetDIBits,
-    GetMonitorInfoW, SelectObject, SetStretchBltMode, StretchBlt, BITMAPINFO, BITMAPINFOHEADER,
-    CAPTUREBLT, DIB_RGB_COLORS, HBITMAP, HDC, HGDIOBJ, HMONITOR, MONITORINFO, MONITORINFOEXW,
-    RGBQUAD, ROP_CODE, SRCCOPY, STRETCH_HALFTONE,
+    BITMAPINFO, BITMAPINFOHEADER, CAPTUREBLT, CreateCompatibleBitmap, CreateCompatibleDC,
+    CreateDCW, DIB_RGB_COLORS, DeleteDC, DeleteObject, GetDIBits, GetMonitorInfoW, HBITMAP, HDC,
+    HGDIOBJ, HMONITOR, MONITORINFO, MONITORINFOEXW, RGBQUAD, ROP_CODE, SRCCOPY, STRETCH_HALFTONE,
+    SelectObject, SetStretchBltMode, StretchBlt,
 };
+use windows::core::PCWSTR;
 
 struct DcGuard(HDC);
 

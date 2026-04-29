@@ -7,8 +7,8 @@
 //! from enumeration. On Windows, capture uses GDI `SRCCOPY | CAPTUREBLT` so layered windows match
 //! the visually top desktop (see `desktop_snapshot_win`).
 
-use image::codecs::jpeg::JpegEncoder;
 use image::ImageEncoder;
+use image::codecs::jpeg::JpegEncoder;
 use image::{DynamicImage, ExtendedColorType, RgbaImage};
 
 #[cfg(windows)]
@@ -21,7 +21,7 @@ fn capture_primary_rgba_unscaled() -> Result<RgbaImage, String> {
 
 #[cfg(not(windows))]
 fn capture_primary_rgba_unscaled() -> Result<RgbaImage, String> {
-    use screenshots::{display_info::DisplayInfo, Screen};
+    use screenshots::{Screen, display_info::DisplayInfo};
     let displays = DisplayInfo::all().map_err(|e| e.to_string())?;
     let primary = displays
         .iter()

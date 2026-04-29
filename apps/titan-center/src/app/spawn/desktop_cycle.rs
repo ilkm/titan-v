@@ -8,10 +8,10 @@ use titan_common::ControlResponse;
 use tokio::time::error::Elapsed;
 use tokio::time::timeout;
 
-use super::super::net::{fetch_desktop_snapshot, fetch_host_resource_snapshot, NetUiMsg};
 use super::super::CenterApp;
+use super::super::net::{NetUiMsg, fetch_desktop_snapshot, fetch_host_resource_snapshot};
 use super::common::{
-    DesktopFetchCycleGuard, DESKTOP_SNAPSHOT_FETCH_TIMEOUT, DESKTOP_SNAPSHOT_FETCH_TIMEOUT_OFFLINE,
+    DESKTOP_SNAPSHOT_FETCH_TIMEOUT, DESKTOP_SNAPSHOT_FETCH_TIMEOUT_OFFLINE, DesktopFetchCycleGuard,
     HOST_RESOURCE_SNAPSHOT_FETCH_TIMEOUT, HOST_RESOURCE_SNAPSHOT_FETCH_TIMEOUT_OFFLINE,
     PER_HOST_DESKTOP_CYCLE_WALL,
 };
@@ -153,11 +153,7 @@ fn pick_timeout(
     offline: std::time::Duration,
     online: std::time::Duration,
 ) -> std::time::Duration {
-    if fast {
-        offline
-    } else {
-        online
-    }
+    if fast { offline } else { online }
 }
 
 async fn pull_duplex_snapshots(

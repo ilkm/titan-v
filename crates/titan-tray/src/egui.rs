@@ -1,11 +1,11 @@
 //! egui integration: wake the winit/eframe loop while the window is hidden so tray + networking stay alive.
 
 use std::collections::VecDeque;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use titan_common::UiLang;
-use titan_i18n::{t, Msg};
+use titan_i18n::{Msg, t};
 
 use crate::menu::{self, DesktopProduct};
 use tray_icon::menu::{MenuEvent, MenuId};

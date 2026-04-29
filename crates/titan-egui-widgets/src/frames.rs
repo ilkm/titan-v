@@ -3,7 +3,7 @@
 use egui::{Color32, CornerRadius, Frame, Margin, RichText, Sense, Stroke, Visuals};
 
 use crate::theme::{
-    card_shadow, ACCENT, CARD_CORNER_RADIUS, CARD_SURFACE, FORM_LABEL_WIDTH, PANEL_SPACING,
+    ACCENT, CARD_CORNER_RADIUS, CARD_SURFACE, FORM_LABEL_WIDTH, PANEL_SPACING, card_shadow,
 };
 
 fn outline_stroke_from_visuals(visuals: &Visuals) -> Stroke {

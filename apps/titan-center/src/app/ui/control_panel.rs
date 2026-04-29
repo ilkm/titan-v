@@ -2,12 +2,12 @@
 
 use egui::{RichText, ScrollArea};
 
-use crate::app::constants::ACCENT;
-use crate::app::i18n::{t, Msg};
-use crate::app::ui::widgets::{
-    form_field_row, inset_single_select_dropdown, section_card, subtle_button, InsetDropdownLayout,
-};
 use crate::app::CenterApp;
+use crate::app::constants::ACCENT;
+use crate::app::i18n::{Msg, t};
+use crate::app::ui::widgets::{
+    InsetDropdownLayout, form_field_row, inset_single_select_dropdown, section_card, subtle_button,
+};
 
 impl CenterApp {
     pub(crate) fn top_status_bar(&mut self, ui: &mut egui::Ui) {

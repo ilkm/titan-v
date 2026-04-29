@@ -113,18 +113,19 @@ fn validate_spoof_processor_count(n: Option<u32>) -> Result<()> {
 }
 
 fn validate_spoof_vlan_access(v: Option<u16>) -> Result<()> {
-    if let Some(v) = v {
-        if v == 0 || v > 4094 {
-            return Err(Error::InvalidPlan(
-                "spoof.vlan_id_access must be 1..=4094 when set".into(),
-            ));
-        }
+    let Some(v) = v else {
+        return Ok(());
+    };
+    if v == 0 || v > 4094 {
+        return Err(Error::InvalidPlan(
+            "spoof.vlan_id_access must be 1..=4094 when set".into(),
+        ));
     }
     Ok(())
 }
 
 fn validate_spoof_static_mac_pool_path(p: &Option<String>) -> Result<()> {
-    let Some(ref path) = p else {
+    let Some(path) = p else {
         return Ok(());
     };
     let t = path.trim();
@@ -231,12 +232,13 @@ fn validate_provision_vm_name_tokens(vm_name: &str) -> Result<()> {
 }
 
 fn validate_gpu_partition_path_when_set(p: &Option<String>) -> Result<()> {
-    if let Some(ref path) = p {
-        if path.trim().is_empty() {
-            return Err(Error::InvalidPlan(
-                "gpu_partition_instance_path must not be empty when set".into(),
-            ));
-        }
+    let Some(path) = p else {
+        return Ok(());
+    };
+    if path.trim().is_empty() {
+        return Err(Error::InvalidPlan(
+            "gpu_partition_instance_path must not be empty when set".into(),
+        ));
     }
     Ok(())
 }

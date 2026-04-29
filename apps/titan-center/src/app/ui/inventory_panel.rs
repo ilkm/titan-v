@@ -3,10 +3,10 @@
 use egui::{CornerRadius, RichText, Sense, Stroke};
 use titan_common::{DiskVolume, VmBrief};
 
-use crate::app::constants::{CONTENT_COLUMN_GAP, HOST_TILE_MIN_WIDTH, PANEL_SPACING};
-use crate::app::i18n::{t, Msg};
-use crate::app::ui::widgets::section_card;
 use crate::app::CenterApp;
+use crate::app::constants::{CONTENT_COLUMN_GAP, HOST_TILE_MIN_WIDTH, PANEL_SPACING};
+use crate::app::i18n::{Msg, t};
+use crate::app::ui::widgets::section_card;
 
 impl CenterApp {
     fn panel_window_management_empty(&mut self, ui: &mut egui::Ui) {

@@ -5,16 +5,16 @@ use egui::{
     WidgetText,
 };
 
+use crate::app::CenterApp;
 use crate::app::constants::{
-    card_shadow, ACCENT, CONTENT_MAX_WIDTH, NAV_ITEM_HEIGHT, SIDEBAR_DEFAULT_WIDTH,
+    ACCENT, CONTENT_MAX_WIDTH, NAV_ITEM_HEIGHT, SIDEBAR_DEFAULT_WIDTH, card_shadow,
 };
 use crate::app::device_store;
 use crate::app::i18n::{self, Msg, UiLang};
 use crate::app::persist_data::NavTab;
 use crate::app::ui::widgets::{
-    inset_single_select_dropdown, show_settings_tool_window, InsetDropdownLayout,
+    InsetDropdownLayout, inset_single_select_dropdown, show_settings_tool_window,
 };
-use crate::app::CenterApp;
 
 fn effective_content_width(full_w: f32) -> f32 {
     let scalable = (CONTENT_MAX_WIDTH * 1.15).max(full_w * 0.92);

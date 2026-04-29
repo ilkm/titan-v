@@ -6,8 +6,8 @@ use titan_common::{ControlRequest, ControlResponse};
 use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
 
-use super::super::net::{exchange_one, NetUiMsg};
 use super::super::CenterApp;
+use super::super::net::{NetUiMsg, exchange_one};
 
 impl CenterApp {
     /// Fan-out the same [`ControlRequest`] to many hosts with bounded concurrency (fleet / 群控).

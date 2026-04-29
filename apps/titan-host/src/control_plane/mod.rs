@@ -4,7 +4,7 @@
 //! crate’s UI stack; **TCP/QUIC serving** is implemented under [`crate::serve`].
 
 pub use titan_common::{
-    encode_control_host_frame, encode_request_frame, parse_header, read_control_host_frame,
-    ControlHostFrame, ControlPush, ControlRequest, ControlRequestFrame, ControlResponse, VmBrief,
-    FRAME_HEADER_LEN, MAX_PAYLOAD_BYTES,
+    ControlHostFrame, ControlPush, ControlRequest, ControlRequestFrame, ControlResponse,
+    FRAME_HEADER_LEN, MAX_PAYLOAD_BYTES, VmBrief, encode_control_host_frame, encode_request_frame,
+    parse_header, read_control_host_frame,
 };

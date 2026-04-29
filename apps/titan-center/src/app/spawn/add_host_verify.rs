@@ -6,12 +6,12 @@ use std::time::Duration;
 use titan_common::ControlResponse;
 use tokio::time::timeout;
 
+use super::super::CenterApp;
 use super::super::constants::{
     ADD_HOST_VERIFY_HELLO_TIMEOUT_SECS, ADD_HOST_VERIFY_UI_DEADLINE_SECS,
 };
-use super::super::net::{capabilities_summary, hello_host, NetUiMsg};
+use super::super::net::{NetUiMsg, capabilities_summary, hello_host};
 use super::super::persist_data::HostEndpoint;
-use super::super::CenterApp;
 
 pub(super) fn run_add_host_verify_worker(
     addr: String,

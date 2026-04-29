@@ -6,9 +6,9 @@ use titan_common::ControlResponse;
 use tokio::task::JoinSet;
 use tokio::time::timeout;
 
-use super::super::net::{hello_host, NetUiMsg};
 use super::super::CenterApp;
-use super::common::{run_blocking_net, HELLO_REACHABILITY_TIMEOUT};
+use super::super::net::{NetUiMsg, hello_host};
+use super::common::{HELLO_REACHABILITY_TIMEOUT, run_blocking_net};
 
 impl CenterApp {
     /// One `Hello` per saved device to refresh [`HostEndpoint::last_known_online`] for rows without live telemetry.

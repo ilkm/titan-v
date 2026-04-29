@@ -1,14 +1,14 @@
 use std::net::SocketAddr;
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc as sync_mpsc;
-use std::sync::Arc;
 use std::time::Duration;
 
 use titan_common::{
+    ControlHostFrame, ControlPush, ControlRequestFrame, ControlResponse, HostRuntimeProbes, UiLang,
     control_plane_quic_addr, control_plane_telemetry_addr, encode_control_host_frame,
-    encode_telemetry_push_frame, telemetry_push_payload_fits, ControlHostFrame, ControlPush,
-    ControlRequestFrame, ControlResponse, HostRuntimeProbes, UiLang,
+    encode_telemetry_push_frame, telemetry_push_payload_fits,
 };
 use tokio::io::AsyncWriteExt;
 use tokio::net::{TcpListener, TcpStream};
@@ -19,7 +19,7 @@ use tokio::time::timeout;
 use crate::agent_binding_table::AgentBindingTable;
 use crate::ui_persist::HostUiPersist;
 
-use super::announce::{spawn_host_announce_background, HostAnnounceConfig};
+use super::announce::{HostAnnounceConfig, spawn_host_announce_background};
 use super::dispatch::dispatch_request;
 use super::errors::ServeError;
 use super::io::read_one_control_request;

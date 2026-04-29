@@ -1,15 +1,15 @@
 //! Duplex telemetry TCP reader (one stream per `host_key`).
 
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Sender;
-use std::sync::Arc;
 use std::time::Duration;
 
 use tokio::net::TcpStream;
 
 use super::super::constants::TELEMETRY_MAX_CONCURRENT;
 use super::super::net::{
-    read_telemetry_push, telemetry_addr_for_control, tune_connected_stream, NetUiMsg,
+    NetUiMsg, read_telemetry_push, telemetry_addr_for_control, tune_connected_stream,
 };
 use super::super::{CenterApp, TelemetryLink};
 
@@ -28,22 +28,35 @@ impl CenterApp {
         if self.telemetry_fleet_cap_blocks(&host_key) {
             return;
         }
-        let telemetry_addr = match telemetry_addr_for_control(&control_addr) {
-            Ok(a) => a,
-            Err(e) => {
-                self.send_net_ui_error(format!("telemetry address: {e}"));
-                return;
-            }
+        let Some(telemetry_addr) = self.telemetry_addr_for_spawn(&control_addr) else {
+            return;
         };
-        let Some((gen, stop, running)) = self.telemetry_link_start_or_skip(&host_key) else {
+        let Some((session_gen, stop, running)) = self.telemetry_link_start_or_skip(&host_key)
+        else {
             return;
         };
         let host_key_owned = host_key.clone();
         let tx = self.net_tx.clone();
         let ctx = self.ctx.clone();
-        std::thread::spawn(move || {
-            run_telemetry_thread(host_key_owned, gen, stop, running, telemetry_addr, tx, ctx);
-        });
+        spawn_telemetry_reader_background(
+            host_key_owned,
+            session_gen,
+            stop,
+            running,
+            telemetry_addr,
+            tx,
+            ctx,
+        );
+    }
+
+    fn telemetry_addr_for_spawn(&mut self, control_addr: &str) -> Option<String> {
+        match telemetry_addr_for_control(control_addr) {
+            Ok(a) => Some(a),
+            Err(e) => {
+                self.send_net_ui_error(format!("telemetry address: {e}"));
+                None
+            }
+        }
     }
 
     fn telemetry_fleet_cap_blocks(&mut self, host_key: &str) -> bool {
@@ -87,12 +100,34 @@ impl CenterApp {
         }
         link.stop = Arc::new(AtomicBool::new(false));
         link.session_gen = link.session_gen.wrapping_add(1);
-        let gen = link.session_gen;
+        let session_gen = link.session_gen;
         let stop = link.stop.clone();
         let running = link.running.clone();
         running.store(true, Ordering::SeqCst);
-        Some((gen, stop, running))
+        Some((session_gen, stop, running))
     }
+}
+
+fn spawn_telemetry_reader_background(
+    host_key: String,
+    session_gen: u64,
+    stop: Arc<AtomicBool>,
+    running: Arc<AtomicBool>,
+    telemetry_addr: String,
+    tx: Sender<NetUiMsg>,
+    ctx: egui::Context,
+) {
+    std::thread::spawn(move || {
+        run_telemetry_thread(
+            host_key,
+            session_gen,
+            stop,
+            running,
+            telemetry_addr,
+            tx,
+            ctx,
+        );
+    });
 }
 
 fn telemetry_current_thread_runtime(
@@ -116,7 +151,7 @@ fn telemetry_current_thread_runtime(
 
 fn run_telemetry_thread(
     host_key: String,
-    gen: u64,
+    session_gen: u64,
     stop: Arc<AtomicBool>,
     running: Arc<AtomicBool>,
     telemetry_addr: String,
@@ -128,7 +163,7 @@ fn run_telemetry_thread(
     };
     rt.block_on(telemetry_connect_loop(
         host_key,
-        gen,
+        session_gen,
         stop,
         running,
         telemetry_addr,
@@ -140,13 +175,13 @@ fn run_telemetry_thread(
 async fn telemetry_run_connected_read(
     mut sock: TcpStream,
     host_key: String,
-    gen: u64,
+    session_gen: u64,
     stop: Arc<AtomicBool>,
     tx: Sender<NetUiMsg>,
     ctx: egui::Context,
 ) {
     let _ = tune_connected_stream(&sock);
-    read_stream_until_disconnect(&mut sock, &host_key, gen, &stop, &tx, &ctx).await;
+    read_stream_until_disconnect(&mut sock, &host_key, session_gen, &stop, &tx, &ctx).await;
 }
 
 async fn telemetry_backoff_after_connect_err(
@@ -167,7 +202,7 @@ async fn telemetry_backoff_after_connect_err(
 async fn telemetry_try_connect_and_read(
     telemetry_addr: &str,
     host_key: &str,
-    gen: u64,
+    session_gen: u64,
     stop: &Arc<AtomicBool>,
     tx: &Sender<NetUiMsg>,
     ctx: &egui::Context,
@@ -178,7 +213,7 @@ async fn telemetry_try_connect_and_read(
             telemetry_run_connected_read(
                 sock,
                 host_key.to_string(),
-                gen,
+                session_gen,
                 stop.clone(),
                 tx.clone(),
                 ctx.clone(),
@@ -192,7 +227,7 @@ async fn telemetry_try_connect_and_read(
 
 async fn telemetry_connect_loop(
     host_key: String,
-    gen: u64,
+    session_gen: u64,
     stop: Arc<AtomicBool>,
     running: Arc<AtomicBool>,
     telemetry_addr: String,
@@ -207,7 +242,7 @@ async fn telemetry_connect_loop(
         backoff_ms = telemetry_try_connect_and_read(
             &telemetry_addr,
             &host_key,
-            gen,
+            session_gen,
             &stop,
             &tx,
             &ctx,
@@ -222,13 +257,13 @@ fn notify_telemetry_read_failed(
     tx: &Sender<NetUiMsg>,
     ctx: &egui::Context,
     host_key: &str,
-    gen: u64,
+    session_gen: u64,
     err: impl std::fmt::Display,
 ) {
     tracing::warn!(error = %err, "telemetry TCP read failed; reconnecting");
     let _ = tx.send(NetUiMsg::TelemetryLinkLost {
         host_key: host_key.to_string(),
-        gen,
+        session_gen,
     });
     ctx.request_repaint();
 }
@@ -236,7 +271,7 @@ fn notify_telemetry_read_failed(
 async fn read_stream_until_disconnect(
     sock: &mut TcpStream,
     host_key: &str,
-    gen: u64,
+    session_gen: u64,
     stop: &Arc<AtomicBool>,
     tx: &Sender<NetUiMsg>,
     ctx: &egui::Context,
@@ -249,13 +284,13 @@ async fn read_stream_until_disconnect(
             Ok(push) => {
                 let _ = tx.send(NetUiMsg::HostTelemetry {
                     host_key: host_key.to_string(),
-                    gen,
+                    session_gen,
                     push,
                 });
                 ctx.request_repaint();
             }
             Err(e) => {
-                notify_telemetry_read_failed(tx, ctx, host_key, gen, e);
+                notify_telemetry_read_failed(tx, ctx, host_key, session_gen, e);
                 break;
             }
         }

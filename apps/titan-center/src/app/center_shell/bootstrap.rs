@@ -1,21 +1,21 @@
 //! `CenterApp` construction and tray bootstrap.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::sync::atomic::AtomicU64;
 use std::sync::mpsc;
-use std::sync::Arc;
 use std::time::Instant;
 
+use crate::app::CenterApp;
 use crate::app::constants::{DESKTOP_PREVIEW_POLL_SECS, REACHABILITY_PROBE_SECS};
 use crate::app::device_store;
 use crate::app::i18n::UiLang;
 use crate::app::lan_host_register;
 use crate::app::persist_data::{
-    default_discovery_interval_secs, default_discovery_udp_port,
-    default_host_collect_interval_secs, default_list_vms_poll_secs, CenterPersist, NavTab,
+    CenterPersist, NavTab, default_discovery_interval_secs, default_discovery_udp_port,
+    default_host_collect_interval_secs, default_list_vms_poll_secs,
 };
 use crate::app::ui::theme::apply_center_theme;
-use crate::app::CenterApp;
 
 impl CenterApp {
     /// Interval between automatic `Hello` attempts when not connected (`control_addr` non-empty).
@@ -90,12 +90,12 @@ impl CenterApp {
             tracing::warn!("device_store: load {:?}: {e}", db_path);
             Vec::new()
         });
-        if endpoints.is_empty() {
-            if let Some(import) = legacy_eps.filter(|e| !e.is_empty()) {
-                endpoints = import;
-                if let Err(e) = device_store::save_registered_devices(&db_path, &endpoints) {
-                    tracing::warn!("device_store: migrate save {:?}: {e}", db_path);
-                }
+        if endpoints.is_empty()
+            && let Some(import) = legacy_eps.filter(|e| !e.is_empty())
+        {
+            endpoints = import;
+            if let Err(e) = device_store::save_registered_devices(&db_path, &endpoints) {
+                tracing::warn!("device_store: migrate save {:?}: {e}", db_path);
             }
         }
         for ep in &mut endpoints {

@@ -1,6 +1,6 @@
 use std::io::ErrorKind;
 
-use titan_common::{decode_control_request_payload, parse_header, ControlRequestFrame, WireError};
+use titan_common::{ControlRequestFrame, WireError, decode_control_request_payload, parse_header};
 use tokio::io::AsyncReadExt;
 use tokio::net::TcpStream;
 

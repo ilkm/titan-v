@@ -4,10 +4,10 @@
 use std::time::Duration;
 
 use titan_common::UiLang;
-use titan_i18n::{t, Msg};
+use titan_i18n::{Msg, t};
 use tokio::sync::watch;
-use tray_icon::menu::{MenuEvent, MenuId};
 use tray_icon::TrayIconBuilder;
+use tray_icon::menu::{MenuEvent, MenuId};
 
 #[cfg(not(target_os = "macos"))]
 use tray_icon::TrayIconEvent;
@@ -102,7 +102,7 @@ fn macos_install_tray_icon_and_tick_runloop(tooltip: &str, lang: UiLang) -> Resu
         .build()
         .map_err(|e| e.to_string())?;
     std::mem::forget(tray);
-    use objc2_core_foundation::{kCFRunLoopDefaultMode, CFRunLoop};
+    use objc2_core_foundation::{CFRunLoop, kCFRunLoopDefaultMode};
     let _ = unsafe { CFRunLoop::run_in_mode(kCFRunLoopDefaultMode, 0.05, true) };
     Ok(())
 }

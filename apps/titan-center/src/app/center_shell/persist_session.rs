@@ -3,12 +3,12 @@
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
-use egui::{pos2, Area, Color32, CornerRadius, Frame, Margin, Order, RichText};
+use egui::{Area, Color32, CornerRadius, Frame, Margin, Order, RichText, pos2};
 
+use crate::app::CenterApp;
 use crate::app::device_store;
 use crate::app::i18n::{self, Msg};
 use crate::app::persist_data::{CenterPersist, HostEndpoint};
-use crate::app::CenterApp;
 
 impl CenterApp {
     pub(crate) fn selected_endpoint_key(&self) -> Option<String> {
@@ -19,23 +19,21 @@ impl CenterApp {
 
     /// Prefer per-host fleet VM/disk lists; fall back to legacy single-host fields.
     pub(crate) fn inventory_slice(&self) -> &[titan_common::VmBrief] {
-        if let Some(ref k) = self.selected_endpoint_key() {
-            if let Some(s) = self.fleet_by_endpoint.get(k) {
-                if !s.vms.is_empty() {
-                    return s.vms.as_slice();
-                }
-            }
+        if let Some(k) = self.selected_endpoint_key()
+            && let Some(s) = self.fleet_by_endpoint.get(&k)
+            && !s.vms.is_empty()
+        {
+            return s.vms.as_slice();
         }
         &self.vm_inventory
     }
 
     pub(crate) fn disk_volumes_slice(&self) -> &[titan_common::DiskVolume] {
-        if let Some(ref k) = self.selected_endpoint_key() {
-            if let Some(s) = self.fleet_by_endpoint.get(k) {
-                if !s.volumes.is_empty() {
-                    return s.volumes.as_slice();
-                }
-            }
+        if let Some(k) = self.selected_endpoint_key()
+            && let Some(s) = self.fleet_by_endpoint.get(&k)
+            && !s.volumes.is_empty()
+        {
+            return s.volumes.as_slice();
         }
         &self.host_disk_volumes
     }

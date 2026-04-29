@@ -1,8 +1,8 @@
 //! UDP LAN discovery broadcast thread (optional multi-homed IPv4 bind).
 
 use std::net::{Ipv4Addr, SocketAddr};
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use if_addrs::IfAddr;
@@ -221,7 +221,7 @@ fn udp_send_payload_to_all(sockets: &[(UdpSocket, SocketAddr)], payload: &[u8], 
 
 pub fn discovery_udp_loop(
     my_gen: u64,
-    gen: Arc<AtomicU64>,
+    spawn_generation: Arc<AtomicU64>,
     interval: Duration,
     udp_port: u16,
     host_control: String,
@@ -242,7 +242,7 @@ pub fn discovery_udp_loop(
     };
 
     loop {
-        if gen.load(Ordering::SeqCst) != my_gen {
+        if spawn_generation.load(Ordering::SeqCst) != my_gen {
             break;
         }
         if !host_control.trim().is_empty() {
@@ -275,7 +275,7 @@ fn host_collect_log_startup(poll_port: u16, register_port: u16, interval: Durati
 /// Periodically broadcasts [`CenterPollBeacon`] so `titan-host serve` nodes reply with [`HostAnnounceBeacon`].
 pub fn center_host_collect_udp_loop(
     my_gen: u64,
-    gen: Arc<AtomicU64>,
+    spawn_generation: Arc<AtomicU64>,
     interval: Duration,
     poll_port: u16,
     register_port: u16,
@@ -292,7 +292,7 @@ pub fn center_host_collect_udp_loop(
     host_collect_log_startup(poll_port, register_port, interval);
 
     loop {
-        if gen.load(Ordering::SeqCst) != my_gen {
+        if spawn_generation.load(Ordering::SeqCst) != my_gen {
             break;
         }
         udp_send_payload_to_all(&sockets, &payload, "host_collect");
