@@ -1,4 +1,4 @@
-//! VM provisioning plan validated in user space before OpenVMM / host provision pipeline runs.
+//! Host-side VM spoof profile carried on the control plane (`ApplySpoofProfile`).
 
 use std::path::Path;
 
@@ -7,58 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::{Error, Result};
 
-/// Protocol / schema version for persisted plans and future RPC (see `PROTOCOL_VERSION`).
-pub const PLAN_FORMAT_VERSION: u32 = 1;
-
-fn default_auto_start_after_provision() -> bool {
-    true
-}
-
-fn default_injection_channel() -> String {
-    "guest_agent_only".into()
-}
-
-/// Declares **intent** for deeper identity / driver paths (need.md 方案 B); defaults are conservative.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(default)]
-pub struct VmIdentityProfile {
-    /// Operator expects a host kernel driver IPC channel (see driver bridge probe).
-    pub host_kernel_driver_expected: bool,
-    /// Desired guest Secure Boot policy when host firmware automation applies (`None` = leave unchanged).
-    pub guest_secure_boot: Option<bool>,
-    /// Enable vTPM when host firmware automation applies (`None` = leave unchanged).
-    pub guest_vtpm: Option<bool>,
-    /// Request offline hive stamping pipeline before first boot (roadmap; no crate in this snapshot).
-    pub offline_hive_stamp_requested: bool,
-    /// `guest_agent_only` \| `driver_preferred` (future: prefer VMBus driver when present).
-    pub injection_channel: String,
-}
-
-impl Default for VmIdentityProfile {
-    fn default() -> Self {
-        Self {
-            host_kernel_driver_expected: false,
-            guest_secure_boot: None,
-            guest_vtpm: None,
-            offline_hive_stamp_requested: false,
-            injection_channel: default_injection_channel(),
-        }
-    }
-}
-
-impl VmIdentityProfile {
-    pub fn validate(&self) -> Result<()> {
-        let ch = self.injection_channel.trim();
-        if ch != "guest_agent_only" && ch != "driver_preferred" {
-            return Err(Error::InvalidPlan(format!(
-                "identity.injection_channel must be guest_agent_only or driver_preferred (got {ch})"
-            )));
-        }
-        Ok(())
-    }
-}
-
-/// Host-side VM policy tweaks applied after the VM exists (Layer A; map to OpenVMM / host automation as wired).
+/// Host-side VM policy tweaks referenced by [`crate::wire::ControlRequest::ApplySpoofProfile`].
 #[derive(
     Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Archive, RkyvSerialize, RkyvDeserialize,
 )]
@@ -165,180 +114,33 @@ impl VmSpoofProfile {
     }
 }
 
-/// A single VM: differencing disk from parent + UEFI-class generation (field `generation`, typically 2).
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct VmProvisionPlan {
-    /// Absolute or relative path to the read-only parent VHDX.
-    pub parent_vhdx: String,
-    /// Directory where the differencing `{vm_name}.vhdx` will be created.
-    pub diff_dir: String,
-    /// Logical VM name (also used as the differencing disk file stem).
-    pub vm_name: String,
-    pub memory_bytes: u64,
-    /// Must be `2` (second-generation UEFI-style guest). Reserved for forward compatibility.
-    pub generation: u8,
-    /// When set, the first synthetic adapter is connected to this virtual switch name.
-    pub switch_name: Option<String>,
-    /// GPU partition / device instance path for host pass-through (omit to skip).
-    #[serde(default)]
-    pub gpu_partition_instance_path: Option<String>,
-    /// After successful VM create (OpenVMM / host orchestration), run post steps including power-on when true (need.md one-click).
-    #[serde(default = "default_auto_start_after_provision")]
-    pub auto_start_after_provision: bool,
-    /// Host-side spoof profile (checkpoint / CPU / NIC policy); see [`VmSpoofProfile`].
-    #[serde(default)]
-    pub spoof: VmSpoofProfile,
-    /// Identity / driver / offline intent (need.md 方案 B traceability).
-    #[serde(default)]
-    pub identity: VmIdentityProfile,
-}
-
-fn validate_provision_nonempty_paths(plan: &VmProvisionPlan) -> Result<()> {
-    if plan.parent_vhdx.trim().is_empty() {
-        return Err(Error::InvalidPlan("parent_vhdx must not be empty".into()));
-    }
-    if plan.diff_dir.trim().is_empty() {
-        return Err(Error::InvalidPlan("diff_dir must not be empty".into()));
-    }
-    if plan.vm_name.trim().is_empty() {
-        return Err(Error::InvalidPlan("vm_name must not be empty".into()));
-    }
-    Ok(())
-}
-
-fn validate_provision_memory_and_gen(plan: &VmProvisionPlan) -> Result<()> {
-    if plan.memory_bytes == 0 {
-        return Err(Error::InvalidPlan("memory_bytes must be > 0".into()));
-    }
-    if plan.generation != 2 {
-        return Err(Error::InvalidPlan(format!(
-            "only generation 2 is supported (got {})",
-            plan.generation
-        )));
-    }
-    Ok(())
-}
-
-fn validate_provision_vm_name_tokens(vm_name: &str) -> Result<()> {
-    for label in ["..", "/", "\\"] {
-        if vm_name.contains(label) {
-            return Err(Error::InvalidPlan(format!(
-                "vm_name must not contain {:?}",
-                label
-            )));
-        }
-    }
-    Ok(())
-}
-
-fn validate_gpu_partition_path_when_set(p: &Option<String>) -> Result<()> {
-    let Some(path) = p else {
-        return Ok(());
-    };
-    if path.trim().is_empty() {
-        return Err(Error::InvalidPlan(
-            "gpu_partition_instance_path must not be empty when set".into(),
-        ));
-    }
-    Ok(())
-}
-
-impl VmProvisionPlan {
-    /// Validates fields that can be checked without touching the filesystem.
-    pub fn validate(&self) -> Result<()> {
-        validate_provision_nonempty_paths(self)?;
-        validate_provision_memory_and_gen(self)?;
-        validate_provision_vm_name_tokens(&self.vm_name)?;
-        validate_gpu_partition_path_when_set(&self.gpu_partition_instance_path)?;
-        self.spoof.validate()?;
-        self.identity.validate()?;
-        Ok(())
-    }
-
-    /// Full path to the differencing VHDX file.
-    #[must_use]
-    pub fn differencing_vhdx_path(&self) -> String {
-        Path::new(self.diff_dir.trim_end_matches(['/', '\\']))
-            .join(format!("{}.vhdx", self.vm_name.trim()))
-            .to_string_lossy()
-            .into_owned()
-    }
-
-    /// Returns `true` if `parent_vhdx` exists on disk.
-    #[must_use]
-    pub fn parent_exists(&self) -> bool {
-        Path::new(self.parent_vhdx.trim()).is_file()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn sample_plan() -> VmProvisionPlan {
-        VmProvisionPlan {
-            parent_vhdx: "D:\\Images\\parent.vhdx".into(),
-            diff_dir: "D:\\Diffs".into(),
-            vm_name: "vm-01".into(),
-            memory_bytes: 4 * 1024 * 1024 * 1024,
-            generation: 2,
-            switch_name: Some("External".into()),
-            gpu_partition_instance_path: None,
-            auto_start_after_provision: true,
-            spoof: VmSpoofProfile::default(),
-            identity: VmIdentityProfile::default(),
-        }
+    #[test]
+    fn validate_default_ok() {
+        VmSpoofProfile::default().validate().unwrap();
     }
 
     #[test]
-    fn validate_ok() {
-        sample_plan().validate().unwrap();
+    fn validate_rejects_processor_zero() {
+        let mut s = VmSpoofProfile::default();
+        s.processor_count = Some(0);
+        assert!(s.validate().is_err());
     }
 
     #[test]
-    fn validate_rejects_gen1() {
-        let mut p = sample_plan();
-        p.generation = 1;
-        assert!(p.validate().is_err());
+    fn validate_rejects_vlan_out_of_range() {
+        let mut s = VmSpoofProfile::default();
+        s.vlan_id_access = Some(5000);
+        assert!(s.validate().is_err());
     }
 
     #[test]
-    fn validate_rejects_empty_gpu_path() {
-        let mut p = sample_plan();
-        p.gpu_partition_instance_path = Some("  ".into());
-        assert!(p.validate().is_err());
-    }
-
-    #[test]
-    fn validate_rejects_spoof_processor_zero() {
-        let mut p = sample_plan();
-        p.spoof.processor_count = Some(0);
-        assert!(p.validate().is_err());
-    }
-
-    #[test]
-    fn validate_rejects_bad_injection_channel() {
-        let mut p = sample_plan();
-        p.identity.injection_channel = "nope".into();
-        assert!(p.validate().is_err());
-    }
-
-    #[test]
-    fn differencing_path_joins() {
-        let p = VmProvisionPlan {
-            parent_vhdx: "p.vhdx".into(),
-            diff_dir: "C:\\tmp/".into(),
-            vm_name: "n".into(),
-            memory_bytes: 1,
-            generation: 2,
-            switch_name: None,
-            gpu_partition_instance_path: None,
-            auto_start_after_provision: true,
-            spoof: VmSpoofProfile::default(),
-            identity: VmIdentityProfile::default(),
-        };
-        let joined = p.differencing_vhdx_path();
-        assert!(joined.ends_with("n.vhdx"), "joined={joined}");
-        assert!(joined.contains("tmp"), "joined={joined}");
+    fn validate_rejects_empty_secure_boot_template() {
+        let mut s = VmSpoofProfile::default();
+        s.secure_boot_template = Some("   ".into());
+        assert!(s.validate().is_err());
     }
 }

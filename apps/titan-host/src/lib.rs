@@ -5,7 +5,6 @@
 
 pub mod agent_binding_table;
 pub mod agent_bindings;
-pub mod config;
 pub mod control_plane;
 pub mod desktop_snapshot;
 pub mod driver_bridge;

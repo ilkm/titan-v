@@ -99,7 +99,7 @@
 ## 部署与运行流程（摘要）
 
 1. **母盘**：在参考 VM 内安装系统、依赖与负载，Sysprep 等封装后作为只读母盘。
-2. **一键多开**：中控或宿主 CLI 触发 provision：差分盘、（可选）GPU 分区、伪装 profile、自动上电等（见 `VmProvisionPlan`、`Orchestrator::post_provision_after_create`）。
+2. **一键多开**：中控或宿主 CLI 触发 provision（差分盘、可选 GPU、伪装 profile、自动上电等）；具体编排由 OpenVMM 集成与宿主策略承载。
 3. **运行期**：Lua +（Phase 1）Guest Agent 协作；后续阶段逐步替换为 WinHv / VMBus / 采集 / WinDivert 等真路径。
 
 ## 文档索引

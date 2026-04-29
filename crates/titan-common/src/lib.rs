@@ -22,7 +22,7 @@ pub use discovery::{
     HOST_ANNOUNCE_SCHEMA_VERSION, HostAnnounceBeacon,
 };
 pub use error::{Error, Result};
-pub use plan::{PLAN_FORMAT_VERSION, VmIdentityProfile, VmProvisionPlan, VmSpoofProfile};
+pub use plan::VmSpoofProfile;
 pub use proxy_pool::{ProxyPoolEntry, VmProxyBinding};
 pub use state::{NodeState, VmPowerState};
 pub use stubs::{

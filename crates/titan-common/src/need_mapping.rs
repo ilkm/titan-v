@@ -15,9 +15,8 @@
 //!
 //! - TCP 控制面：`crate::wire`、`titan-host::serve`、`titan-center`（Hello/Ping、UI 下发、`HostDesktopSnapshot` 等；ListVms 空、批量电源与脚本/spoof 返回 **501**）。
 //! - OpenVMM / 母盘 / Lua / driver：**VM 生命周期与 hypervisor 能力对接 OpenVMM**；原 `titan-vmm` / `titan-scripts` / `titan-driver` / `titan-offline-spoof` 等 Titan 内 crate 已删除或未接线时，路线图与 `need.md` 仍以 Phase 描述为准，验收须对照 PR 与 OpenVMM 集成范围。
-//! - `titan-host::config`：TOML schema 可保留供外部工具；宿主二进制不再内置批处理 provision。
 //! - 代理配置：`proxy_pool`、`windivert` TOML **仅校验与 schema**，不接内核转发。
-//! - **示例 host 配置**（可复制后改路径）：`apps/titan-host/tests/fixtures/host.phase1.example.toml`。
+//! - **Guest agent 绑定**：`agent-bindings.toml`（见 `apps/titan-host/src/agent_bindings.rs`）。
 //!
 //! ## Phase 1 Definition of Done（DoD）
 //!
@@ -49,7 +48,7 @@
 //! | Visual Perception / 流 | `Capabilities::{streaming_precheck, streaming_nvenc, streaming_webrtc}`；Phase 2+ / 路线图 |
 //! | Network Isolation / 代理 | `crate::proxy_pool`, `titan-host::windivert`, `Capabilities::windivert_forward`；Phase 1 schema-only |
 //! | 中控调度 / wire | `crate::wire`, `titan-host::serve`, `titan-center` |
-//! | OpenVMM VM 生命周期 / 电源 | **对接 OpenVMM**（路线图：`need.md`）；`titan-host::config` schema 可保留 |
+//! | OpenVMM VM 生命周期 / 电源 | **对接 OpenVMM**（路线图：`need.md`） |
 //! | GPU-PV | **已移除**（路线图） |
 //! | 窗外读内存 / 注入（无驱动，协作式） | **已移除**（路线图） |
 //! | Lua 多路 | **已移除**（`LoadScriptVm` → 501） |
