@@ -1,24 +1,16 @@
 # Fleet control plane (Center ↔ many Hosts)
 
-## TCP (current command + telemetry)
+## TCP (command + telemetry)
 
 - **Command TCP**: framed `MAGIC` + version + length + **rkyv** payload (`titan-common::wire::codec`).
-- **Telemetry TCP**: command port + `CONTROL_PLANE_TELEMETRY_PORT_OFFSET` (default +1); Host pushes `ControlPush` including ~**3 FPS** desktop JPEG for card thumbnails.
+- **Telemetry TCP**: command port + `CONTROL_PLANE_TELEMETRY_PORT_OFFSET` (default +1); host pushes `ControlPush` including ~**3 FPS** desktop JPEG for card thumbnails.
 
 ## Socket tuning
 
 - **Host**: listeners are created via `socket2` (`titan_host::tcp_tune::tcp_listen_tokio`) then wrapped as Tokio `TcpListener`.
 - **Center**: after `TcpStream::connect`, `set_nodelay(true)` via `titan_center::app::tcp_tune::tune_connected_stream`.
 
-## QUIC (experimental)
-
-- **UDP** bind address: command `SocketAddr` + `CONTROL_PLANE_QUIC_PORT_OFFSET` (see `titan_common::control_plane_quic_addr`).
-- **Host** starts a background `quinn` listener with a **self-signed** localhost certificate and ALPN `titan-fleet-v1`. Production should use a shared CA / pinned certs; Center clients must not use skip-verify outside lab.
-
-## rkyv + zstd (shared helpers)
-
-- **`FleetRkyvPing`**: minimal rkyv roundtrip type for future v2 framing (`titan_common::fleet_rkyv_*`).
-- **`maybe_zstd_compress`**: optional zstd for **control-sized** blobs; **do not** compress raw JPEG pushes.
+**Note:** Experimental QUIC fleet UDP and optional zstd framing helpers were removed from the codebase; LAN control stays on **TCP** (command + telemetry) as above.
 
 ## Center fleet UI / state
 

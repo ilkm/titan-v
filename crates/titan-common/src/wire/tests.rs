@@ -2,7 +2,6 @@ use crate::UiLang;
 use crate::capabilities::{Capabilities, HostSpoofProbeCaps};
 use crate::plan::VmSpoofProfile;
 use crate::state::VmPowerState;
-use std::borrow::Cow;
 
 use crate::PROTOCOL_VERSION;
 
@@ -266,16 +265,6 @@ fn host_desktop_preview_jpeg_push_roundtrip() {
     let frame = encode_telemetry_push_frame(&push).unwrap();
     let got = read_telemetry_push_frame(&mut frame.as_slice()).unwrap();
     assert_eq!(got, push);
-}
-
-#[test]
-fn maybe_zstd_skips_small_payload() {
-    let small = vec![0u8; 64];
-    let out = crate::maybe_zstd_compress(&small).expect("compress");
-    assert!(matches!(out, Cow::Borrowed(_)));
-    let big = vec![7u8; 512];
-    let out2 = crate::maybe_zstd_compress(&big).expect("compress2");
-    assert!(matches!(out2, Cow::Owned(_)));
 }
 
 #[test]

@@ -1,6 +1,6 @@
 //! Framed binary codec: `MAGIC` + version + length + rkyv payload.
 
-use std::io::{Read, Write};
+use std::io::Read;
 
 use bytes::BytesMut;
 use thiserror::Error;
@@ -25,9 +25,6 @@ pub const TELEMETRY_MAX_PAYLOAD_BYTES: u32 = 192 * 1024;
 /// TCP port offset from control-plane command listen port → telemetry listen port (same IP; TCP vs UDP may share numeric port).
 pub const CONTROL_PLANE_TELEMETRY_PORT_OFFSET: u16 = 1;
 
-/// UDP port offset for optional QUIC fleet control plane (same IP as command TCP).
-pub const CONTROL_PLANE_QUIC_PORT_OFFSET: u16 = 100;
-
 /// Telemetry TCP address paired with a control-plane command listen `addr` (`ip:port` + offset).
 #[must_use]
 pub fn control_plane_telemetry_addr(command: SocketAddr) -> SocketAddr {
@@ -36,17 +33,6 @@ pub fn control_plane_telemetry_addr(command: SocketAddr) -> SocketAddr {
         command
             .port()
             .saturating_add(CONTROL_PLANE_TELEMETRY_PORT_OFFSET),
-    )
-}
-
-/// QUIC UDP address paired with control-plane command listen `addr` (same IP).
-#[must_use]
-pub fn control_plane_quic_addr(command: SocketAddr) -> SocketAddr {
-    SocketAddr::new(
-        command.ip(),
-        command
-            .port()
-            .saturating_add(CONTROL_PLANE_QUIC_PORT_OFFSET),
     )
 }
 
@@ -189,12 +175,6 @@ pub fn decode_telemetry_push_payload(payload: &[u8]) -> WireResult<ControlPush> 
         .map_err(|e| WireError::Decode(e.to_string()))
 }
 
-/// Decodes a request payload (rkyv body only).
-pub fn decode_request_payload(payload: &[u8]) -> WireResult<ControlRequest> {
-    rkyv::from_bytes::<ControlRequest, rkyv::rancor::Error>(payload)
-        .map_err(|e| WireError::Decode(e.to_string()))
-}
-
 /// Decodes a response payload (rkyv body only).
 pub fn decode_response_payload(payload: &[u8]) -> WireResult<ControlResponse> {
     rkyv::from_bytes::<ControlResponse, rkyv::rancor::Error>(payload)
@@ -239,11 +219,4 @@ fn read_payload<R: Read>(r: &mut R) -> WireResult<(Vec<u8>, u32)> {
     let mut payload = vec![0u8; len as usize];
     r.read_exact(&mut payload)?;
     Ok((payload, ver))
-}
-
-/// Writes a pre-built full frame (from [`encode_request_frame`] / [`encode_response_frame`]).
-pub fn write_raw_frame<W: Write>(w: &mut W, frame: &[u8]) -> WireResult<()> {
-    w.write_all(frame)?;
-    w.flush()?;
-    Ok(())
 }
