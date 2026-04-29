@@ -1,5 +1,5 @@
 ---
-description: Titan-v Rust 服务与系统层——异步、错误、unsafe、Hyper-V/Win32、协议、Lua、推流与资源生命周期
+description: Titan-v Rust 服务与系统层——异步、错误、unsafe、OpenVMM/Win32、协议、Lua、推流与资源生命周期
 globs:
   - "**/*.rs"
 alwaysApply: true
@@ -7,7 +7,7 @@ alwaysApply: true
 
 # Rust 后端与系统层规则
 
-适用于**宿主机客户端**、**中控后台逻辑**、**协议**、**与 Hyper-V / Win32 / 驱动 / VMBus / 编码推流 / Lua 宿主**相关的 Rust 代码。若文件以 **egui 视图拼装与每帧 UI** 为主，同时遵守 `front-rules.mdc`。生成或修改上述职责代码时，须与本文件及 `general.mdc` 一并满足。
+适用于**宿主机客户端**、**中控后台逻辑**、**协议**、**与 OpenVMM / Win32 / 驱动 / VMBus / 编码推流 / Lua 宿主**相关的 Rust 代码。若文件以 **egui 视图拼装与每帧 UI** 为主，同时遵守 `front-rules.mdc`。生成或修改上述职责代码时，须与本文件及 `general.mdc` 一并满足。
 
 ## 方法与模块规模（强制）
 
@@ -31,7 +31,7 @@ alwaysApply: true
 
 ## 虚拟化、驱动与平台
 
-- **禁止**：静默忽略 Hyper-V / WMI / PowerShell 调用失败；差分盘、GPU-PV 等半套配置无状态回滚。
+- **禁止**：静默忽略 OpenVMM / WMI / 宿主 Win32 或自动化调用失败；差分盘、GPU 直通等半套配置无状态回滚。
 - **正确**：外部命令与 API 有超时、日志与可重试策略；资源创建 **RAII** 或显式 `Drop`/清理路径；失败时尽量释放已分配资源并上报原因。
 
 ## 协议与版本

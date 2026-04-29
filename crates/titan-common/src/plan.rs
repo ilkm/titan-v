@@ -1,4 +1,4 @@
-//! VM provisioning plan validated in user space before Hyper-V calls.
+//! VM provisioning plan validated in user space before OpenVMM / host provision pipeline runs.
 
 use std::path::Path;
 
@@ -24,9 +24,9 @@ fn default_injection_channel() -> String {
 pub struct VmIdentityProfile {
     /// Operator expects a host kernel driver IPC channel (see driver bridge probe).
     pub host_kernel_driver_expected: bool,
-    /// Desired guest Secure Boot policy when firmware cmdlets apply (`None` = leave unchanged).
+    /// Desired guest Secure Boot policy when host firmware automation applies (`None` = leave unchanged).
     pub guest_secure_boot: Option<bool>,
-    /// Enable vTPM when firmware cmdlets apply (`None` = leave unchanged).
+    /// Enable vTPM when host firmware automation applies (`None` = leave unchanged).
     pub guest_vtpm: Option<bool>,
     /// Request offline hive stamping pipeline before first boot (roadmap; no crate in this snapshot).
     pub offline_hive_stamp_requested: bool,
@@ -58,27 +58,27 @@ impl VmIdentityProfile {
     }
 }
 
-/// Host-side Hyper-V tweaks applied after the VM exists (Layer A; PowerShell).
+/// Host-side VM policy tweaks applied after the VM exists (Layer A; map to OpenVMM / host automation as wired).
 #[derive(
     Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Archive, RkyvSerialize, RkyvDeserialize,
 )]
 #[serde(default)]
 pub struct VmSpoofProfile {
-    /// Synthetic NICs: enable dynamic MAC (`Set-VMNetworkAdapter -DynamicMacAddress On`).
+    /// Synthetic NICs: enable dynamic MAC on the guest network adapter.
     pub dynamic_mac: bool,
-    /// When true: disable checkpoints (`Set-VM -CheckpointType Disabled`).
+    /// When true: disable VM checkpoints / snapshots on the host.
     pub disable_checkpoints: bool,
-    /// When set: `Set-VM -ProcessorCount` (VM may need to be off; host enforces best-effort).
+    /// When set: desired vCPU count (VM may need to be off; host enforces best-effort).
     pub processor_count: Option<u32>,
     /// Text file: one static MAC per line (no separators); first adapter uses first line (best-effort).
     pub static_mac_pool_file: Option<String>,
-    /// Access VLAN id on synthetic NICs (`Set-VMNetworkAdapterVlanConfiguration -Access -VlanId`).
+    /// Access VLAN id on synthetic NICs.
     pub vlan_id_access: Option<u16>,
-    /// `Set-VMProcessor -ExposeVirtualizationExtensions` when set.
+    /// When set: expose nested virtualization extensions to the guest.
     pub expose_virtualization_extensions: Option<bool>,
-    /// `Set-VMFirmware -SecureBootTemplate` value when VM is off (e.g. `MicrosoftWindows`).
+    /// Secure boot template identifier when VM is off (host-specific string).
     pub secure_boot_template: Option<String>,
-    /// Enable guest TPM (`Enable-VMTPM` / firmware policy) when supported.
+    /// Enable guest vTPM / firmware TPM when supported.
     pub enable_vtpm: Option<bool>,
     /// Append JSONL audit records for each applied step (host path).
     pub audit_log_path: Option<String>,
@@ -155,7 +155,7 @@ fn validate_spoof_secure_boot_non_empty(t: &Option<String>) -> Result<()> {
 }
 
 impl VmSpoofProfile {
-    /// Validates spoof fields that can be checked without Hyper-V.
+    /// Validates spoof fields that can be checked without a live VMM connection.
     pub fn validate(&self) -> Result<()> {
         validate_spoof_processor_count(self.processor_count)?;
         validate_spoof_vlan_access(self.vlan_id_access)?;
@@ -165,24 +165,24 @@ impl VmSpoofProfile {
     }
 }
 
-/// A single VM: differencing disk from parent + Gen2 VM.
+/// A single VM: differencing disk from parent + UEFI-class generation (field `generation`, typically 2).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct VmProvisionPlan {
     /// Absolute or relative path to the read-only parent VHDX.
     pub parent_vhdx: String,
     /// Directory where the differencing `{vm_name}.vhdx` will be created.
     pub diff_dir: String,
-    /// Hyper-V VM name (also used as the differencing disk file stem).
+    /// Logical VM name (also used as the differencing disk file stem).
     pub vm_name: String,
     pub memory_bytes: u64,
-    /// Must be `2` (Generation 2). Reserved for forward compatibility.
+    /// Must be `2` (second-generation UEFI-style guest). Reserved for forward compatibility.
     pub generation: u8,
-    /// When set, the first synthetic adapter is connected to this vSwitch.
+    /// When set, the first synthetic adapter is connected to this virtual switch name.
     pub switch_name: Option<String>,
-    /// GPU-PV DDA instance path for `Add-VMGpuPartitionAdapter -InstancePath` (omit to skip).
+    /// GPU partition / device instance path for host pass-through (omit to skip).
     #[serde(default)]
     pub gpu_partition_instance_path: Option<String>,
-    /// After successful `New-VM`, run post steps including `Start-VM` when true (need.md one-click).
+    /// After successful VM create (OpenVMM / host orchestration), run post steps including power-on when true (need.md one-click).
     #[serde(default = "default_auto_start_after_provision")]
     pub auto_start_after_provision: bool,
     /// Host-side spoof profile (checkpoint / CPU / NIC policy); see [`VmSpoofProfile`].

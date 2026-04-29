@@ -9,10 +9,11 @@ fn join_io(err: impl std::fmt::Display) -> ServeError {
 }
 
 const BATCH_POWER_REMOVED: &str =
-    "StartVmGroup/StopVmGroup: Hyper-V batch power integration removed from this build.";
+    "StartVmGroup/StopVmGroup: OpenVMM / VM batch power not wired in this build.";
 const SCRIPT_REMOVED: &str =
     "Lua script execution path removed from this build (SetScriptArtifact / LoadScriptVm).";
-const SPOOF_REMOVED: &str = "ApplySpoofProfile/ApplySpoofStep: mother_image / Hyper-V spoof integration removed from this build.";
+const SPOOF_REMOVED: &str =
+    "ApplySpoofProfile/ApplySpoofStep: mother_image / host spoof pipeline not wired in this build.";
 
 async fn handle_list_vms() -> Result<ControlResponse, ServeError> {
     Ok(ControlResponse::VmList { vms: Vec::new() })

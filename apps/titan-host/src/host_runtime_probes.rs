@@ -2,7 +2,7 @@
 
 use titan_common::HostRuntimeProbes;
 
-/// Runs lightweight host probes (driver pipe, etc.). Hyper-V / spoof probes removed with `titan-vmm`.
+/// Runs lightweight host probes (driver pipe, etc.). VM / spoof probes align with OpenVMM integration milestones.
 #[must_use]
 pub fn probe_host_runtime_blocking() -> HostRuntimeProbes {
     HostRuntimeProbes {

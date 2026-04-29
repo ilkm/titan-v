@@ -1,8 +1,8 @@
 # 需求说明
 
-> **仓库当前交付阶段（Phase 1）**：与 PR 验收默认对齐「中控↔宿主 TCP 控制面 + Windows Hyper-V 自动化 + 协作式 Guest Agent」及配套 Lua/配置能力。下文描述**长期产品形态**（高级虚拟机 fabric）与 **titan-host 元能力**意图 API；**哪些已在代码中闭环**以 `crates/titan-common/src/need_mapping.rs`（Phase 1 Definition of Done / Phase 2+ 边界）为准，避免将路线图误读为已交付能力。
+> **仓库当前交付阶段（Phase 1）**：与 PR 验收默认对齐「中控↔宿主 TCP 控制面 + **OpenVMM** 虚拟化能力集成（不再自研完整 Hyper-V 管理栈）+ 协作式 Guest Agent」及配套 Lua/配置能力。下文描述**长期产品形态**（高级虚拟机 fabric）与 **titan-host 元能力**意图 API；**哪些已在代码中闭环**以 `crates/titan-common/src/need_mapping.rs`（Phase 1 Definition of Done / Phase 2+ 边界）为准，避免将路线图误读为已交付能力。
 >
-> 本文档描述的技术可用于合法自动化、安全研究与自有软件测试；对第三方软件与在线服务的滥用可能违反服务条款或法律。工程文档**不**保证反作弊或 EULA 合规；宿主/来宾安全启动与驱动策略见 `docs/hyperv-secure-boot-matrix.md`。
+> 本文档描述的技术可用于合法自动化、安全研究与自有软件测试；对第三方软件与在线服务的滥用可能违反服务条款或法律。工程文档**不**保证反作弊或 EULA 合规；宿主/来宾安全启动与驱动策略见 `docs/openvmm-secure-boot-matrix.md`。
 
 ## 产品与角色
 
@@ -18,7 +18,7 @@
 
 ## 宿主虚拟化后端
 
-**产品路径**：宿主 OS **仅 Windows**，虚拟化后端 **Hyper-V**，存储目标为母盘（只读）+ 差分 VHDX；实作轨为 `crates/titan-vmm::hyperv`、宿主 provision / 电源 / GPU-PV 可选路径。`titan-center`（`apps/titan-center`）可在其他桌面 OS 上运行以连接 Windows 宿主。
+**产品路径**：宿主 OS **以 Windows 为主**（与 OpenVMM 支持矩阵一致），虚拟化后端 **[OpenVMM](https://openvmm.dev/)**（库或侧车进程 + 窄协议）；存储与镜像形态（母盘 / 差分盘 / IGVM 等）**以上游 OpenVMM 与集成设计为准**，由 `titan-host` 适配层编排 provision / 电源 / 设备能力。`titan-center`（`apps/titan-center`）可在其他桌面 OS 上运行以连接宿主。
 
 中控与宿主之间的**默认控制面**为带版本号的二进制帧（`crates/titan-common` 中 `wire` / `PROTOCOL_VERSION`）；能力协商见 `Capabilities` 与宿主启动探测。
 
@@ -28,7 +28,7 @@
 
 ## titan-host 元能力（宿主侧抽象 API）
 
-以下名称为**产品/契约层**意图；下列出 **Windows / Hyper-V** 主要底层落点。**并非**所有调用都会或应该以 TCP `ControlRequest` 暴露（调试与 orchestrator 内部路径见 `need_mapping.rs` 对照表）。
+以下名称为**产品/契约层**意图；下列出 **Windows / OpenVMM** 主要底层落点。**并非**所有调用都会或应该以 TCP `ControlRequest` 暴露（调试与 orchestrator 内部路径见 `need_mapping.rs` 对照表）。
 
 ### 一、内存操控元能力（Memory Sovereignty）
 
@@ -49,11 +49,11 @@
 
 | 意图 API | 能力说明 | Windows 轨（主要手段） |
 |----------|----------|-------------------------|
-| `vm_set_cpu_mask(feature_bits: u64)` | 影响 CPUID / 特性暴露（含隐藏 Hyper-V 相关标志等目标） | 处理器策略、驱动/虚拟化栈等组合，见 Phase 2+ |
+| `vm_set_cpu_mask(feature_bits: u64)` | 影响 CPUID / 特性暴露（含弱化虚拟化痕迹等目标） | OpenVMM / 处理器策略 / 驱动组合，见 Phase 2+ |
 | `vm_modify_hive(hive_path: Path, entries: Map)` | **离线**编辑挂载磁盘上的注册表 Hive（如磁盘序列号、显卡名称） | VHDX 挂载 + Hive 解析：`titan-offline-spoof`（`offline-hive` feature） |
-| `vm_randomize_hwid()` | 一键生成逻辑自洽的硬件标识（如 MAC 与厂商前缀一致） | `VmSpoofProfile` / `mother_image` / PowerShell 宿主侧步骤等 |
+| `vm_randomize_hwid()` | 一键生成逻辑自洽的硬件标识（如 MAC 与厂商前缀一致） | `VmSpoofProfile` / `mother_image` / 宿主侧自动化步骤等 |
 
-方案 B（宿主 SB 与来宾 SB/vTPM 组合）的工程边界见 `docs/hyperv-secure-boot-matrix.md`。
+方案 B（宿主 SB 与来宾 SB/vTPM 组合）的工程边界见 `docs/openvmm-secure-boot-matrix.md`。
 
 ### 三、合成输入元能力（Input Injection）
 
@@ -72,7 +72,7 @@
 
 | 意图 API | 能力说明 | Windows 轨（目标底层） |
 |----------|----------|-------------------------|
-| `vm_get_frame_buffer() -> RawImage` | 获取当前帧原始像素 | `Windows.Graphics.Capture` 等监听 `vmwp.exe` 关联表面 |
+| `vm_get_frame_buffer() -> RawImage` | 获取当前帧原始像素 | 宿主采集路径（因 OpenVMM 与 OS 组合而异，如 `Windows.Graphics.Capture` 等） |
 | `vm_image_find(template: Image) -> Option<(x, y)>` | 在像素流上做模板匹配，结果可反馈 Lua | 宿主 Rust 实现 |
 
 **Phase 提示**：完整采集 + NVENC + WebRTC 为路线图里程碑；`streaming_precheck` 等能力位见 `capabilities.rs`。
@@ -93,7 +93,7 @@
 
 - **语言与运行时**：Rust；宿主侧每 VM **Lua** 有界执行（`titan-host::runtime`）。
 - **控制面**：rkyv 帧、版本化协议；中控发起、宿主 `serve` 响应。
-- **Windows 纵深**：Hyper-V 差分盘、可选 GPU-PV、PowerShell 自动化与（后续）驱动 IPC；与上节五大元能力一一对应。
+- **Windows 纵深**：OpenVMM 编排的 VM 存储与设备、可选 GPU / 直通类能力（以上游为准）与（后续）驱动 IPC；与上节五大元能力一一对应。
 - **驱动**：Ring-0 组件为 Phase 2+ 独立交付物；与 `titan-host` 用户态服务通过约定 IPC 衔接。
 
 ## 部署与运行流程（摘要）
@@ -108,5 +108,5 @@
 |------|------|
 | `crates/titan-common/src/need_mapping.rs` | Phase 1 DoD、Phase 2+ 列表、主题 → crate 对照 |
 | `docs/requirements-traceability.md` | 元能力 / API → 实现轨 / 代码锚点 / 测试 |
-| `docs/host-windows-architecture.md` | titan-host Windows 分层、Hyper-V 与 WHP 关系、Capabilities/Lua 约束 |
-| `docs/hyperv-secure-boot-matrix.md` | **仅 Windows / Hyper-V 轨** 的宿主/来宾 SB 与驱动矩阵 |
+| `docs/host-windows-architecture.md` | titan-host Windows 分层、**OpenVMM** 与适配层关系、Capabilities/Lua 约束 |
+| `docs/openvmm-secure-boot-matrix.md` | **OpenVMM 上下文** 的宿主/来宾 SB 与驱动矩阵 |

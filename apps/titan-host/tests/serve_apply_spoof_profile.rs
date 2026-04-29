@@ -1,4 +1,4 @@
-//! Integration: ApplySpoofProfile over control-plane TCP (Hyper-V path removed).
+//! Integration: ApplySpoofProfile over control-plane TCP (host spoof / OpenVMM path not wired).
 
 use std::time::Duration;
 

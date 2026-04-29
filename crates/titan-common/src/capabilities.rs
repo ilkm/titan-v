@@ -3,7 +3,7 @@
 use rkyv::{Archive, Deserialize as RkyvDeserialize, Serialize as RkyvSerialize};
 use serde::{Deserialize, Serialize};
 
-/// Hyper-V–only **host-side** spoof automation probes (PowerShell cmdlet surface).
+/// Fine-grained **host-side** spoof automation probes (host API surface; OpenVMM / automation when wired).
 ///
 /// Reported in [`crate::wire::ControlResponse`] capability snapshots on the control plane; does not imply guest
 /// offline edits or kernel drivers.
@@ -19,26 +19,26 @@ use serde::{Deserialize, Serialize};
     RkyvSerialize,
     RkyvDeserialize,
 )]
-pub struct HypervSpoofHostCaps {
-    /// `Get-VMNetworkAdapter` / `Set-VMNetworkAdapter` (dynamic MAC path).
+pub struct HostSpoofProbeCaps {
+    /// Network identity / MAC policy automation appears available.
     #[serde(default)]
     pub network_identity: bool,
-    /// `Set-VM -CheckpointType` (or equivalent) appears available.
+    /// VM checkpoint policy automation appears available.
     #[serde(default)]
     pub vm_checkpoint_policy: bool,
-    /// `Set-VM -ProcessorCount` appears available.
+    /// VM processor count automation appears available.
     #[serde(default)]
     pub vm_processor_count: bool,
-    /// `Set-VMNetworkAdapterVlanConfiguration` appears available.
+    /// VLAN configuration on synthetic NICs appears available.
     #[serde(default)]
     pub vm_vlan_config: bool,
-    /// `Set-VMProcessor -ExposeVirtualizationExtensions` appears available.
+    /// Expose nested virtualization extensions appears available.
     #[serde(default)]
     pub vm_expose_virtualization_extensions: bool,
-    /// `Set-VMFirmware` / secure boot template path appears available.
+    /// Firmware / secure boot template automation appears available.
     #[serde(default)]
     pub vm_firmware_secure_boot: bool,
-    /// vTPM cmdlets appear available.
+    /// Guest vTPM enablement automation appears available.
     #[serde(default)]
     pub vm_vtpm: bool,
 }
@@ -57,12 +57,13 @@ pub struct HypervSpoofHostCaps {
     RkyvDeserialize,
 )]
 pub struct Capabilities {
-    pub hyperv: bool,
+    /// OpenVMM-backed (or equivalent) VM management path is wired on the host.
+    pub openvmm: bool,
     pub gpu_partition: bool,
     pub streaming: bool,
     /// When true: an input path is available (guest agent and/or future VMBus driver).
     pub vmbus_input: bool,
-    /// Umbrella: host-side network identity cmdlets (see [`HypervSpoofHostCaps::network_identity`]).
+    /// Umbrella: host-side network identity automation (see [`HostSpoofProbeCaps::network_identity`]).
     pub hardware_spoof: bool,
     /// Cooperative guest TCP agent configured for at least one VM.
     #[serde(default)]
@@ -70,9 +71,9 @@ pub struct Capabilities {
     /// Host can run capture/stream **precheck** (not full NVENC/WebRTC).
     #[serde(default)]
     pub streaming_precheck: bool,
-    /// Fine-grained Hyper-V host spoof probes (Phase 1.x).
+    /// Fine-grained host spoof probes (Phase 1.x).
     #[serde(default)]
-    pub hyperv_spoof_host: HypervSpoofHostCaps,
+    pub host_spoof_probes: HostSpoofProbeCaps,
     /// Named-pipe / IOCTL bridge to host kernel driver responds (Phase 2+).
     #[serde(default)]
     pub kernel_driver_ipc: bool,
@@ -109,35 +110,35 @@ impl Capabilities {
     /// Values the host reports on the control TCP socket; extend with real probes later.
     #[must_use]
     pub fn host_control_plane() -> Self {
-        Self::host_control_plane_with_agents(false, false, HypervSpoofHostCaps::default())
+        Self::host_control_plane_with_agents(false, false, HostSpoofProbeCaps::default())
     }
 
     /// Capability snapshot when `titan-host serve` has guest agent bindings and optional probes.
     #[must_use]
     pub fn host_control_plane_with_agents(
         agent_configured: bool,
-        gpu_partition_cmdlets_available: bool,
-        spoof_host_caps: HypervSpoofHostCaps,
+        gpu_partition_supported: bool,
+        spoof_caps: HostSpoofProbeCaps,
     ) -> Self {
         let probes = HostRuntimeProbes {
-            spoof_host: spoof_host_caps,
+            spoof_host: spoof_caps,
             ..Default::default()
         };
-        Self::from_host_runtime_probes(agent_configured, gpu_partition_cmdlets_available, &probes)
+        Self::from_host_runtime_probes(agent_configured, gpu_partition_supported, &probes)
     }
 
     /// Builds [`Capabilities`] from blocking probes done at `titan-host serve` startup.
     #[must_use]
     pub fn from_host_runtime_probes(
         agent_configured: bool,
-        gpu_partition_cmdlets_available: bool,
+        gpu_partition_supported: bool,
         probes: &HostRuntimeProbes,
     ) -> Self {
         #[cfg(windows)]
         {
             Self::from_host_runtime_probes_windows(
                 agent_configured,
-                gpu_partition_cmdlets_available,
+                gpu_partition_supported,
                 probes,
             )
         }
@@ -145,7 +146,7 @@ impl Capabilities {
         {
             Self::from_host_runtime_probes_non_windows(
                 agent_configured,
-                gpu_partition_cmdlets_available,
+                gpu_partition_supported,
                 probes,
             )
         }
@@ -154,16 +155,16 @@ impl Capabilities {
     #[cfg(windows)]
     fn from_host_runtime_probes_windows(
         agent_configured: bool,
-        gpu_partition_cmdlets_available: bool,
+        gpu_partition_supported: bool,
         probes: &HostRuntimeProbes,
     ) -> Self {
-        let hv = probes.hyperv_ps_module_available;
+        let openvmm = probes.openvmm_wired;
         let mut c = Capabilities {
-            hyperv: hv,
-            streaming_precheck: hv,
-            gpu_partition: gpu_partition_cmdlets_available,
+            openvmm,
+            streaming_precheck: openvmm,
+            gpu_partition: gpu_partition_supported,
             hardware_spoof: probes.spoof_host.network_identity,
-            hyperv_spoof_host: probes.spoof_host.clone(),
+            host_spoof_probes: probes.spoof_host.clone(),
             kernel_driver_ipc: probes.kernel_driver_ipc,
             winhv_guest_memory: probes.winhv_guest_memory,
             vmbus_hid: probes.vmbus_hid,
@@ -182,23 +183,23 @@ impl Capabilities {
     #[cfg(not(windows))]
     fn from_host_runtime_probes_non_windows(
         agent_configured: bool,
-        gpu_partition_cmdlets_available: bool,
+        gpu_partition_supported: bool,
         probes: &HostRuntimeProbes,
     ) -> Self {
         Capabilities {
-            hyperv: probes.hyperv_ps_module_available,
+            openvmm: probes.openvmm_wired,
             guest_agent: agent_configured,
             vmbus_input: agent_configured,
-            gpu_partition: gpu_partition_cmdlets_available,
+            gpu_partition: gpu_partition_supported,
             hardware_spoof: probes.spoof_host.network_identity,
-            hyperv_spoof_host: probes.spoof_host.clone(),
+            host_spoof_probes: probes.spoof_host.clone(),
             kernel_driver_ipc: probes.kernel_driver_ipc,
             winhv_guest_memory: probes.winhv_guest_memory,
             vmbus_hid: probes.vmbus_hid,
             streaming_nvenc: probes.streaming_nvenc,
             streaming_webrtc: probes.streaming_webrtc,
             windivert_forward: probes.windivert_forward,
-            ..Default::default()
+            ..Self::default()
         }
     }
 }
@@ -206,9 +207,9 @@ impl Capabilities {
 /// Aggregated blocking probe results for [`Capabilities::from_host_runtime_probes`].
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct HostRuntimeProbes {
-    pub spoof_host: HypervSpoofHostCaps,
-    /// `Import-Module Hyper-V` / module list probe (Windows); always false off-Windows.
-    pub hyperv_ps_module_available: bool,
+    pub spoof_host: HostSpoofProbeCaps,
+    /// Set true when OpenVMM integration reports a usable VM management path.
+    pub openvmm_wired: bool,
     pub kernel_driver_ipc: bool,
     pub winhv_guest_memory: bool,
     pub vmbus_hid: bool,

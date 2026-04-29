@@ -71,7 +71,7 @@ impl TcpWirePingClient {
     }
 
     fn connect_tcp(&self) -> Result<TcpStream> {
-        TcpStream::connect(self.addr).map_err(|e| Error::HyperVRejected {
+        TcpStream::connect(self.addr).map_err(|e| Error::ControlPlane {
             message: format!("tcp wire ping connect {}: {e}", self.addr),
         })
     }
@@ -81,7 +81,7 @@ impl TcpWirePingClient {
             id: 1,
             body: ControlRequest::Ping,
         })
-        .map_err(|e| Error::HyperVRejected {
+        .map_err(|e| Error::ControlPlane {
             message: format!("encode ping: {e}"),
         })?;
         stream.write_all(&frame).map_err(Error::Io)?;
@@ -92,12 +92,12 @@ impl TcpWirePingClient {
     fn read_host_frame(stream: &mut TcpStream) -> Result<ControlHostFrame> {
         let mut hdr = [0u8; FRAME_HEADER_LEN];
         stream.read_exact(&mut hdr).map_err(Error::Io)?;
-        let (_, len) = parse_header(&hdr).map_err(|e| Error::HyperVRejected {
+        let (_, len) = parse_header(&hdr).map_err(|e| Error::ControlPlane {
             message: format!("parse header: {e}"),
         })?;
         let mut payload = vec![0u8; len as usize];
         stream.read_exact(&mut payload).map_err(Error::Io)?;
-        decode_control_host_payload(&payload).map_err(|e| Error::HyperVRejected {
+        decode_control_host_payload(&payload).map_err(|e| Error::ControlPlane {
             message: format!("decode control host frame: {e}"),
         })
     }
@@ -111,10 +111,10 @@ impl TcpWirePingClient {
             ControlHostFrame::Response {
                 body: ControlResponse::ServerError { code, message },
                 ..
-            } => Err(Error::HyperVRejected {
+            } => Err(Error::ControlPlane {
                 message: format!("host error {code}: {message}"),
             }),
-            _ => Err(Error::HyperVRejected {
+            _ => Err(Error::ControlPlane {
                 message: "unexpected control response to Ping".into(),
             }),
         }

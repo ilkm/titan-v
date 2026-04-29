@@ -14,7 +14,7 @@ pub mod transport;
 pub mod ui_lang;
 pub mod wire;
 
-pub use capabilities::{Capabilities, HostRuntimeProbes, HypervSpoofHostCaps};
+pub use capabilities::{Capabilities, HostRuntimeProbes, HostSpoofProbeCaps};
 pub use discovery::{
     CENTER_POLL_BEACON_KIND, CENTER_POLL_SCHEMA_VERSION, CenterPollBeacon,
     DEFAULT_CENTER_POLL_UDP_PORT, DEFAULT_CENTER_REGISTER_UDP_PORT, DEFAULT_DISCOVERY_UDP_PORT,

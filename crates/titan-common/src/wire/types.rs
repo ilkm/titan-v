@@ -24,7 +24,7 @@ pub enum ControlRequest {
     Ping,
     /// Session handshake; host replies with [`ControlResponse::HelloAck`].
     Hello,
-    /// Enumerate VMs on the host (Hyper-V `Get-VM` on Windows; empty elsewhere).
+    /// Enumerate VMs on the host (OpenVMM-backed integration when wired; empty or stub otherwise).
     ListVms,
     /// Start each named VM (best-effort; see [`ControlResponse::BatchPowerAck`]).
     StartVmGroup { vm_names: Vec<String> },
@@ -34,7 +34,7 @@ pub enum ControlRequest {
     SetScriptArtifact { version: String, sha256_hex: String },
     /// Load or replace a per-VM Lua chunk and execute it once (bounded by host policy).
     LoadScriptVm { vm_name: String, source: String },
-    /// Apply host-side [`VmSpoofProfile`] steps to an existing VM (PowerShell; Windows).
+    /// Apply host-side [`VmSpoofProfile`] steps to an existing VM (host automation; Windows when wired).
     ApplySpoofProfile {
         vm_name: String,
         dry_run: bool,

@@ -1,30 +1,20 @@
 //! User-mode probes for optional **kernel driver IPC** (Phase 2+).
 
-/// Tries a sub-millisecond connect to the host driver named pipe (Windows only).
+/// Tries to open the host driver named pipe (Windows only); returns whether a handle was obtained.
 #[must_use]
 pub fn probe_kernel_driver_ipc_blocking() -> bool {
     #[cfg(windows)]
     {
-        const PS: &str = r#"
-$ErrorActionPreference = 'SilentlyContinue'
-try {
-  $c = New-Object System.IO.Pipes.NamedPipeClientStream('.', 'TitanVHostDriver', [System.IO.Pipes.PipeDirection]::InOut)
-  $c.Connect(1)
-  $c.Close()
-  'true'
-} catch {
-  'false'
-}
-"#;
-        match std::process::Command::new("powershell.exe")
-            .arg("-NoProfile")
-            .arg("-NonInteractive")
-            .arg("-Command")
-            .arg(PS)
-            .output()
+        match std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(r"\\.\pipe\TitanVHostDriver")
         {
-            Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout).trim() == "true",
-            _ => false,
+            Ok(file) => {
+                drop(file);
+                true
+            }
+            Err(_) => false,
         }
     }
     #[cfg(not(windows))]

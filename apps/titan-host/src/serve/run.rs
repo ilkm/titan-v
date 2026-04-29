@@ -101,8 +101,8 @@ async fn build_serve_state_from_spec(
 fn log_runtime_probes(gpu_partition_available: bool, runtime_probes: &HostRuntimeProbes) {
     let caps = &runtime_probes.spoof_host;
     tracing::info!(
-        hyperv_ps_module = runtime_probes.hyperv_ps_module_available,
-        gpu_partition_cmdlets = gpu_partition_available,
+        openvmm_wired = runtime_probes.openvmm_wired,
+        gpu_partition_supported = gpu_partition_available,
         spoof_network = caps.network_identity,
         spoof_checkpoint = caps.vm_checkpoint_policy,
         spoof_processor = caps.vm_processor_count,

@@ -13,11 +13,8 @@ pub enum Error {
     #[error("I/O error: {0}")]
     Io(#[from] io::Error),
 
-    #[error("Hyper-V operation failed: {message}")]
-    HyperVRejected { message: String },
-
-    #[error("VMM operation failed: {message}")]
-    VmmRejected { message: String },
+    #[error("Control plane error: {message}")]
+    ControlPlane { message: String },
 
     #[error("timed out after {0:?}")]
     Timeout(std::time::Duration),

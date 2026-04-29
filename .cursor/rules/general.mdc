@@ -18,7 +18,7 @@ alwaysApply: true
 **必须**结合 `.cursor/rules` 下专项文件（与当前文件一并满足）：
 
 - **egui 中控 / 宿主侧即时 UI**（`eframe` / `egui`、面板、Texture 贴视频流等）→ `front-rules.mdc`
-- **Rust 服务与系统层**（异步 IO、与 Hyper-V/Win32/驱动/Lua/编码推流相关，非「纯 UI 拼装」为主）→ `backend-rules.mdc`
+- **Rust 服务与系统层**（异步 IO、与 OpenVMM/Win32/驱动/Lua/编码推流相关，非「纯 UI 拼装」为主）→ `backend-rules.mdc`
 - **本文件**：通用品质、安全、注释、嵌套、YAGNI、实现态度（不得以难度妥协）、自检命令
 
 若单 crate 同时含 UI 与业务，**UI 事件与视图**遵守 `front-rules.mdc`，**状态机、协议、虚拟化调用**遵守 `backend-rules.mdc`。
@@ -115,7 +115,7 @@ alwaysApply: true
 
 ### 与 `need.md` 不一致时以需求为准
 
-- **问题**：实现成通用群控或 Web 技术栈，与 Hyper-V / VMBus / 本地 egui 中控脱节。
+- **问题**：实现成通用群控或 Web 技术栈，与 OpenVMM / VMBus / 本地 egui 中控脱节。
 - **禁止**：在中控引入与方案无关的重量级 Web 前端作为默认（除非 `need.md` 明确修订）。
 - **正确**：中控与必要工具 UI 以 **Rust + egui** 为主；网络协议与推流按 `need.md`（如 WebRTC/H.264、NVENC）分阶段落地。
 

@@ -1,5 +1,5 @@
 use crate::UiLang;
-use crate::capabilities::{Capabilities, HypervSpoofHostCaps};
+use crate::capabilities::{Capabilities, HostSpoofProbeCaps};
 use crate::plan::VmSpoofProfile;
 use crate::state::VmPowerState;
 use std::borrow::Cow;
@@ -29,7 +29,7 @@ fn pong_roundtrip() {
         capabilities: Capabilities::host_control_plane_with_agents(
             false,
             false,
-            HypervSpoofHostCaps::default(),
+            HostSpoofProbeCaps::default(),
         ),
     };
     let frame = encode_response_frame(&res).unwrap();
@@ -63,7 +63,7 @@ fn hello_ack_roundtrip() {
         capabilities: Capabilities::host_control_plane_with_agents(
             false,
             false,
-            HypervSpoofHostCaps::default(),
+            HostSpoofProbeCaps::default(),
         ),
     };
     let frame = encode_response_frame(&res).unwrap();
@@ -154,7 +154,7 @@ fn control_host_response_roundtrip() {
         capabilities: Capabilities::host_control_plane_with_agents(
             false,
             false,
-            HypervSpoofHostCaps::default(),
+            HostSpoofProbeCaps::default(),
         ),
     };
     let frame =

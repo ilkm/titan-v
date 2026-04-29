@@ -8,10 +8,10 @@ use crate::agent_binding_table::AgentBindingTable;
 use crate::ui_persist::HostUiPersist;
 
 fn host_capability_hint(caps: &Capabilities) -> &'static str {
-    if cfg!(windows) && caps.hyperv {
+    if cfg!(windows) && caps.openvmm {
         return "";
     }
-    "control-plane: Hyper-V VM stack not shipped in this build (ListVms returns empty; batch power disabled)."
+    "control-plane: OpenVMM VM stack not wired in this build (ListVms returns empty; batch power disabled)."
 }
 
 /// Shared state for one `serve` process (agent bindings + telemetry fan-out).

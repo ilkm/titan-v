@@ -17,17 +17,17 @@ static CONTROL_PLANE_REQ_ID: AtomicU64 = AtomicU64::new(1);
 
 pub fn capabilities_summary(c: &Capabilities) -> String {
     let mut s = format!(
-        "hyperv={} gpu={} stream={} vmbus_in={} hw_spoof={} guest_agent={} stream_precheck={} spoof_net={} spoof_cp={} spoof_proc={} k_ipc={} whv={} vhid={} nvn={} wrtc={} wd={}",
-        c.hyperv,
+        "openvmm={} gpu={} stream={} vmbus_in={} hw_spoof={} guest_agent={} stream_precheck={} spoof_net={} spoof_cp={} spoof_proc={} k_ipc={} whv={} vhid={} nvn={} wrtc={} wd={}",
+        c.openvmm,
         c.gpu_partition,
         c.streaming,
         c.vmbus_input,
         c.hardware_spoof,
         c.guest_agent,
         c.streaming_precheck,
-        c.hyperv_spoof_host.network_identity,
-        c.hyperv_spoof_host.vm_checkpoint_policy,
-        c.hyperv_spoof_host.vm_processor_count,
+        c.host_spoof_probes.network_identity,
+        c.host_spoof_probes.vm_checkpoint_policy,
+        c.host_spoof_probes.vm_processor_count,
         c.kernel_driver_ipc,
         c.winhv_guest_memory,
         c.vmbus_hid,
