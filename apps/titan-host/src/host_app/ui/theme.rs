@@ -4,7 +4,7 @@ use egui::{FontId, Margin, Stroke, TextStyle, Vec2};
 
 use titan_egui_widgets::theme::{ACCENT, ACCENT_DIM, CARD_SURFACE};
 
-use super::constants::ERR_ROSE;
+use crate::host_app::constants::ERR_ROSE;
 
 fn apply_light_visuals(ctx: &egui::Context) {
     let mut v = egui::Visuals::light();

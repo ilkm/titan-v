@@ -2,7 +2,7 @@ use eframe::egui;
 
 use crate::titan_i18n::{self as i18n, Msg};
 
-use super::model::{HostApp, PERSIST_KEY};
+use crate::host_app::model::{HostApp, PERSIST_KEY};
 
 impl HostApp {
     /// Sync tray icon, context menu, and tooltip when [`Self::persist.ui_lang`] changes.

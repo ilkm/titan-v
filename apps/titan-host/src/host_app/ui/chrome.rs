@@ -13,10 +13,10 @@ use crate::titan_egui_widgets::{
 
 use crate::titan_i18n::{self as i18n, Msg};
 
-use super::constants::{
+use crate::host_app::constants::{
     card_shadow, ACCENT, CONTENT_MAX_WIDTH, NAV_ITEM_HEIGHT, SIDEBAR_DEFAULT_WIDTH,
 };
-use super::model::HostApp;
+use crate::host_app::model::HostApp;
 
 fn effective_content_width(full_w: f32) -> f32 {
     let scalable = (CONTENT_MAX_WIDTH * 1.15).max(full_w * 0.92);

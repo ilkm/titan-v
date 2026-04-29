@@ -6,8 +6,8 @@ use tokio::sync::watch;
 use crate::host_font;
 use crate::serve::{run_serve, AgentBindingsSpec, HostAnnounceConfig};
 
-use super::model::{HostApp, HostUiPersist, ServeRun, PERSIST_KEY};
-use super::theme::apply_host_chrome_theme;
+use crate::host_app::model::{HostApp, HostUiPersist, ServeRun, PERSIST_KEY};
+use crate::host_app::ui::theme::apply_host_chrome_theme;
 
 fn host_try_build_serve_runtime() -> Option<tokio::runtime::Runtime> {
     match tokio::runtime::Builder::new_multi_thread()
