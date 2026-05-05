@@ -61,8 +61,6 @@ pub struct Capabilities {
     pub openvmm: bool,
     pub gpu_partition: bool,
     pub streaming: bool,
-    /// When true: an input path is available (guest agent and/or future VMBus driver).
-    pub vmbus_input: bool,
     /// Umbrella: host-side network identity automation (see [`HostSpoofProbeCaps::network_identity`]).
     pub hardware_spoof: bool,
     /// Cooperative guest TCP agent configured for at least one VM.
@@ -80,9 +78,6 @@ pub struct Capabilities {
     /// WinHv / hypervisor guest memory path available (Phase 2+).
     #[serde(default)]
     pub winhv_guest_memory: bool,
-    /// VMBus synthetic HID injection path available (Phase 2+).
-    #[serde(default)]
-    pub vmbus_hid: bool,
     /// Full NVENC encode path (not implemented until R5b).
     #[serde(default)]
     pub streaming_nvenc: bool,
@@ -167,7 +162,6 @@ impl Capabilities {
             host_spoof_probes: probes.spoof_host.clone(),
             kernel_driver_ipc: probes.kernel_driver_ipc,
             winhv_guest_memory: probes.winhv_guest_memory,
-            vmbus_hid: probes.vmbus_hid,
             streaming_nvenc: probes.streaming_nvenc,
             streaming_webrtc: probes.streaming_webrtc,
             windivert_forward: probes.windivert_forward,
@@ -175,7 +169,6 @@ impl Capabilities {
         };
         if agent_configured {
             c.guest_agent = true;
-            c.vmbus_input = true;
         }
         c
     }
@@ -189,13 +182,11 @@ impl Capabilities {
         Capabilities {
             openvmm: probes.openvmm_wired,
             guest_agent: agent_configured,
-            vmbus_input: agent_configured,
             gpu_partition: gpu_partition_supported,
             hardware_spoof: probes.spoof_host.network_identity,
             host_spoof_probes: probes.spoof_host.clone(),
             kernel_driver_ipc: probes.kernel_driver_ipc,
             winhv_guest_memory: probes.winhv_guest_memory,
-            vmbus_hid: probes.vmbus_hid,
             streaming_nvenc: probes.streaming_nvenc,
             streaming_webrtc: probes.streaming_webrtc,
             windivert_forward: probes.windivert_forward,
@@ -212,7 +203,6 @@ pub struct HostRuntimeProbes {
     pub openvmm_wired: bool,
     pub kernel_driver_ipc: bool,
     pub winhv_guest_memory: bool,
-    pub vmbus_hid: bool,
     pub streaming_nvenc: bool,
     pub streaming_webrtc: bool,
     pub windivert_forward: bool,

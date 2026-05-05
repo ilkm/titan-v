@@ -16,7 +16,7 @@ use titan_common::{ControlRequest, ControlResponse};
 
 use super::super::constants::TELEMETRY_MAX_CONCURRENT;
 use super::super::net::{
-    NetUiMsg, ensure_connection_for_telemetry, exchange_one, read_one_telemetry_push,
+    NetUiMsg, ensure_connection_for_telemetry, exchange_one, forget_host, read_one_telemetry_push,
 };
 use super::super::{CenterApp, TelemetryLink};
 
@@ -196,6 +196,7 @@ async fn try_one_session(
             50
         }
         Err(e) => {
+            forget_host(quic_addr);
             tracing::warn!(addr = %quic_addr, error = %e, "telemetry: subscribe failed");
             tokio::time::sleep(Duration::from_millis(backoff_ms)).await;
             backoff_ms.saturating_mul(2).min(500)
@@ -204,8 +205,18 @@ async fn try_one_session(
 }
 
 async fn start_telemetry_session(quic_addr: &str) -> Result<(Connection, RecvStream)> {
-    let connection = ensure_connection_for_telemetry(quic_addr).await?;
-    let res = exchange_one(quic_addr, &ControlRequest::SubscribeTelemetry).await?;
+    let connection = tokio::time::timeout(
+        Duration::from_millis(180),
+        ensure_connection_for_telemetry(quic_addr),
+    )
+    .await
+    .map_err(|_| anyhow!("ensure connection timeout"))??;
+    let res = tokio::time::timeout(
+        Duration::from_millis(220),
+        exchange_one(quic_addr, &ControlRequest::SubscribeTelemetry),
+    )
+    .await
+    .map_err(|_| anyhow!("subscribe rpc timeout"))??;
     match res {
         ControlResponse::SubscribeTelemetryAck { ok: true } => {}
         ControlResponse::SubscribeTelemetryAck { ok: false } => {
@@ -214,11 +225,13 @@ async fn start_telemetry_session(quic_addr: &str) -> Result<(Connection, RecvStr
         ControlResponse::ServerError { message, .. } => {
             return Err(anyhow!("host: {message}"));
         }
-        other => return Err(anyhow!("unexpected response to subscribe: {other:?}")),
+        other => {
+            return Err(anyhow!("unexpected response to subscribe: {other:?}"));
+        }
     }
-    let recv = connection
-        .accept_uni()
+    let recv = tokio::time::timeout(Duration::from_millis(1200), connection.accept_uni())
         .await
+        .map_err(|_| anyhow!("accept telemetry uni timeout"))?
         .context("accept telemetry uni stream")?;
     Ok((connection, recv))
 }

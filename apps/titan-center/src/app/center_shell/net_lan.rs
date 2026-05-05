@@ -31,10 +31,11 @@ impl CenterApp {
     /// Combined with the host-side initial burst (50 ms × 10), this gets a fresh hello in flight
     /// within a single LAN RTT of the host coming back up.
     fn maybe_event_reconnect_on_announce(&mut self, announced_key: &str) {
+        let control_key = Self::endpoint_addr_key(&self.control_addr);
         if self.host_connected {
             return;
         }
-        if announced_key != Self::endpoint_addr_key(&self.control_addr) {
+        if announced_key != control_key {
             return;
         }
         self.force_reconnect_to_control_host();

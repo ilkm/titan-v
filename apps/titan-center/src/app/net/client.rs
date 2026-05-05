@@ -9,11 +9,10 @@ use super::quic_client::exchange_one;
 
 pub fn capabilities_summary(c: &Capabilities) -> String {
     let mut s = format!(
-        "openvmm={} gpu={} stream={} vmbus_in={} hw_spoof={} guest_agent={} stream_precheck={} spoof_net={} spoof_cp={} spoof_proc={} k_ipc={} whv={} vhid={} nvn={} wrtc={} wd={}",
+        "openvmm={} gpu={} stream={} hw_spoof={} guest_agent={} stream_precheck={} spoof_net={} spoof_cp={} spoof_proc={} k_ipc={} whv={} nvn={} wrtc={} wd={}",
         c.openvmm,
         c.gpu_partition,
         c.streaming,
-        c.vmbus_input,
         c.hardware_spoof,
         c.guest_agent,
         c.streaming_precheck,
@@ -22,7 +21,6 @@ pub fn capabilities_summary(c: &Capabilities) -> String {
         c.host_spoof_probes.vm_processor_count,
         c.kernel_driver_ipc,
         c.winhv_guest_memory,
-        c.vmbus_hid,
         c.streaming_nvenc,
         c.streaming_webrtc,
         c.windivert_forward,

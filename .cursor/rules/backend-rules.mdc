@@ -7,7 +7,7 @@ alwaysApply: true
 
 # Rust 后端与系统层规则
 
-适用于**宿主机客户端**、**中控后台逻辑**、**协议**、**与 OpenVMM / Win32 / 驱动 / VMBus / 编码推流 / Lua 宿主**相关的 Rust 代码。若文件以 **egui 视图拼装与每帧 UI** 为主，同时遵守 `front-rules.mdc`。生成或修改上述职责代码时，须与本文件及 `general.mdc` 一并满足。
+适用于**宿主机客户端**、**中控后台逻辑**、**协议**、**与 OpenVMM / Win32 / 驱动 / 编码推流 / Lua 宿主**相关的 Rust 代码。若文件以 **egui 视图拼装与每帧 UI** 为主，同时遵守 `front-rules.mdc`。生成或修改上述职责代码时，须与本文件及 `general.mdc` 一并满足。
 
 ## 方法与模块规模（强制）
 

@@ -169,7 +169,9 @@ impl CenterApp {
     }
 
     pub(crate) fn recompute_host_connected(&mut self) {
+        let prev = self.host_connected;
         self.host_connected = self.command_ready && self.telemetry_live;
+        if prev != self.host_connected {}
     }
 
     pub(crate) fn tick_reachability_probes(&mut self, _ctx: &egui::Context) {

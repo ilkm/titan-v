@@ -58,17 +58,21 @@ impl CenterApp {
         }
     }
 
-    /// Drop the cached QUIC `Connection` for the active control host, clear `command_ready`, and
-    /// arm an immediate `auto_hello` retry. Called when the staleness check or telemetry link
-    /// loss fires: those signals mean the cached `Connection::close_reason()` is unreliable
-    /// (quinn idle timeout has not flipped), so we evict the entry ourselves so the next dial
-    /// builds a fresh handshake against the (possibly restarted) Host.
+    /// Clear `command_ready` and arm an immediate `auto_hello` retry. Called when the staleness
+    /// check / `HostByeNow` / telemetry link loss / a fresh announce signals we should re-Hello
+    /// against the (possibly restarted) host.
+    ///
+    /// Intentionally does **not** evict the cached QUIC `Connection`: with the aggressive
+    /// `idle_timeout = 500 ms` (see `titan-quic::endpoint`), a dead cached entry is detected via
+    /// `Connection::close_reason()` on the next [`crate::app::net::ensure_connection_for_telemetry`]
+    /// / [`crate::app::net::exchange_one`], which then re-dials. Eagerly closing here used to race
+    /// the telemetry reader's just-redialed connection during the host-startup announce burst
+    /// (10 × 50 ms), tearing down the freshly subscribed uni-stream before the first JPEG (333 ms)
+    /// could land — which surfaced as "device shows online but preview is blank after host restart".
     pub(crate) fn force_reconnect_to_control_host(&mut self) {
-        let addr = self.control_addr.clone();
-        if addr.trim().is_empty() {
+        if self.control_addr.trim().is_empty() {
             return;
         }
-        crate::app::net::forget_host(&addr);
         self.command_ready = false;
         self.auto_hello_accum = Self::AUTO_HELLO_RETRY_SECS;
     }

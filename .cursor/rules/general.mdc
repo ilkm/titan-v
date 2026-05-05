@@ -1,5 +1,5 @@
 ---
-description: Titan-v 通用——以 need.md 为需求源、Rust+egui 架构索引、自检、命名/职责边界、代码品质与安全
+description: Titan-v 通用——Rust+egui 架构索引、自检、命名/职责边界、代码品质与安全
 alwaysApply: true
 ---
 
@@ -9,9 +9,9 @@ alwaysApply: true
 
 ## 项目定位与需求源
 
-- **产品**：自动化集群中控 + 宿主机节点 + 虚拟化与通讯（见仓库根目录 `need.md`）。
-- **架构**：**中控管理端（Center）**、**宿主机客户端（Host Node）**、**驱动/通讯（VMBus 等）** 三层；Rust 负责性能关键路径与系统交互；业务脚本层为 **Lua**。
-- **需求与范围**：以 **`need.md`** 为权威愿景与完整方案说明；**当前代码交付默认对齐 Phase 1**（定义与 DoD 以 **`need.md` 相关章节与当前 PR 说明** 为准，辅以 `docs/requirements-traceability.md`）。实现前仍须核对是否与 `need.md` 相关章节一致；若工作属于 Phase 2+（推流、内核 VMBus、WinDivert 真转发等），须在 PR 中显式声明并更新 **文档 / `Capabilities`**，避免默认按全文验收。
+- **产品**：自动化集群中控 + 宿主机节点 + 虚拟化与通讯。
+- **架构**：**中控管理端（Center）**、**宿主机客户端（Host Node）**、**驱动/通讯** 三层；Rust 负责性能关键路径与系统交互；业务脚本层为 **Lua**。
+- **需求与范围**：以**当前任务描述、PR 说明、`Capabilities` 与代码现状**为交付边界。涉及推流、OpenVMM 深度接线、WinDivert 真转发等高影响能力时，须在 PR 中显式声明范围与非目标项，并同步更新文档，避免隐式扩大验收口径。
 
 ## 按技术栈查阅专项规则
 
@@ -26,13 +26,253 @@ alwaysApply: true
 ## 编写后自检（强制）
 
 - **硬性约定（编译器警告）**：`cargo check` / `cargo build`（及 workspace 等价命令）在 **rustc 下不得出现警告**；自检须以 **`RUSTFLAGS='-D warnings'`**（或 CI / 项目脚本中等价方式，如统一写入 `.cargo/config.toml`）验证，**不得以「仅无 clippy 告警」替代 rustc 警告清零**。
-- 每次生成或修改 **Rust** 代码后：**`cargo fmt`**、**`RUSTFLAGS='-D warnings' cargo check`**（或 build）、**`cargo clippy -- -D warnings`**（或项目等价脚本）、**`cargo test`**（有测试时）、**`python3 tools/check_fn_code_lines.py`**；其中 `check_fn_code_lines.py` 必须退出码为 0。修复所有告警与失败，不得遗留未使用项、死代码（含永不会执行的路径与整段注释掉的旧实现）与无理由的 `allow`。
+- **硬性约定（Python 脚本与行数显示）**：每次 Rust 变更**必须**在仓库根执行 **`python3 tools/check_fn_code_lines.py`**，并**完整查看其 stdout/stderr 输出**——脚本以 `<行数>  <相对路径>:<起始行>  fn <名称>` 的格式逐行打印**所有超过 30 代码行的函数**，并在 stderr 输出 `total: N`。**仅看退出码不算自检通过**：必须确认输出条目为 0（即 `total: 0` 且 stdout 无任何函数行）；若有任何条目列出，按行数与文件定位逐个重构（拆函数 / 收参 struct / 子模块）至再次执行时输出为空、退出码 0。**禁止**通过删注释、改脚本阈值、整段 `#[rustfmt::skip]` 或临时 `#[allow]` 绕过此项。
+- 每次生成或修改 **Rust** 代码后顺序执行：**`cargo fmt`** → **`RUSTFLAGS='-D warnings' cargo check`**（或 build）→ **`cargo clippy -- -D warnings`**（或项目等价脚本）→ **`cargo test`**（有测试时）→ **`python3 tools/check_fn_code_lines.py`**（退出码 0 且无函数列出）。修复所有告警与失败，不得遗留未使用项、死代码（含永不会执行的路径与整段注释掉的旧实现）与无理由的 `allow`。
 - 自检包括：是否满足本文件与当前路径对应的专项规则（错误处理、`unsafe` 边界、egui 状态与每帧成本等）。
 - **若有不满足**：先重构至满足再交付；通过后再视为完成。
 
 ## Agent / Plan 模式
 
-制定计划时须将本节与专项规则中的约束写入验收标准（含 **rustc 零警告**（`RUSTFLAGS='-D warnings'` 下的 check/build）、clippy、测试步骤、关键边界与安全、**`.rs` 代码行 ≤400 / 单方法代码行 ≤30 / 单一职责拆分**、**命名语义准确 / 单文件与单函数职责 / 通用逻辑共享**、**`python3 tools/check_fn_code_lines.py` 退出码 0**；计行口径见 `general.mdc`「Rust 行数硬上限（400 / 30）」、**「满足 30 行的最佳实践」**及「社区阅读习惯」）。执行计划后跑 fmt/check（或 build）/clippy/test/**check_fn_code_lines**。验证步骤须含对 `need.md` 相关能力的回归思路（如协议版本、资源生命周期）。
+制定计划时须将本节与专项规则中的约束写入验收标准（含 **rustc 零警告**（`RUSTFLAGS='-D warnings'` 下的 check/build）、clippy、测试步骤、关键边界与安全、**`.rs` 代码行 ≤400 / 单方法代码行 ≤30 / 单一职责拆分**、**命名语义准确 / 单文件与单函数职责 / 通用逻辑共享**、**`python3 tools/check_fn_code_lines.py` 退出码 0 且 stdout 无函数列出**；计行口径见 `general.mdc`「Rust 行数硬上限（400 / 30）」、**「满足 30 行的最佳实践」**及「社区阅读习惯」）。执行计划后跑 fmt/check（或 build）/clippy/test/**check_fn_code_lines**。验证步骤须含对本次改动相关能力的回归思路（如协议版本、资源生命周期）。
+
+---
+
+# Rust 编码风格基线（强制；冲突时优先）
+
+> **优先级声明**：本节为本仓库 Rust 编码强制基线。若本节与本文件其他章节、`backend-rules.mdc`、`front-rules.mdc` 或「项目原则与踩坑记录」中的历史条目在**同一议题**上不一致，**以本节为准**；其他章节剩余约束（行数上限、自检命令、命名职责、安全与日志等）继续生效。
+
+## 1. 代码组织
+
+### 1.1 按功能分模块（而非按类型/实现拆文件）
+
+按**功能/职责**组织模块；同一类型的 `struct`/`enum` 与其 `impl` 块**保持在同一文件**。禁止按 `types.rs` / `impls.rs` 这种「类型 vs 实现」割裂切分。
+
+❌ 不规范：
+
+```rust
+// types.rs
+pub struct User { pub id: u64 }
+
+// impls.rs
+impl User {
+    pub fn new(id: u64) -> Self { Self { id } }
+}
+```
+
+✅ 规范：
+
+```rust
+// user.rs（或 user/mod.rs）
+pub struct User { pub id: u64 }
+
+impl User {
+    pub fn new(id: u64) -> Self { Self { id } }
+    pub fn id(&self) -> u64 { self.id }
+}
+```
+
+### 1.2 小而内聚的 struct
+
+`struct` 应**小而聚焦**；将复杂数据拆成多个可组合的小 `struct`，改善借用检查器表现与 API 灵活性。
+
+❌ 不规范：
+
+```rust
+pub struct OrderProcessor {
+    pub order_id: u64,
+    pub customer_id: u64,
+    pub items: Vec<String>,
+    pub total_amount: f64,
+    pub payment_status: String,
+    pub shipping_address_street: String,
+    pub shipping_address_city: String,
+}
+```
+
+✅ 规范：
+
+```rust
+pub struct Order {
+    pub id: u64,
+    pub customer_id: u64,
+    pub items: Vec<String>,
+    pub total_amount: f64,
+    pub payment_status: String,
+}
+
+pub struct Address { pub street: String, pub city: String }
+
+pub struct OrderProcessor {
+    pub order: Order,
+    pub shipping_address: Address,
+}
+```
+
+## 2. 常用模式与反模式
+
+### 2.1 Newtype 强类型
+
+跨语义边界的 ID/数值**必须**用 **newtype** 包装，由编译器在调用点防止参数互换。
+
+❌ 不规范：
+
+```rust
+fn process_transaction(user_id: u64, account_id: u64) { /* ... */ }
+// 互换两个 u64 仍能通过编译
+```
+
+✅ 规范：
+
+```rust
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
+pub struct UserId(u64);
+
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
+pub struct AccountId(u64);
+
+fn process_transaction(user_id: UserId, account_id: AccountId) { /* ... */ }
+```
+
+跨进程 / JSON / 持久化边界：序列化格式与精度策略须在类型上注明（`uuid` / 固定宽度二进制 / 字符串等），避免与外部语言混用时的精度问题。
+
+### 2.2 Builder 仅用于复杂构造
+
+字段多/可选项多/构造分阶段时使用 **Builder**；简单 1–2 字段直接 `new`，**禁止**为简单 struct 套一层 Builder（与「禁止过度设计」一致）。
+
+✅ 规范：
+
+```rust
+pub struct Config { pub timeout: u64, pub retries: u8 }
+
+impl Config { pub fn builder() -> ConfigBuilder { ConfigBuilder::default() } }
+
+#[derive(Default)]
+pub struct ConfigBuilder { timeout: Option<u64>, retries: Option<u8> }
+
+impl ConfigBuilder {
+    pub fn timeout(mut self, v: u64) -> Self { self.timeout = Some(v); self }
+    pub fn retries(mut self, v: u8) -> Self { self.retries = Some(v); self }
+    pub fn build(self) -> Result<Config, &'static str> {
+        Ok(Config {
+            timeout: self.timeout.unwrap_or(1000),
+            retries: self.retries.unwrap_or(3),
+        })
+    }
+}
+```
+
+### 2.3 泛型约束最小化
+
+类型定义上**只放该类型固有的**约束；可推导/可选的约束放到对应 `impl` 块或具体函数上。
+
+❌ 不规范：
+
+```rust
+pub struct Cache<K: std::hash::Hash + Eq + std::fmt::Debug, V: Clone> { /* ... */ }
+```
+
+✅ 规范：
+
+```rust
+pub struct Cache<K, V> { /* ... */ }
+
+impl<K: std::hash::Hash + Eq, V> Cache<K, V> {
+    pub fn new() -> Self { /* ... */ }
+}
+
+impl<K: std::fmt::Debug, V: std::fmt::Debug> Cache<K, V> {
+    pub fn print_keys(&self) { /* ... */ }
+}
+```
+
+## 3. 性能默认值
+
+### 3.1 默认使用 `Vec` 与 `HashMap`
+
+序列默认 `Vec<T>`，键值默认 `HashMap<K, V>`；只有在 **profiling 显示瓶颈**或有**明确功能需求**（如有序键 → `BTreeMap`、双端队列 → `VecDeque`）时才换其它容器。
+
+- ❌ 不规范：`use std::collections::LinkedList;` 用于普通顺序集合。
+- ✅ 规范：`fn process(items: Vec<String>)` / `fn lookup(map: HashMap<String, u32>)`。
+
+### 3.2 已知规模时预分配容量
+
+集合规模可估时使用 `Vec::with_capacity` / `HashMap::with_capacity` 等预分配，避免热路径多次重分配。
+
+```rust
+let mut v = Vec::with_capacity(1000);
+for i in 0..1000 { v.push(i); }
+```
+
+## 4. 错误处理与 `unsafe`
+
+### 4.1 可恢复错误一律 `Result<T, E>`
+
+**禁止** `unwrap` / `expect` 用于可恢复 IO、网络、用户输入、外部进程结果或字符串解析；`panic!` 仅用于**不可恢复** bug 或编程错误。错误类型与上下文规范（`thiserror` / `anyhow` / `.context()`）见 `backend-rules.mdc`「错误类型」。
+
+❌ 不规范：
+
+```rust
+fn load_config(path: &str) -> String {
+    std::fs::read_to_string(path).expect("Failed to read config")
+}
+```
+
+✅ 规范：
+
+```rust
+fn load_config(path: &str) -> Result<String, std::io::Error> {
+    std::fs::read_to_string(path)
+}
+```
+
+### 4.2 `unsafe` 必须有 `// SAFETY:` 注释
+
+每个 `unsafe` 块前**必须**有紧邻的 `// SAFETY:` 注释，说明**为何不变量被满足**（指针有效性、对齐、生命周期、调用约定等）。
+
+```rust
+let mut v = vec![0];
+let ptr = v.as_mut_ptr();
+// SAFETY: `ptr` 来自 `v.as_mut_ptr()` 且 `v` 至少有 1 个元素，
+// 写入合法 `i32` 不会越界、未与其它别名共享。
+unsafe { *ptr = 42; }
+```
+
+## 5. 测试
+
+### 5.1 `#[test]` 单元测试就近放置
+
+单元测试用 `#[cfg(test)] mod tests` 与被测代码放**同一文件**，`use super::*;` 导入。测试函数同样受 30 行硬上限约束（见「Rust 行数硬上限」），长测试拆辅助函数或表驱动。
+
+```rust
+pub fn add(a: i32, b: i32) -> i32 { a + b }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_add() {
+        assert_eq!(add(1, 2), 3);
+    }
+}
+```
+
+### 5.2 rustdoc 示例即测试
+
+公共 API 用文档示例展示用法，rustdoc 会编译并执行，保证文档与实现同步；非 lib crate 或不希望执行的示例使用 `ignore` / `no_run` 标记。
+
+````rust
+/// Adds two integers together.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(my_crate::add(5, 3), 8);
+/// ```
+pub fn add(a: i32, b: i32) -> i32 {
+    a + b
+}
+````
 
 ---
 
@@ -42,8 +282,8 @@ alwaysApply: true
 
 ## 注释
 
-- **禁止**：变更日志式注释；对自解释代码逐行复述；对 `unsafe`、硬件偏移、协议魔数不写清**不变量与前置条件**。
-- **正确**：注释写「做什么 / 为什么」；公共 API、领域规则、与反作弊/虚拟化相关的假设与限制必须写清；`unsafe` 块旁注明调用方需保证的安全契约。
+- **禁止**：变更日志式注释；对自解释代码逐行复述；对硬件偏移、协议魔数、能力位不写清**不变量与前置条件**。
+- **正确**：注释写「做什么 / 为什么」；公共 API、领域规则、与反作弊/虚拟化相关的假设与限制必须写清。
 
 ## Rust 行数硬上限（400 / 30）
 
@@ -65,12 +305,12 @@ alwaysApply: true
 
 ## 代码品质
 
-- **禁止**：`unwrap`/`expect` 用于可恢复的 IO、网络、用户输入、外部进程结果；无界队列堆积事件；在热路径上分配失控；复制粘贴不抽取；**生成后遗留 rustc 警告或 clippy 警告**（**硬性**：默认 **零警告**；仅允许有注释充分且范围最小的局部 `allow`，并在 PR/说明中交代原因）；**单文件堆叠多职责**、**超长 `.rs` 或超长方法**（见「Rust 行数硬上限（400 / 30）」）；**永不会执行的代码**仍留在仓库（不可达分支、无调用路径、仅为占位而保留的实现）；**用整段或大量行注释保留「备用」或旧实现**充当版本历史。
-- **正确**：可恢复错误用 `Result` 与分层错误类型；**单一职责**：一个源文件/模块只做一类事（协议、状态机、IO 适配、UI 面板等分层清晰），相关逻辑抽到子模块而非「上帝文件」；**文件与方法行数**须符合「Rust 行数硬上限（400 / 30）」。**if/else 嵌套不超过 2 层**（与专项一致）；早返回与卫语句；相同逻辑抽取模块；**YAGNI**，避免为假想需求抽象；**不可达与确定不会走的逻辑直接删除**；需要追溯的旧行为用 **git / PR / 文档** 说明，**不以注释掉的源码块替代**。
+- **禁止**：无界队列堆积事件；在热路径上分配失控；复制粘贴不抽取；**生成后遗留 rustc 警告或 clippy 警告**（**硬性**：默认 **零警告**；仅允许有注释充分且范围最小的局部 `allow`，并在 PR/说明中交代原因）；**单文件堆叠多职责**、**超长 `.rs` 或超长方法**（见「Rust 行数硬上限（400 / 30）」）；**永不会执行的代码**仍留在仓库（不可达分支、无调用路径、仅为占位而保留的实现）；**用整段或大量行注释保留「备用」或旧实现**充当版本历史。
+- **正确**：**单一职责**：一个源文件/模块只做一类事（协议、状态机、IO 适配、UI 面板等分层清晰），相关逻辑抽到子模块而非「上帝文件」；**文件与方法行数**须符合「Rust 行数硬上限（400 / 30）」。**if/else 嵌套不超过 2 层**（与专项一致）；早返回与卫语句；相同逻辑抽取模块；**YAGNI**，避免为假想需求抽象；**不可达与确定不会走的逻辑直接删除**；需要追溯的旧行为用 **git / PR / 文档** 说明，**不以注释掉的源码块替代**。
 
 ## 命名语义与职责边界（强制）
 
-- **命名语义须准确**：模块、类型、函数、字段、协议常量、能力位、`tracing` 目标名等须与**真实行为、数据域、错误语义**一致；禁止用语义漂移的历史名、占位名或过度缩写误导读者与调用方；重命名时须同步注释、`need.md` / 协议版本策略及对外 API。
+- **命名语义须准确**：模块、类型、函数、字段、协议常量、能力位、`tracing` 目标名等须与**真实行为、数据域、错误语义**一致；禁止用语义漂移的历史名、占位名或过度缩写误导读者与调用方；重命名时须同步注释、协议版本策略及对外 API。
 - **单文件职责须单一**：一个 `.rs` 只承载**一类**协作主题（与 `backend-rules.mdc` / `front-rules.mdc` 分层一致）；禁止在同文件混写无关的协议编解码、UI 拼装、持久化夹具、测试桩等「顺手堆叠」。
 - **单函数职责须单一**：一个函数只表达**一条**可命名的业务/技术主线；分支与副作用多了先拆**具名**私有函数或模块内小 `struct` 收参，与「30 行硬上限」同一标准。
 - **通用能力须共享**：两处及以上相同的**纯逻辑**（解析、校验、小算法、帧头处理、字符串规范化等）必须抽到合适的 **共享位置**（优先 `titan-common` 或本 crate 内 `pub(crate)` 工具模块），禁止复制粘贴散落；**无第二处调用前不抽象**（与「禁止过度设计」一致，先重复再抽）。
@@ -83,12 +323,12 @@ alwaysApply: true
 ## 禁止过度设计
 
 - **禁止**：无第二处调用就抽象 trait 工厂；为「将来可能」预留大量扩展点。
-- **正确**：满足当前 `need.md` 阶段目标即可；重复出现再抽象。
+- **正确**：满足当前任务目标即可；重复出现再抽象。
 
 ## 不得以技术难度为由妥协
 
-- **禁止**：以实现复杂、技术难度大、耗时长等为由削减 `need.md` 与当前 Phase 对应的验收标准，或用临时方案替代应交付能力；将「太难」笼统作为不完成、不重构、不降级的理由。
-- **正确**：若需缩小范围，必须与 **`need.md` 的 Phase 划分（及 PR 说明）一致**并在计划或 PR 中显式说明，而非暗降标准；复杂项拆解步骤、补测试与文档，按自检命令推进至满足规则。真正的边界是 **需求优先级、阶段声明、安全合规、客观外部依赖**（如硬件或第三方服务不可用），须在答复或 PR 中写清依据。
+- **禁止**：以实现复杂、技术难度大、耗时长等为由削减已确认的验收标准，或用临时方案替代应交付能力；将「太难」笼统作为不完成、不重构、不降级的理由。
+- **正确**：若需缩小范围，必须与当前任务说明（及 PR 说明）一致并在计划或 PR 中显式说明，而非暗降标准；复杂项拆解步骤、补测试与文档，按自检命令推进至满足规则。真正的边界是 **任务优先级、阶段声明、安全合规、客观外部依赖**（如硬件或第三方服务不可用），须在答复或 PR 中写清依据。
 - **说明**：在 **AI 辅助编程** 场景下，**不应把「技术难度」当作妥协借口**；难度通过迭代、检索与拆分解决，与「是否该做」分离。
 
 ## 安全与敏感数据
@@ -96,9 +336,9 @@ alwaysApply: true
 - **禁止**：日志、错误提示、UI 中输出完整账号口令、代理凭据、token、可定位个人的原始数据。
 - **正确**：脱敏或省略；用户可见错误与内部诊断分离；内部细节不直接暴露给操作员界面（除非明确为调试模式且可控）。
 
-## 异常与错误处理（Rust）
+## 异常与错误处理（Rust 补充）
 
-- **禁止**：`let _ = important_op();` 吞错；把内部 `Debug` 全文堆给用户；在连接/磁盘错误上直接 `panic!`。
+- **禁止**：`let _ = important_op();` 吞错（重要副作用结果必须显式处理或文档说明丢弃理由）；把内部 `Debug` 全文堆给用户作为错误信息。
 - **正确**：错误上冒到可处理层；日志用 **tracing**（或项目统一门面）带 **request_id / trace_id**；用户侧简短可读懂，日志侧含上下文且无敏感字段。
 
 ## 日志
@@ -120,17 +360,11 @@ alwaysApply: true
 
 ## 已有记录
 
-### 与 `need.md` 不一致时以需求为准
+### 与当前任务目标不一致时以任务为准
 
-- **问题**：实现成通用群控或 Web 技术栈，与 OpenVMM / VMBus / 本地 egui 中控脱节。
-- **禁止**：在中控引入与方案无关的重量级 Web 前端作为默认（除非 `need.md` 明确修订）。
-- **正确**：中控与必要工具 UI 以 **Rust + egui** 为主；网络协议与推流按 `need.md`（如 WebRTC/H.264、NVENC）分阶段落地。
-
-### 大整数与 ID
-
-- **问题**：跨进程或 JSON 边界使用不当数值类型导致溢出或互操作错误。
-- **禁止**：在边界协议中随意使用无文档的 `u64`/`i64` 与 JS 或其它语言混用导致精度问题（若将来存在 Web 组件）。
-- **正确**：协议与持久化层的 ID 类型在模块边界显式类型化（如 `uuid`、`newtype`、或固定宽度二进制）；序列化格式在 `README` 或类型上写清。
+- **问题**：实现成通用群控或 Web 技术栈，与 OpenVMM / 本地 egui 中控脱节。
+- **禁止**：在中控引入与当前任务无关的重量级 Web 前端作为默认。
+- **正确**：中控与必要工具 UI 以 **Rust + egui** 为主；网络协议与推流按已确认范围分阶段落地（如 WebRTC/H.264、NVENC）。
 
 ### 30 行硬上限与 rustfmt 多行签名
 

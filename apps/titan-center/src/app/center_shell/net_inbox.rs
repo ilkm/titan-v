@@ -350,6 +350,7 @@ impl CenterApp {
         if host_key_for_ctl == Self::endpoint_addr_key(&self.control_addr) {
             self.telemetry_live = true;
             self.last_host_telemetry_at = Some(Instant::now());
+            if !is_heartbeat {}
         }
         self.last_net_error.clear();
         self.recompute_host_connected();

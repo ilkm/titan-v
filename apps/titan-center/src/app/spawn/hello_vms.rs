@@ -1,9 +1,10 @@
 //! Control-plane `Hello` and `ListVms` on the generic current-thread Tokio worker.
 
+use std::time::Duration;
 use titan_common::{ControlRequest, ControlResponse};
 
 use super::super::CenterApp;
-use super::super::net::{NetUiMsg, capabilities_summary, exchange_one, hello_host};
+use super::super::net::{NetUiMsg, capabilities_summary, exchange_one, forget_host, hello_host};
 use super::common::run_blocking_net;
 
 impl CenterApp {
@@ -44,18 +45,31 @@ impl CenterApp {
 }
 
 fn map_hello_to_net_msg(addr: &str, rt: &tokio::runtime::Runtime) -> NetUiMsg {
-    match rt.block_on(hello_host(addr)) {
-        Ok(ControlResponse::HelloAck { capabilities }) => NetUiMsg::Caps {
+    const HELLO_TIMEOUT_MS: u64 = 600;
+    let hello_res = rt.block_on(async {
+        tokio::time::timeout(Duration::from_millis(HELLO_TIMEOUT_MS), hello_host(addr)).await
+    });
+    match hello_res {
+        Err(_) => {
+            forget_host(addr);
+            NetUiMsg::Error(format!(
+                "hello timeout ({HELLO_TIMEOUT_MS}ms), will retry with fresh connection"
+            ))
+        }
+        Ok(Ok(ControlResponse::HelloAck { capabilities })) => NetUiMsg::Caps {
             summary: capabilities_summary(&capabilities),
         },
-        Ok(ControlResponse::Pong { .. }) => {
+        Ok(Ok(ControlResponse::Pong { .. })) => {
             NetUiMsg::Error("unexpected Pong (expected HelloAck); check host version".into())
         }
-        Ok(ControlResponse::ServerError { code, message }) => {
+        Ok(Ok(ControlResponse::ServerError { code, message })) => {
             NetUiMsg::Error(format!("host error {code}: {message}"))
         }
-        Ok(_) => NetUiMsg::Error("unexpected control response".into()),
-        Err(e) => NetUiMsg::Error(e.to_string()),
+        Ok(Ok(_)) => NetUiMsg::Error("unexpected control response".into()),
+        Ok(Err(e)) => {
+            forget_host(addr);
+            NetUiMsg::Error(e.to_string())
+        }
     }
 }
 

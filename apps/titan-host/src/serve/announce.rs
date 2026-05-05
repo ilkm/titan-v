@@ -110,10 +110,11 @@ fn spawn_initial_burst_announce(center_register_udp_port: u16, payload: Vec<u8>)
             Some(s) => s,
             None => return,
         };
-        for _ in 0..INITIAL_BURST_COUNT {
+        for i in 0..INITIAL_BURST_COUNT {
             if let Err(e) = sock.send_to(&payload, dest) {
                 tracing::debug!(error = %e, "host announce: burst send_to failed");
             }
+            if i == 0 {}
             thread::sleep(INITIAL_BURST_INTERVAL);
         }
     });

@@ -61,10 +61,10 @@
 
 | 意图 API | 能力说明 | Windows 轨（目标底层） |
 |----------|----------|-------------------------|
-| `vm_send_mouse_report(x: i16, y: i16, button: u8)` | 鼠标位移/按键类报告 | VMBus 合成 HID 路径；`Capabilities::vmbus_hid` |
+| `vm_send_mouse_report(x: i16, y: i16, button: u8)` | 鼠标位移/按键类报告 | OpenVMM 集成输入通道 / 宿主输入注入路径（能力位以实际实现为准） |
 | `vm_send_key_report(key_code: u16, state: bool)` | 键盘按下/抬起 | 同上 |
 
-**Phase 提示**：真 VMBus HID 注入为 Phase 2+；`titan-driver` 区分 `GuestAgentChannel` 与 `VmbusHidChannel`。Phase 1 协作式 Agent 通道不等价于本元能力闭环。
+**Phase 提示**：宿主侧原始输入注入能力为后续阶段里程碑；`titan-driver` 与宿主服务通道设计以 OpenVMM 集成方案为准。Phase 1 协作式 Agent 通道不等价于本元能力闭环。当前收敛构建不定义独立“输入注入 capability 位”，待后续接线完成后再新增并对外声明。
 
 ### 四、视觉捕捉元能力（Visual Perception）
 
@@ -100,7 +100,7 @@
 
 1. **母盘**：在参考 VM 内安装系统、依赖与负载，Sysprep 等封装后作为只读母盘。
 2. **一键多开**：中控或宿主 CLI 触发 provision（差分盘、可选 GPU、伪装 profile、自动上电等）；具体编排由 OpenVMM 集成与宿主策略承载。
-3. **运行期**：Lua +（Phase 1）Guest Agent 协作；后续阶段逐步替换为 WinHv / VMBus / 采集 / WinDivert 等真路径。
+3. **运行期**：Lua +（Phase 1）Guest Agent 协作；后续阶段逐步替换为 WinHv / OpenVMM 深度能力 / 采集 / WinDivert 等真路径。
 
 ## 文档索引
 
