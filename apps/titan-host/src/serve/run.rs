@@ -15,7 +15,7 @@ use titan_common::{
 use titan_quic::{
     Identity, Pairing, TrustStore, build_server_config, frame_io, install_default_crypto_provider,
 };
-use tokio::sync::{broadcast, watch};
+use tokio::sync::watch;
 use tokio::time::timeout;
 
 use crate::agent_binding_table::AgentBindingTable;
@@ -27,6 +27,7 @@ use super::errors::ServeError;
 use super::limits::DEFAULT_IDLE_BETWEEN_FRAMES;
 use super::state::{ServeState, VmWindowReloadMsg};
 use super::telemetry;
+use super::telemetry_loops;
 
 static NEXT_CONN_ID: AtomicU64 = AtomicU64::new(1);
 
@@ -84,90 +85,6 @@ fn log_runtime_probes(gpu_partition_available: bool, runtime_probes: &HostRuntim
     );
 }
 
-fn spawn_telemetry_resource_live_loop(tx: broadcast::Sender<ControlPush>) {
-    tokio::spawn(async move {
-        let mut ticker = tokio::time::interval(Duration::from_secs(1));
-        ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
-        loop {
-            ticker.tick().await;
-            if tx.receiver_count() == 0 {
-                continue;
-            }
-            let Ok(stats) =
-                tokio::task::spawn_blocking(crate::host_resources::collect_blocking).await
-            else {
-                continue;
-            };
-            let _ = tx.send(ControlPush::HostResourceLive { stats });
-        }
-    });
-}
-
-/// 50 ms cadence liveness ping. Center treats every push as proof-of-life; missing 3 in a row
-/// (~150 ms) trips `TELEMETRY_STALE_AFTER_SECS = 0.5s` so a crashed / unplugged host is detected
-/// quickly without paying for per-ms keepalive packets.
-const HEARTBEAT_INTERVAL: Duration = Duration::from_millis(50);
-
-fn spawn_telemetry_heartbeat_loop(tx: broadcast::Sender<ControlPush>) {
-    tokio::spawn(async move {
-        let mut ticker = tokio::time::interval(HEARTBEAT_INTERVAL);
-        ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
-        loop {
-            ticker.tick().await;
-            if tx.receiver_count() == 0 {
-                continue;
-            }
-            let _ = tx.send(ControlPush::HostHeartbeat {
-                ts_ms: heartbeat_now_ms(),
-            });
-        }
-    });
-}
-
-fn heartbeat_now_ms() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis() as u64)
-        .unwrap_or(0)
-}
-
-async fn telemetry_desktop_preview_tick(tx: &broadcast::Sender<ControlPush>) {
-    const MAX_W: u32 = 640;
-    const MAX_H: u32 = 360;
-    const JPEG_Q: u8 = 38;
-    if tx.receiver_count() == 0 {
-        return;
-    }
-    let cap_res = tokio::task::spawn_blocking(move || {
-        crate::desktop_snapshot::capture_primary_display_jpeg(MAX_W, MAX_H, JPEG_Q)
-    })
-    .await;
-    let Ok(Ok((jpeg_bytes, width_px, height_px))) = cap_res else {
-        return;
-    };
-    let push = ControlPush::HostDesktopPreviewJpeg {
-        jpeg_bytes,
-        width_px,
-        height_px,
-    };
-    if !titan_common::telemetry_push_payload_fits(&push) {
-        return;
-    }
-    let _ = tx.send(push);
-}
-
-fn spawn_telemetry_desktop_preview_loop(tx: broadcast::Sender<ControlPush>) {
-    const TICK: Duration = Duration::from_millis(333);
-    tokio::spawn(async move {
-        let mut ticker = tokio::time::interval(TICK);
-        ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
-        loop {
-            ticker.tick().await;
-            telemetry_desktop_preview_tick(&tx).await;
-        }
-    });
-}
-
 /// Listens until `shutdown` becomes true or the sender is dropped.
 pub async fn run_serve(
     bind: SocketAddr,
@@ -184,9 +101,7 @@ pub async fn run_serve(
     let local = endpoint.local_addr().map_err(ServeError::Io)?;
     spawn_host_announce_background(announce, bind, local, &security.identity);
     tracing::info!(%bind, fingerprint = %security.identity.spki_sha256_hex, "QUIC control + telemetry plane listening");
-    spawn_telemetry_resource_live_loop(state.telemetry_tx.clone());
-    spawn_telemetry_desktop_preview_loop(state.telemetry_tx.clone());
-    spawn_telemetry_heartbeat_loop(state.telemetry_tx.clone());
+    telemetry_loops::start_background_loops(state.telemetry_tx.clone());
 
     accept_loop(endpoint, state, shutdown).await
 }
@@ -329,7 +244,7 @@ async fn serve_one_rpc(
     };
     telemetry::publish_telemetry_after_dispatch(state, reuse_vms, &res);
     if want_telemetry {
-        spawn_telemetry_uni_pump(connection, state.clone());
+        telemetry_loops::spawn_telemetry_uni_pump(connection, state.clone());
     }
     Ok(())
 }
@@ -364,35 +279,4 @@ async fn write_response_and_finish(
 
 fn map_anyhow(e: anyhow::Error) -> ServeError {
     ServeError::Io(std::io::Error::other(e.to_string()))
-}
-
-fn spawn_telemetry_uni_pump(connection: Connection, state: Arc<ServeState>) {
-    tokio::spawn(async move {
-        let mut send = match connection.open_uni().await {
-            Ok(s) => s,
-            Err(e) => {
-                tracing::warn!(error = %e, "telemetry: open_uni failed");
-                return;
-            }
-        };
-        let mut rx = state.telemetry_tx.subscribe();
-        if let Some(initial) = telemetry::build_telemetry_push(None).await
-            && let Err(e) = frame_io::write_telemetry_push(&mut send, &initial).await
-        {
-            tracing::debug!(error = %e, "telemetry: write initial failed");
-            return;
-        }
-        loop {
-            match rx.recv().await {
-                Ok(push) => {
-                    if let Err(e) = frame_io::write_telemetry_push(&mut send, &push).await {
-                        tracing::debug!(error = %e, "telemetry: stream closed");
-                        return;
-                    }
-                }
-                Err(broadcast::error::RecvError::Lagged(_)) => continue,
-                Err(broadcast::error::RecvError::Closed) => return,
-            }
-        }
-    });
 }

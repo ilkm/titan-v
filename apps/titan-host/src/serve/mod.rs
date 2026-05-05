@@ -9,6 +9,7 @@ mod response;
 mod run;
 mod state;
 mod telemetry;
+mod telemetry_loops;
 mod vm_window_remote;
 
 pub use announce::HostAnnounceConfig;

@@ -1,5 +1,8 @@
 //! `CenterApp` construction and tray bootstrap.
 
+mod persist_load;
+mod security;
+
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::atomic::AtomicU64;
@@ -12,11 +15,10 @@ use crate::app::constants::{DESKTOP_PREVIEW_POLL_SECS, REACHABILITY_PROBE_SECS};
 use crate::app::device_store;
 use crate::app::i18n::UiLang;
 use crate::app::lan_host_register;
-use crate::app::persist_data::{
-    CenterPersist, NavTab, default_discovery_interval_secs, default_discovery_udp_port,
-    default_host_collect_interval_secs, default_list_vms_poll_secs,
-};
+use crate::app::persist_data::{CenterPersist, NavTab};
 use crate::app::ui::theme::apply_center_theme;
+use persist_load::{load_center_bootstrap, load_or_migrate_endpoints};
+use security::init_center_security;
 
 impl CenterApp {
     /// Interval between automatic `Hello` attempts when not connected (`control_addr` non-empty).
@@ -41,13 +43,13 @@ impl CenterApp {
         apply_center_theme(&cc.egui_ctx);
         let (net_tx, net_rx) = mpsc::channel();
         let db_path = device_store::registration_db_path();
-        let load = load_center_persist(&db_path);
+        let (persist, legacy_eps) = load_center_bootstrap(&db_path);
         lan_host_register::spawn_center_lan_host_register_listener(
             net_tx.clone(),
             cc.egui_ctx.clone(),
-            load.persist.host_collect_register_udp_port.max(1),
+            persist.host_collect_register_udp_port.max(1),
         );
-        let endpoints = load_or_migrate_endpoints(&db_path, load.legacy_eps);
+        let endpoints = load_or_migrate_endpoints(&db_path, legacy_eps);
         let control_addr = endpoints
             .first()
             .map(|e| e.addr.clone())
@@ -57,7 +59,7 @@ impl CenterApp {
             cc,
             net_tx,
             net_rx,
-            load.persist,
+            persist,
             endpoints,
             control_addr,
             center_security,
@@ -231,97 +233,4 @@ struct BuildArgs {
     active_nav: NavTab,
     desktop_poll_accum: f32,
     auto_hello_accum: f32,
-}
-
-struct CenterPersistLoad {
-    persist: CenterPersist,
-    legacy_eps: Option<Vec<crate::app::HostEndpoint>>,
-}
-
-fn load_center_persist(db_path: &std::path::Path) -> CenterPersistLoad {
-    let persist_json = device_store::load_center_persist_json(db_path)
-        .ok()
-        .flatten();
-    let legacy_eps = persist_json
-        .as_deref()
-        .and_then(device_store::legacy_endpoints_from_center_json);
-    let persist: CenterPersist = persist_json
-        .as_deref()
-        .and_then(|j| serde_json::from_str(j).ok())
-        .unwrap_or_else(default_center_persist);
-    CenterPersistLoad {
-        persist,
-        legacy_eps,
-    }
-}
-
-fn default_center_persist() -> CenterPersist {
-    CenterPersist {
-        accounts: vec!["demo-account-1".into()],
-        proxy_labels: vec!["proxy-pool-a".into()],
-        last_script_version: String::new(),
-        list_vms_auto_refresh: false,
-        list_vms_poll_secs: default_list_vms_poll_secs(),
-        discovery_broadcast: false,
-        discovery_interval_secs: default_discovery_interval_secs(),
-        discovery_udp_port: default_discovery_udp_port(),
-        discovery_bind_ipv4s: Vec::new(),
-        host_collect_broadcast: true,
-        host_collect_interval_secs: default_host_collect_interval_secs(),
-        host_collect_poll_udp_port: titan_common::DEFAULT_CENTER_POLL_UDP_PORT,
-        host_collect_register_udp_port: titan_common::DEFAULT_CENTER_REGISTER_UDP_PORT,
-        ui_lang: UiLang::default(),
-        active_nav: NavTab::default(),
-    }
-}
-
-fn load_or_migrate_endpoints(
-    db_path: &std::path::Path,
-    legacy_eps: Option<Vec<crate::app::HostEndpoint>>,
-) -> Vec<crate::app::HostEndpoint> {
-    let mut endpoints = device_store::load_registered_devices(db_path).unwrap_or_else(|e| {
-        tracing::warn!("device_store: load {:?}: {e}", db_path);
-        Vec::new()
-    });
-    if endpoints.is_empty()
-        && let Some(import) = legacy_eps.filter(|e| !e.is_empty())
-    {
-        endpoints = import;
-        if let Err(e) = device_store::save_registered_devices(db_path, &endpoints) {
-            tracing::warn!("device_store: migrate save {:?}: {e}", db_path);
-        }
-    }
-    for ep in &mut endpoints {
-        ep.ensure_device_id();
-    }
-    endpoints
-}
-
-fn init_center_security() -> CenterSecurity {
-    use titan_quic::{Role, TrustStore, load_or_generate};
-    let identity_dir = crate::app::center_paths::identity_dir();
-    let trust_path = crate::app::center_paths::trust_store_path();
-    let device_id = device_id_for_center();
-    let identity = match load_or_generate(&identity_dir, Role::Center, &device_id) {
-        Ok(id) => Arc::new(id),
-        Err(e) => panic!("titan-center: cannot load/generate mTLS identity: {e}"),
-    };
-    let trust = match TrustStore::open(trust_path) {
-        Ok(t) => Arc::new(t),
-        Err(e) => panic!("titan-center: cannot open trust store: {e}"),
-    };
-    titan_quic::install_default_crypto_provider();
-    if let Err(e) = crate::app::net::init_global(identity.clone(), trust.clone()) {
-        panic!("titan-center: cannot init QUIC client: {e}");
-    }
-    tracing::info!(
-        device_id = %device_id,
-        fingerprint = %identity.spki_sha256_hex,
-        "center mTLS identity ready"
-    );
-    CenterSecurity { identity, trust }
-}
-
-fn device_id_for_center() -> String {
-    machine_uid::get().unwrap_or_else(|_| "unknown-center".to_string())
 }

@@ -3,15 +3,15 @@
 //! v3 of [`HostAnnounceBeacon`] carries the host's mTLS SPKI fingerprint (`host_spki_sha256_hex`)
 //! so Center can auto-trust it without a TOFU prompt for LAN-discovered devices.
 
-use std::net::{SocketAddr, UdpSocket};
+use std::net::SocketAddr;
 use std::sync::Arc;
-use std::thread;
 use std::time::Duration;
 
-use serde_json::{from_slice, to_vec};
+mod sidecars;
+
+use serde_json::to_vec;
 use titan_common::{
-    CenterPollBeacon, DEFAULT_CENTER_POLL_UDP_PORT, DEFAULT_CENTER_REGISTER_UDP_PORT,
-    HostAnnounceBeacon,
+    DEFAULT_CENTER_POLL_UDP_PORT, DEFAULT_CENTER_REGISTER_UDP_PORT, HostAnnounceBeacon,
 };
 use titan_quic::Identity;
 
@@ -78,110 +78,6 @@ fn build_announce_payload(
     to_vec(&beacon).ok()
 }
 
-fn spawn_periodic_announce(interval: Duration, center_register_udp_port: u16, payload: Vec<u8>) {
-    let Some(dest) = broadcast_dest(center_register_udp_port) else {
-        return;
-    };
-    thread::spawn(move || {
-        let sock = match build_broadcast_socket("periodic") {
-            Some(s) => s,
-            None => return,
-        };
-        loop {
-            if let Err(e) = sock.send_to(&payload, dest) {
-                tracing::debug!(error = %e, "host announce: periodic send_to failed");
-            }
-            thread::sleep(interval);
-        }
-    });
-}
-
-/// Initial burst: 50 ms × 10 announces right after the QUIC endpoint comes up so a freshly
-/// booted host is visible to Center within ~50 ms regardless of `periodic_interval`.
-const INITIAL_BURST_INTERVAL: Duration = Duration::from_millis(50);
-const INITIAL_BURST_COUNT: u32 = 10;
-
-fn spawn_initial_burst_announce(center_register_udp_port: u16, payload: Vec<u8>) {
-    let Some(dest) = broadcast_dest(center_register_udp_port) else {
-        return;
-    };
-    thread::spawn(move || {
-        let sock = match build_broadcast_socket("burst") {
-            Some(s) => s,
-            None => return,
-        };
-        for i in 0..INITIAL_BURST_COUNT {
-            if let Err(e) = sock.send_to(&payload, dest) {
-                tracing::debug!(error = %e, "host announce: burst send_to failed");
-            }
-            if i == 0 {}
-            thread::sleep(INITIAL_BURST_INTERVAL);
-        }
-    });
-}
-
-fn broadcast_dest(port: u16) -> Option<SocketAddr> {
-    format!("255.255.255.255:{port}").parse().ok()
-}
-
-fn build_broadcast_socket(label: &'static str) -> Option<UdpSocket> {
-    let sock = match UdpSocket::bind("0.0.0.0:0") {
-        Ok(s) => s,
-        Err(e) => {
-            tracing::warn!(error = %e, label, "host announce: UDP bind failed");
-            return None;
-        }
-    };
-    if let Err(e) = sock.set_broadcast(true) {
-        tracing::warn!(error = %e, label, "host announce: set_broadcast failed");
-    }
-    Some(sock)
-}
-
-fn center_poll_try_reply(sock: &UdpSocket, buf: &[u8], n: usize, peer: SocketAddr, payload: &[u8]) {
-    let poll: CenterPollBeacon = match from_slice(&buf[..n]) {
-        Ok(b) => b,
-        Err(_) => return,
-    };
-    if poll.validate().is_err() {
-        return;
-    }
-    let dest = SocketAddr::new(peer.ip(), poll.register_udp_port);
-    if let Err(e) = sock.send_to(payload, dest) {
-        tracing::debug!(error = %e, %dest, "host announce: poll reply send_to failed");
-    }
-}
-
-fn spawn_center_poll_responder(listen_port: u16, payload: Vec<u8>) {
-    thread::spawn(move || {
-        let sock = match UdpSocket::bind(("0.0.0.0", listen_port)) {
-            Ok(s) => s,
-            Err(e) => {
-                tracing::warn!(
-                    error = %e,
-                    port = listen_port,
-                    "host announce: poll listen bind failed (port in use?)"
-                );
-                return;
-            }
-        };
-        if let Err(e) = sock.set_broadcast(true) {
-            tracing::warn!(error = %e, "host announce: poll set_broadcast failed");
-        }
-        tracing::info!(
-            port = listen_port,
-            "host announce: listening for Titan Center LAN registration polls (UDP)"
-        );
-        let mut buf = vec![0u8; 4096];
-        loop {
-            match sock.recv_from(&mut buf) {
-                Ok((n, peer)) => center_poll_try_reply(&sock, &buf, n, peer, &payload),
-                Err(e) => tracing::debug!(error = %e, "host announce: poll recv"),
-            }
-        }
-    });
-}
-
 fn host_announce_payload(
     cfg: &HostAnnounceConfig,
     bind_request: SocketAddr,
@@ -195,18 +91,6 @@ fn host_announce_payload(
     let device_id = crate::host_device_id::host_device_id_string();
     let payload = build_announce_payload(&public, &label, &device_id, &identity.spki_sha256_hex)?;
     Some((public, label, device_id, payload))
-}
-
-fn start_announce_sidecars(cfg: &HostAnnounceConfig, payload: Vec<u8>) {
-    if cfg.center_poll_listen_port > 0 {
-        spawn_center_poll_responder(cfg.center_poll_listen_port, payload.clone());
-    }
-    spawn_initial_burst_announce(cfg.center_register_udp_port, payload.clone());
-    if let Some(iv) = cfg.periodic_interval
-        && !iv.is_zero()
-    {
-        spawn_periodic_announce(iv, cfg.center_register_udp_port, payload);
-    }
 }
 
 pub fn spawn_host_announce_background(
@@ -235,5 +119,5 @@ pub fn spawn_host_announce_background(
         periodic = ?cfg.periodic_interval,
         "host announce: LAN registration (center poll + optional periodic)"
     );
-    start_announce_sidecars(&cfg, payload);
+    sidecars::start_announce_sidecars(&cfg, payload);
 }

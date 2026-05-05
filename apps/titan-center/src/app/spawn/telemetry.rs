@@ -5,20 +5,19 @@
 //! [`titan_common::ControlPush`] frames from the host-opened uni-stream until the connection
 //! drops or the user stops the link. Reconnects with exponential backoff capped at 10s.
 
+mod session;
+
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Sender;
 use std::time::Duration;
 
-use anyhow::{Context, Result, anyhow};
 use quinn::{Connection, RecvStream};
-use titan_common::{ControlRequest, ControlResponse};
 
 use super::super::constants::TELEMETRY_MAX_CONCURRENT;
-use super::super::net::{
-    NetUiMsg, ensure_connection_for_telemetry, exchange_one, forget_host, read_one_telemetry_push,
-};
+use super::super::net::{NetUiMsg, forget_host, read_one_telemetry_push};
 use super::super::{CenterApp, TelemetryLink};
+use session::start_telemetry_session;
 
 impl CenterApp {
     pub(crate) fn spawn_telemetry_reader(&mut self) {
@@ -202,38 +201,6 @@ async fn try_one_session(
             backoff_ms.saturating_mul(2).min(500)
         }
     }
-}
-
-async fn start_telemetry_session(quic_addr: &str) -> Result<(Connection, RecvStream)> {
-    let connection = tokio::time::timeout(
-        Duration::from_millis(180),
-        ensure_connection_for_telemetry(quic_addr),
-    )
-    .await
-    .map_err(|_| anyhow!("ensure connection timeout"))??;
-    let res = tokio::time::timeout(
-        Duration::from_millis(220),
-        exchange_one(quic_addr, &ControlRequest::SubscribeTelemetry),
-    )
-    .await
-    .map_err(|_| anyhow!("subscribe rpc timeout"))??;
-    match res {
-        ControlResponse::SubscribeTelemetryAck { ok: true } => {}
-        ControlResponse::SubscribeTelemetryAck { ok: false } => {
-            return Err(anyhow!("host refused telemetry subscription"));
-        }
-        ControlResponse::ServerError { message, .. } => {
-            return Err(anyhow!("host: {message}"));
-        }
-        other => {
-            return Err(anyhow!("unexpected response to subscribe: {other:?}"));
-        }
-    }
-    let recv = tokio::time::timeout(Duration::from_millis(1200), connection.accept_uni())
-        .await
-        .map_err(|_| anyhow!("accept telemetry uni timeout"))?
-        .context("accept telemetry uni stream")?;
-    Ok((connection, recv))
 }
 
 async fn read_until_disconnect(

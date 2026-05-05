@@ -1,16 +1,15 @@
 # Fleet control plane (Center ↔ many Hosts)
 
-## TCP (command + telemetry)
+## QUIC + mTLS (command + telemetry)
 
-- **Command TCP**: framed `MAGIC` + version + length + **rkyv** payload (`titan-common::wire::codec`).
-- **Telemetry TCP**: command port + `CONTROL_PLANE_TELEMETRY_PORT_OFFSET` (default +1); host pushes `ControlPush` including ~**3 FPS** desktop JPEG for card thumbnails.
+- **RPC plane**: framed `ControlRequest/ControlResponse` on QUIC bi-streams (one RPC per stream).
+- **Telemetry plane**: QUIC uni-stream push (`ControlPush`), including host heartbeat + desktop preview JPEG.
 
-## Socket tuning
+## Transport notes
 
-- **Host**: listeners are created via `socket2` (`titan_host::tcp_tune::tcp_listen_tokio`) then wrapped as Tokio `TcpListener`.
-- **Center**: after `TcpStream::connect`, `set_nodelay(true)` via `titan_center::app::tcp_tune::tune_connected_stream`.
-
-**Note:** Experimental QUIC fleet UDP and optional zstd framing helpers were removed from the codebase; LAN control stays on **TCP** (command + telemetry) as above.
+- **Host**: QUIC endpoint runs in `titan-host::serve::run`, with mTLS identity/trust bootstrapped from host storage.
+- **Center**: QUIC client side lives under `titan-center` net spawn layer; telemetry readers are per-host session keyed.
+- **LAN discoverability** remains UDP beacon based (`HostAnnounceBeacon` / `CenterPollBeacon`) and is independent from QUIC stream lifecycle.
 
 ## Center fleet UI / state
 
@@ -21,4 +20,4 @@
 ## Telemetry `host_key`
 
 - `NetUiMsg::HostTelemetry` / `TelemetryLinkLost` carry **`host_key`** so multiple telemetry sessions can be routed once Center opens more than one stream.
-- **Connect tab**: **Fleet telemetry** starts one TCP telemetry reader per checked device (soft cap **8** concurrent streams, `TELEMETRY_MAX_CONCURRENT`). Each stream has its own `session_gen` so stale pushes after stop are ignored.
+- **Connect tab**: **Fleet telemetry** starts one QUIC telemetry reader per checked device (soft cap **8** concurrent streams, `TELEMETRY_MAX_CONCURRENT`). Each stream has its own `session_gen` so stale pushes after stop are ignored.

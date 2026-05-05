@@ -3,7 +3,7 @@ name = "titan-host"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Host node: egui settings + TCP control-plane server (`titan_host::serve`)."
+description = "Host node: egui settings + QUIC mTLS control-plane server (`titan_host::serve`)."
 build = "build.rs"
 
 # See `titan-center` crate for packaging notes (`cargo-packager`).
