@@ -35,6 +35,7 @@ impl TrayTheme {
     }
 
     /// Glyph RGB — maximum contrast against [`Self::chip_color`] so the letter is readable.
+    #[cfg(windows)]
     pub(crate) fn glyph_color(self) -> [u8; 3] {
         match self {
             Self::Dark => [255, 255, 255],

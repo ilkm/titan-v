@@ -223,9 +223,9 @@ fn tray_icon_requests_main_window(ev: &TrayIconEvent) -> bool {
     )
 }
 
-fn tray_icon_repaint_wakeup(ctx: &egui::Context, ev: &TrayIconEvent) {
+fn tray_icon_repaint_wakeup(ctx: &egui::Context, _ev: &TrayIconEvent) {
     #[cfg(not(target_os = "macos"))]
-    if tray_icon_requests_main_window(ev) {
+    if tray_icon_requests_main_window(_ev) {
         schedule_egui_repaint_off_ui_thread(ctx);
         return;
     }
