@@ -154,9 +154,7 @@ impl HostApp {
         let content_w = effective_content_width(full_w);
         let column_w = content_w.min(full_w);
         let side_remain = (full_w - column_w).max(0.0);
-        let half = 0.5 * side_remain;
         ui.horizontal(|ui| {
-            ui.add_space(half);
             ui.vertical(|ui| {
                 ui.set_width(column_w);
                 match self.active_tab {
@@ -165,7 +163,7 @@ impl HostApp {
                     _ => {}
                 }
             });
-            ui.add_space(half);
+            ui.add_space(side_remain);
         });
     }
 

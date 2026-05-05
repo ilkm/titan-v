@@ -88,7 +88,7 @@ impl HostApp {
         let w = ui.available_width();
         let h = ui.available_height().max(180.0);
         ui.allocate_ui_with_layout(egui::vec2(w, h), Layout::top_down(Align::Min), |ui| {
-            Self::paint_window_mgmt_empty_centered(ui, lang, w);
+            Self::paint_window_mgmt_empty_left(ui, lang, w);
         });
     }
 
@@ -121,18 +121,18 @@ impl HostApp {
         .into_galley(ui, Some(TextWrapMode::Wrap), text_width, TextStyle::Small)
     }
 
-    fn paint_window_mgmt_empty_centered(ui: &mut egui::Ui, lang: UiLang, w: f32) {
+    fn paint_window_mgmt_empty_left(ui: &mut egui::Ui, lang: UiLang, w: f32) {
+        const PAD_X: f32 = 4.0;
+        const PAD_Y: f32 = 8.0;
         let rect = ui.max_rect();
-        let text_width = (w * 0.92).clamp(1.0, 520.0);
+        let text_width = (w - PAD_X * 2.0).clamp(1.0, 520.0);
         let main_color = ui.visuals().widgets.inactive.text_color();
         let hint_color = ui.visuals().weak_text_color();
         let main_galley = Self::window_mgmt_empty_main_galley(ui, lang, text_width, main_color);
         let hint_galley = Self::window_mgmt_empty_hint_galley(ui, lang, text_width, hint_color);
         let gap = 10.0;
         let main_h = main_galley.size().y;
-        let block_h = main_h + gap + hint_galley.size().y;
-        let block_w = main_galley.size().x.max(hint_galley.size().x);
-        let origin = rect.center() - 0.5 * Vec2::new(block_w, block_h);
+        let origin = rect.min + Vec2::new(PAD_X, PAD_Y);
         ui.painter().galley(origin, main_galley, main_color);
         let hint_origin = origin + Vec2::new(0.0, main_h + gap);
         ui.painter().galley(hint_origin, hint_galley, hint_color);
@@ -143,7 +143,7 @@ impl HostApp {
         let (cols, card_w) = device_mgmt_cols_and_card_width(inner);
         let gap = DEVICE_CARD_GAP;
         let row_w = cols as f32 * card_w + (cols.saturating_sub(1) as f32) * gap;
-        let lead = ((inner - row_w).max(0.0)) * 0.5;
+        let lead = 0.0;
         (cols, card_w, gap, row_w, lead)
     }
 
