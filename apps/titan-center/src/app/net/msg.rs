@@ -1,6 +1,6 @@
 //! Messages from the background network thread to the UI thread.
 
-use titan_common::{ControlPush, HostResourceStats, VmBrief, VmWindowRecord};
+use titan_common::{ControlPush, HostResourceStats, VmBrief};
 
 pub enum NetUiMsg {
     Caps {
@@ -17,8 +17,6 @@ pub enum NetUiMsg {
         caps_summary: String,
         error: String,
     },
-    /// LAN UDP: host registered a planned VM window row (SQLite + UI).
-    VmWindowRegistered(VmWindowRecord),
     /// LAN UDP: host announced its control-plane TCP address; merge into device list.
     HostAnnounced {
         control_addr: String,

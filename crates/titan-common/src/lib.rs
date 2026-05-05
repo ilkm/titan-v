@@ -23,8 +23,8 @@ pub use plan::VmSpoofProfile;
 pub use state::{NodeState, VmPowerState};
 pub use ui_lang::UiLang;
 pub use vm_window::{
-    VM_WINDOW_REGISTER_BEACON_KIND, VM_WINDOW_REGISTER_SCHEMA_VERSION, VmWindowRecord,
-    VmWindowRegisterBeacon,
+    VM_WINDOW_FOLDER_ID_MAX, VM_WINDOW_FOLDER_ID_MIN, VmWindowRecord, next_unused_vm_folder_id,
+    validate_vm_window_record,
 };
 pub use wire::{
     CONTROL_PLANE_TELEMETRY_PORT_OFFSET, ControlHostFrame, ControlPush, ControlRequest,
@@ -38,4 +38,4 @@ pub use wire::{
 };
 
 /// Wire protocol / capability negotiation version (center ↔ host).
-pub const PROTOCOL_VERSION: u32 = 14;
+pub const PROTOCOL_VERSION: u32 = 15;

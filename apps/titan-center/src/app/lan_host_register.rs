@@ -4,7 +4,7 @@ use std::net::UdpSocket;
 use std::sync::mpsc::Sender;
 
 use egui::Context;
-use titan_common::{HostAnnounceBeacon, VmWindowRegisterBeacon};
+use titan_common::HostAnnounceBeacon;
 
 use super::net::NetUiMsg;
 
@@ -50,20 +50,7 @@ fn lan_register_parse_announced(slice: &[u8]) -> Option<(String, String, String)
     Some((addr, label, device_id))
 }
 
-fn lan_try_parse_vm_window(slice: &[u8]) -> Option<titan_common::VmWindowRecord> {
-    let b: VmWindowRegisterBeacon = serde_json::from_slice(slice).ok()?;
-    b.validate().ok()?;
-    Some(b.record)
-}
-
 fn lan_register_try_dispatch(slice: &[u8], tx: &Sender<NetUiMsg>, ctx: &Context) -> bool {
-    if let Some(record) = lan_try_parse_vm_window(slice) {
-        if tx.send(NetUiMsg::VmWindowRegistered(record)).is_err() {
-            return false;
-        }
-        ctx.request_repaint();
-        return true;
-    }
     let Some((addr, label, device_id)) = lan_register_parse_announced(slice) else {
         return true;
     };

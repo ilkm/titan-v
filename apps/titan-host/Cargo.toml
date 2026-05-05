@@ -54,7 +54,6 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 machine-uid = "0.5"
 dirs = "5"
-uuid = { version = "1", features = ["v4"] }
 
 [build-dependencies]
 winres = "0.1"

@@ -23,18 +23,25 @@ use super::dispatch::dispatch_request;
 use super::errors::ServeError;
 use super::io::read_one_control_request;
 use super::limits::{DEFAULT_CONN_TIMEOUT, DEFAULT_IDLE_BETWEEN_FRAMES, MAX_FRAMES_PER_CONNECTION};
-use super::state::ServeState;
+use super::state::{ServeState, VmWindowReloadMsg};
 use super::telemetry;
 
 use crate::tcp_tune::tcp_listen_tokio;
 
 static NEXT_CONN_ID: AtomicU64 = AtomicU64::new(1);
 
+/// `std::sync::mpsc` bridges from the control-plane thread into the Host egui thread.
+#[derive(Clone)]
+pub struct ServeUiChannels {
+    pub persist_apply_tx: Option<sync_mpsc::Sender<HostUiPersist>>,
+    pub lang_apply_tx: Option<sync_mpsc::Sender<UiLang>>,
+    pub vm_windows_reload_tx: Option<sync_mpsc::Sender<VmWindowReloadMsg>>,
+}
+
 async fn build_serve_state(
     agents: Arc<AgentBindingTable>,
     host_notice: String,
-    persist_apply_tx: Option<sync_mpsc::Sender<HostUiPersist>>,
-    lang_apply_tx: Option<sync_mpsc::Sender<UiLang>>,
+    ui: ServeUiChannels,
 ) -> Result<Arc<ServeState>, ServeError> {
     let host_notice = std::sync::Mutex::new(host_notice);
     let (gpu_partition_available, runtime_probes) = tokio::task::spawn_blocking(|| {
@@ -51,8 +58,9 @@ async fn build_serve_state(
         host_notice,
         gpu_partition_available,
         runtime_probes,
-        persist_apply_tx,
-        lang_apply_tx,
+        ui.persist_apply_tx,
+        ui.lang_apply_tx,
+        ui.vm_windows_reload_tx,
     )))
 }
 
@@ -188,16 +196,9 @@ pub async fn run_serve(
     agent_bindings_notice: String,
     announce: HostAnnounceConfig,
     shutdown: watch::Receiver<bool>,
-    persist_apply_tx: Option<sync_mpsc::Sender<HostUiPersist>>,
-    lang_apply_tx: Option<sync_mpsc::Sender<UiLang>>,
+    ui_channels: ServeUiChannels,
 ) -> Result<(), ServeError> {
-    let state = build_serve_state(
-        agent_bindings,
-        agent_bindings_notice,
-        persist_apply_tx,
-        lang_apply_tx,
-    )
-    .await?;
+    let state = build_serve_state(agent_bindings, agent_bindings_notice, ui_channels).await?;
     let listener = tcp_listen_tokio(bind).map_err(ServeError::Io)?;
     let local = listener.local_addr().map_err(ServeError::Io)?;
     spawn_host_announce_background(announce, bind, local);

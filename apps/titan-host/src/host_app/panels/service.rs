@@ -22,6 +22,9 @@ impl HostApp {
         section_card(ui, i18n::t(lang, Msg::HpSectionIdentity), |ui| {
             self.panel_service_identity_fields(ui, lang);
         });
+        section_card(ui, i18n::t(lang, Msg::HpSectionVmStorage), |ui| {
+            self.panel_service_vm_root_row(ui, lang);
+        });
         ui.add_space(8.0);
         self.panel_service_actions(ui, lang);
     }
@@ -111,6 +114,21 @@ impl HostApp {
                 let w = ui.available_width().max(160.0);
                 ui.add(
                     egui::TextEdit::singleline(&mut self.persist.label_override).desired_width(w),
+                );
+            },
+        );
+    }
+
+    fn panel_service_vm_root_row(&mut self, ui: &mut egui::Ui, lang: UiLang) {
+        form_field_row(
+            ui,
+            RichText::new(i18n::t(lang, Msg::HpVmRootDir)).small(),
+            |ui| {
+                let w = ui.available_width().max(200.0);
+                ui.add(
+                    egui::TextEdit::singleline(&mut self.persist.vm_root_directory)
+                        .desired_width(w)
+                        .hint_text(i18n::t(lang, Msg::HpVmRootDirHint)),
                 );
             },
         );

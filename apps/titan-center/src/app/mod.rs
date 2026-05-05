@@ -4,7 +4,9 @@ mod constants;
 pub mod device_store;
 mod discovery;
 mod fleet_state;
-mod vm_window_db;
+mod vm_window_create_dialog;
+pub mod vm_window_db;
+pub mod vm_window_push_to_hosts;
 pub use titan_i18n as i18n;
 mod lan_host_register;
 pub mod net;
@@ -137,8 +139,12 @@ pub struct CenterApp {
     pub(crate) device_masonry_heights: HashMap<String, f32>,
     /// Window management tab: last painted card height per `VmWindowRecord::record_id`.
     pub(crate) vm_window_masonry_heights: HashMap<String, f32>,
+    pub(crate) vm_window_create: vm_window_create_dialog::CenterVmWindowCreateForm,
+    pub(crate) vm_window_create_id_nonce: u64,
     /// Card overlay delete: applied before painting so the same frame never reads `endpoints[i]` after removal.
     pub(crate) pending_remove_endpoint: Option<usize>,
+    /// Window-mgmt card delete: row index into `vm_window_records`; resolved into a `DeleteVmWindowOnHost` RPC.
+    pub(crate) pending_delete_vm_window_row_ix: Option<usize>,
     /// Host JSON draft window (device card preview → Configure).
     pub(crate) host_config_window_open: bool,
     /// Draft JSON for [`device_store::host_managed_config`] (host config window).

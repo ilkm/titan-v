@@ -2,14 +2,13 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use titan_common::UiLang;
 use tokio::sync::watch;
 
 use crate::agent_binding_table::AgentBindingTable;
 use crate::host_font;
-use crate::serve::{HostAnnounceConfig, run_serve};
+use crate::serve::{HostAnnounceConfig, ServeUiChannels, run_serve};
 
-use crate::host_app::model::{CreateWindowForm, HostApp, HostUiPersist, PERSIST_KEY, ServeRun};
+use crate::host_app::model::{HostApp, HostUiPersist, PERSIST_KEY, ServeRun};
 use crate::host_app::ui::theme::apply_host_chrome_theme;
 
 fn host_try_build_serve_runtime() -> Option<tokio::runtime::Runtime> {
@@ -31,8 +30,7 @@ fn serve_thread_main(
     agent_notice: String,
     announce: HostAnnounceConfig,
     shutdown_rx: watch::Receiver<bool>,
-    persist_apply_tx: Option<std::sync::mpsc::Sender<crate::ui_persist::HostUiPersist>>,
-    lang_apply_tx: Option<std::sync::mpsc::Sender<UiLang>>,
+    ui_channels: ServeUiChannels,
 ) {
     let Some(rt) = host_try_build_serve_runtime() else {
         return;
@@ -43,8 +41,7 @@ fn serve_thread_main(
         agent_notice,
         announce,
         shutdown_rx,
-        persist_apply_tx,
-        lang_apply_tx,
+        ui_channels,
     ));
     if let Err(e) = res {
         tracing::warn!(error = %e, "serve thread ended with error");
@@ -79,6 +76,8 @@ impl HostApp {
 
         let (persist_apply_tx, persist_apply_rx) = std::sync::mpsc::channel();
         let (lang_apply_tx, lang_apply_rx) = std::sync::mpsc::channel();
+        let (vm_windows_reload_tx, vm_windows_reload_rx) =
+            std::sync::mpsc::channel::<crate::serve::VmWindowReloadMsg>();
         Self {
             really_quitting: false,
             hidden_to_tray: false,
@@ -88,6 +87,8 @@ impl HostApp {
             persist_apply_rx,
             lang_apply_tx: Some(lang_apply_tx),
             lang_apply_rx,
+            vm_windows_reload_tx: Some(vm_windows_reload_tx),
+            vm_windows_reload_rx,
             persist,
             active_tab: 0,
             status_line: String::new(),
@@ -96,9 +97,7 @@ impl HostApp {
             boot_window_focus_once: false,
             settings_open: false,
             settings_lang_btn_rect: None,
-            create_window: CreateWindowForm::with_defaults(),
-            window_mgmt_feedback: String::new(),
-            vm_window_records: crate::vm_window_local::load_vm_windows(),
+            vm_window_records: Vec::new(),
             vm_window_masonry_heights: HashMap::new(),
             host_desktop_textures: HashMap::new(),
             host_resource_stats: HashMap::new(),
@@ -125,16 +124,14 @@ impl HostApp {
         Some((listen, agents, notice, self.persist.to_announce()))
     }
 
-    pub(crate) fn start_serve(&mut self) {
-        if let Some(r) = self.serve_run.take() {
-            r.stop();
-        }
-        let Some((listen, agents, agent_notice, announce)) = self.start_serve_resolve() else {
-            return;
-        };
+    fn start_serve_spawn_join(
+        listen: SocketAddr,
+        agents: Arc<AgentBindingTable>,
+        agent_notice: String,
+        announce: HostAnnounceConfig,
+        ui_channels: ServeUiChannels,
+    ) -> ServeRun {
         let (shutdown_tx, shutdown_rx) = watch::channel(false);
-        let persist_tx = self.persist_apply_tx.clone();
-        let lang_tx = self.lang_apply_tx.clone();
         let join = std::thread::Builder::new()
             .name("titan-host-serve".into())
             .spawn(move || {
@@ -144,12 +141,32 @@ impl HostApp {
                     agent_notice,
                     announce,
                     shutdown_rx,
-                    persist_tx,
-                    lang_tx,
+                    ui_channels,
                 )
             })
             .expect("spawn serve thread");
-        self.serve_run = Some(ServeRun { shutdown_tx, join });
+        ServeRun { shutdown_tx, join }
+    }
+
+    pub(crate) fn start_serve(&mut self) {
+        if let Some(r) = self.serve_run.take() {
+            r.stop();
+        }
+        let Some((listen, agents, agent_notice, announce)) = self.start_serve_resolve() else {
+            return;
+        };
+        let ui_channels = ServeUiChannels {
+            persist_apply_tx: self.persist_apply_tx.clone(),
+            lang_apply_tx: self.lang_apply_tx.clone(),
+            vm_windows_reload_tx: self.vm_windows_reload_tx.clone(),
+        };
+        self.serve_run = Some(Self::start_serve_spawn_join(
+            listen,
+            agents,
+            agent_notice,
+            announce,
+            ui_channels,
+        ));
         self.status_line =
             crate::titan_i18n::hp_control_listening(self.persist.ui_lang, &self.persist.listen);
     }

@@ -73,8 +73,29 @@ fn compose_tray_body(
         fill_chip_rgba(rgba, w, h, rad, theme.chip_color());
     }
     if let Some(font) = font::tray_font() {
-        paint_label(rgba, w, h, rad, font, product, lang, theme);
+        paint_label(TrayLabelPaint {
+            buf: rgba,
+            w,
+            h,
+            rad,
+            font,
+            product,
+            lang,
+            theme,
+        });
     }
+}
+
+#[cfg(not(windows))]
+struct TrayLabelPaint<'a> {
+    buf: &'a mut [u8],
+    w: usize,
+    h: usize,
+    rad: i32,
+    font: &'a Font,
+    product: DesktopProduct,
+    lang: UiLang,
+    theme: TrayTheme,
 }
 
 #[cfg(windows)]
@@ -171,25 +192,18 @@ fn inner_round_rect_params(wi: i32, hi: i32, stroke: i32) -> Option<(i32, i32, i
 }
 
 #[cfg(not(windows))]
-fn paint_label(
-    buf: &mut [u8],
-    w: usize,
-    h: usize,
-    rad: i32,
-    font: &Font,
-    product: DesktopProduct,
-    lang: UiLang,
-    theme: TrayTheme,
-) {
-    let label = tray_label(product, lang);
-    let wi = w as i32;
-    let hi = h as i32;
-    let Some(lay) = layout_tray_label(font, label, wi, hi, lang) else {
+fn paint_label<'a>(ctx: TrayLabelPaint<'a>) {
+    let label = tray_label(ctx.product, ctx.lang);
+    let wi = ctx.w as i32;
+    let hi = ctx.h as i32;
+    let Some(lay) = layout_tray_label(ctx.font, label, wi, hi, ctx.lang) else {
         return;
     };
-    match lang {
-        UiLang::Zh => paint_zh_cutout(buf, wi, hi, rad, font, label, &lay),
-        UiLang::En => paint_en_ring_solid(buf, w, h, rad, font, label, &lay, theme),
+    match ctx.lang {
+        UiLang::Zh => paint_zh_cutout(ctx.buf, wi, hi, ctx.rad, ctx.font, label, &lay),
+        UiLang::En => paint_en_ring_solid(
+            ctx.buf, ctx.w, ctx.h, ctx.rad, ctx.font, label, &lay, ctx.theme,
+        ),
     }
 }
 

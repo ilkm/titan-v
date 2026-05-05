@@ -16,7 +16,6 @@ use crate::app::persist_data::{
     default_host_collect_interval_secs, default_list_vms_poll_secs,
 };
 use crate::app::ui::theme::apply_center_theme;
-use crate::app::vm_window_db;
 
 impl CenterApp {
     /// Interval between automatic `Hello` attempts when not connected (`control_addr` non-empty).
@@ -101,10 +100,6 @@ impl CenterApp {
         } else {
             Self::AUTO_HELLO_RETRY_SECS
         };
-        let vm_window_records = vm_window_db::load_vm_windows(&db_path).unwrap_or_else(|e| {
-            tracing::warn!("vm_window_db: load {:?}: {e}", db_path);
-            Vec::new()
-        });
         let app = Self {
             ctx: cc.egui_ctx.clone(),
             endpoints,
@@ -159,14 +154,21 @@ impl CenterApp {
             device_remark_edit_focus_next: false,
             device_masonry_heights: HashMap::new(),
             vm_window_masonry_heights: HashMap::new(),
+            vm_window_create:
+                crate::app::vm_window_create_dialog::CenterVmWindowCreateForm::with_defaults(),
+            vm_window_create_id_nonce: 0,
             pending_remove_endpoint: None,
+            pending_delete_vm_window_row_ix: None,
             host_config_window_open: false,
             host_managed_draft_json: String::new(),
             host_managed_last_msg: String::new(),
             fleet_by_endpoint: HashMap::new(),
             fleet_busy: false,
             vm_inventory: Vec::new(),
-            vm_window_records,
+            vm_window_records: crate::app::vm_window_db::list_all(
+                &crate::app::vm_window_db::center_vm_window_db_path(),
+            )
+            .unwrap_or_default(),
             last_action: String::new(),
             control_addr,
             net_tx,

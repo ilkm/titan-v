@@ -45,3 +45,6 @@ winres = "0.1"
 
 [target.'cfg(windows)'.dependencies]
 raw-window-handle = "0.6"
+
+[dev-dependencies]
+tempfile = "3"

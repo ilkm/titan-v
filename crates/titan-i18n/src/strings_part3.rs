@@ -2,10 +2,66 @@ use crate::UiLang;
 use crate::msg::Msg;
 
 pub(super) fn translate(lang: UiLang, msg: Msg) -> Option<&'static str> {
-    inventory_and_preview(lang, msg)
+    center_vm_window_create_i18n(lang, msg)
+        .or_else(|| inventory_and_preview(lang, msg))
         .or_else(|| monitor_counts(lang, msg))
         .or_else(|| monitor_hints_and_actions(lang, msg))
         .or_else(|| tray(lang, msg))
+}
+
+fn center_vm_window_create_i18n(lang: UiLang, msg: Msg) -> Option<&'static str> {
+    center_vm_window_create_i18n_devices(lang, msg)
+        .or_else(|| center_vm_window_create_i18n_sync_api(lang, msg))
+}
+
+fn center_vm_window_create_i18n_devices(lang: UiLang, msg: Msg) -> Option<&'static str> {
+    match (lang, msg) {
+        (UiLang::En, Msg::CenterWinMgmtDevice) => Some("Device"),
+        (UiLang::Zh, Msg::CenterWinMgmtDevice) => Some("设备"),
+        (UiLang::En, Msg::CenterWinMgmtDevicePlaceholder) => Some("Select a device (required)"),
+        (UiLang::Zh, Msg::CenterWinMgmtDevicePlaceholder) => Some("请选择设备（必填）"),
+        (UiLang::En, Msg::CenterWinMgmtErrNoDevice) => Some("Please select a device."),
+        (UiLang::Zh, Msg::CenterWinMgmtErrNoDevice) => Some("请选择设备。"),
+        (UiLang::En, Msg::CenterWinMgmtErrNoDevices) => {
+            Some("No registered devices. Add a host on the Connect tab first.")
+        }
+        (UiLang::Zh, Msg::CenterWinMgmtErrNoDevices) => {
+            Some("暂无已登记设备，请先在「连接」页添加宿主机。")
+        }
+        (UiLang::En, Msg::CenterWinMgmtDbErr) => Some("Could not save to the database."),
+        (UiLang::Zh, Msg::CenterWinMgmtDbErr) => Some("无法写入数据库。"),
+        (UiLang::En, Msg::CenterWinMgmtToastCreated) => {
+            Some("VM window saved for the selected host.")
+        }
+        (UiLang::Zh, Msg::CenterWinMgmtToastCreated) => Some("已为所选宿主机保存虚拟机窗口。"),
+        _ => None,
+    }
+}
+
+fn center_vm_window_create_i18n_sync_api(lang: UiLang, msg: Msg) -> Option<&'static str> {
+    match (lang, msg) {
+        (UiLang::En, Msg::CenterWinMgmtHostSyncErr) => Some(
+            "Could not sync this window to the host (offline, protocol mismatch, or rejected).",
+        ),
+        (UiLang::Zh, Msg::CenterWinMgmtHostSyncErr) => {
+            Some("无法将窗口同步到宿主机（离线、协议不匹配或已拒绝）。")
+        }
+        (UiLang::En, Msg::CenterWinMgmtErrVmDup) => {
+            Some("This host already has that VM ID or the same VM directory.")
+        }
+        (UiLang::Zh, Msg::CenterWinMgmtErrVmDup) => {
+            Some("该宿主机已存在相同的虚拟机 ID 或虚拟机目录。")
+        }
+        (UiLang::En, Msg::CenterVmWindowApiTcpPort) => Some("VM window list TCP port"),
+        (UiLang::Zh, Msg::CenterVmWindowApiTcpPort) => Some("虚拟机窗口列表 TCP 端口"),
+        (UiLang::En, Msg::CenterVmWindowApiTcpPortHint) => Some(
+            "Titan Host uses this port to fetch rows from the center DB; restart Titan Center after changing.",
+        ),
+        (UiLang::Zh, Msg::CenterVmWindowApiTcpPortHint) => {
+            Some("Titan Host 经此端口从本机数据库拉取窗口行；修改后请重启 Titan 中控。")
+        }
+        _ => None,
+    }
 }
 
 fn tray(lang: UiLang, msg: Msg) -> Option<&'static str> {
@@ -24,12 +80,12 @@ fn inventory_and_preview(lang: UiLang, msg: Msg) -> Option<&'static str> {
         (UiLang::Zh, Msg::WinMgmtReloadDb) => Some("重新加载列表"),
         (UiLang::En, Msg::WinMgmtNoWindows) => Some("No registered VM windows yet"),
         (UiLang::Zh, Msg::WinMgmtNoWindows) => Some("暂无已登记的虚拟机窗口"),
-        (UiLang::En, Msg::WinMgmtEmptyHint) => {
-            Some("Create a window from Titan Host on each machine; rows sync here over LAN (UDP).")
-        }
-        (UiLang::Zh, Msg::WinMgmtEmptyHint) => {
-            Some("在各节点 Titan Host 的「窗口管理」中创建窗口后，将通过局域网（UDP）同步到此处。")
-        }
+        (UiLang::En, Msg::WinMgmtEmptyHint) => Some(
+            "Use Create window here and pick a device, or register from Titan Host on each node (LAN UDP sync).",
+        ),
+        (UiLang::Zh, Msg::WinMgmtEmptyHint) => Some(
+            "在此点击「创建窗口」并选择设备即可登记；或在各节点 Titan Host 创建后由局域网（UDP）同步到此处。",
+        ),
         (UiLang::En, Msg::ColState) => Some("State"),
         (UiLang::Zh, Msg::ColState) => Some("状态"),
         (UiLang::En, Msg::VmTileHostPrefix) => Some("Host"),

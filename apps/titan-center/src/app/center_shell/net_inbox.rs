@@ -79,10 +79,6 @@ impl CenterApp {
 
     fn try_net_host_announced_only(&mut self, msg: &NetUiMsg) -> Option<bool> {
         match msg {
-            NetUiMsg::VmWindowRegistered(r) => {
-                self.on_net_vm_window_registered(r.clone());
-                Some(false)
-            }
             NetUiMsg::HostAnnounced {
                 control_addr,
                 label,
@@ -204,16 +200,6 @@ impl CenterApp {
         self.spawn_telemetry_reader();
         self.recompute_host_connected();
         self.spawn_ui_lang_push_to_host_control_addr(&self.control_addr);
-        self.ctx.request_repaint();
-    }
-
-    fn on_net_vm_window_registered(&mut self, record: titan_common::VmWindowRecord) {
-        let db = crate::app::device_store::registration_db_path();
-        if let Err(e) = crate::app::vm_window_db::insert_vm_window(&db, &record) {
-            tracing::warn!(error = %e, "vm_window insert");
-            return;
-        }
-        self.vm_window_records = crate::app::vm_window_db::load_vm_windows(&db).unwrap_or_default();
         self.ctx.request_repaint();
     }
 

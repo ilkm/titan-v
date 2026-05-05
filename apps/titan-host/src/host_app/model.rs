@@ -1,7 +1,6 @@
 //! Host egui app model (persist + serve handle).
 
 use std::collections::HashMap;
-use std::path::Path;
 use std::sync::Arc;
 use std::thread::JoinHandle;
 use std::time::Duration;
@@ -12,7 +11,7 @@ use tokio::sync::watch;
 use titan_common::{HostResourceStats, VmWindowRecord};
 
 use crate::agent_binding_table::AgentBindingTable;
-use crate::serve::HostAnnounceConfig;
+use crate::serve::{HostAnnounceConfig, VmWindowReloadMsg};
 
 pub const PERSIST_KEY: &str = "titan_host_ui_v1";
 
@@ -65,52 +64,6 @@ impl ServeRun {
     }
 }
 
-/// Draft fields for **创建窗口** modal (units: MiB where 1024 MiB ≈ 1 GiB).
-#[derive(Debug, Clone)]
-pub(crate) struct CreateWindowForm {
-    pub(crate) dialog_open: bool,
-    pub(crate) cpu_count: u32,
-    pub(crate) memory_mib: u32,
-    pub(crate) disk_mib: u32,
-    pub(crate) vm_directory: String,
-    pub(crate) inline_err: String,
-}
-
-impl CreateWindowForm {
-    pub(crate) fn with_defaults() -> Self {
-        Self {
-            dialog_open: false,
-            cpu_count: 2,
-            memory_mib: 4096,
-            disk_mib: 131_072,
-            vm_directory: default_vm_directory(),
-            inline_err: String::new(),
-        }
-    }
-}
-
-/// `{home}/titan/vm/001`, `002`, … — first subdirectory path that does not yet exist on disk.
-pub(crate) fn default_vm_directory() -> String {
-    dirs::home_dir()
-        .as_deref()
-        .map(default_vm_directory_under)
-        .unwrap_or_default()
-}
-
-pub(crate) fn default_vm_directory_under(home: &Path) -> String {
-    first_free_vm_slot(&home.join("titan").join("vm"))
-}
-
-fn first_free_vm_slot(vm_root: &Path) -> String {
-    for idx in 1u32..=999_999 {
-        let candidate = vm_root.join(format!("{idx:03}"));
-        if !candidate.exists() {
-            return candidate.display().to_string();
-        }
-    }
-    vm_root.join("overflow").display().to_string()
-}
-
 pub struct HostApp {
     pub(crate) really_quitting: bool,
     pub(crate) hidden_to_tray: bool,
@@ -120,6 +73,9 @@ pub struct HostApp {
     pub(crate) persist_apply_rx: std::sync::mpsc::Receiver<HostUiPersist>,
     pub(crate) lang_apply_tx: Option<std::sync::mpsc::Sender<titan_common::UiLang>>,
     pub(crate) lang_apply_rx: std::sync::mpsc::Receiver<titan_common::UiLang>,
+    /// Serve thread → egui: VM-window mutations from Titan Center (upsert / authoritative snapshot).
+    pub(crate) vm_windows_reload_tx: Option<std::sync::mpsc::Sender<VmWindowReloadMsg>>,
+    pub(crate) vm_windows_reload_rx: std::sync::mpsc::Receiver<VmWindowReloadMsg>,
     pub(crate) persist: HostUiPersist,
     pub(crate) active_tab: usize,
     pub(crate) status_line: String,
@@ -131,10 +87,7 @@ pub struct HostApp {
     pub(crate) settings_open: bool,
     /// Last frame's 🌐 button rect (screen space); anchors the language popup like Titan Center.
     pub(crate) settings_lang_btn_rect: Option<egui::Rect>,
-    pub(crate) create_window: CreateWindowForm,
-    /// Status line under **创建窗口** (save / notify errors or success copy).
-    pub(crate) window_mgmt_feedback: String,
-    /// Local copy of registered VM windows (JSON); same rows as Titan Center SQLite after UDP notify.
+    /// VM-window rows owned by this host (host SQLite is the single source of truth).
     pub(crate) vm_window_records: Vec<VmWindowRecord>,
     /// Window management masonry: last painted height per `VmWindowRecord::record_id`.
     pub(crate) vm_window_masonry_heights: HashMap<String, f32>,
@@ -147,6 +100,26 @@ pub struct HostApp {
 impl HostApp {
     /// Stub for device-card fork overlay (configure); host window cards stay offline-style.
     pub(crate) fn open_host_config_from_card(&mut self, _card_index: usize) {}
+}
+
+#[cfg(test)]
+use std::path::Path;
+
+#[cfg(test)]
+fn first_free_vm_slot(vm_root: &Path) -> String {
+    for idx in 1u32..=999_999 {
+        let candidate = vm_root.join(format!("{idx:03}"));
+        if !candidate.exists() {
+            return candidate.display().to_string();
+        }
+    }
+    vm_root.join("overflow").display().to_string()
+}
+
+/// `{home}/titan/vm/001`, `002`, … — first free subdirectory (tests only; host UI uses settings root + numeric id).
+#[cfg(test)]
+pub(crate) fn default_vm_directory_under(home: &Path) -> String {
+    first_free_vm_slot(&home.join("titan").join("vm"))
 }
 
 #[cfg(test)]

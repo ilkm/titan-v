@@ -216,6 +216,7 @@ impl CenterApp {
         self.render_central_panel(ctx);
         self.render_settings_window(ctx);
         self.render_host_config_window(ctx);
+        self.render_vm_window_create_dialog(ctx);
         self.render_ui_toast(ctx);
     }
 

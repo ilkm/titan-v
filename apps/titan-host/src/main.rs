@@ -16,8 +16,8 @@ fn init_tracing() {
 fn host_native_options() -> eframe::NativeOptions {
     eframe::NativeOptions {
         viewport: ViewportBuilder::default()
-            .with_inner_size([720.0, 560.0])
-            .with_min_inner_size([520.0, 420.0])
+            .with_inner_size([1120.0, 720.0])
+            .with_min_inner_size([920.0, 560.0])
             .with_title("Titan Host"),
         // First-run window placement (Wayland 除外见 eframe 文档).
         centered: true,
@@ -25,8 +25,8 @@ fn host_native_options() -> eframe::NativeOptions {
         persist_window: false,
         // After eframe merges storage into the viewport, force a sane size (covers persisted size 0 / bad).
         window_builder: Some(Box::new(|vb| {
-            vb.with_inner_size([720.0, 560.0])
-                .with_min_inner_size([520.0, 420.0])
+            vb.with_inner_size([1120.0, 720.0])
+                .with_min_inner_size([920.0, 560.0])
         })),
         ..Default::default()
     }

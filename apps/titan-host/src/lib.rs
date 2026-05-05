@@ -18,5 +18,3 @@ pub use titan_egui_widgets;
 pub use titan_i18n;
 pub mod serve;
 pub use serve::ServeState;
-mod vm_window_local;
-mod vm_window_notify;

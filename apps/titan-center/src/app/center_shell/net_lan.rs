@@ -15,25 +15,54 @@ impl CenterApp {
         if addr.is_empty() {
             return;
         }
-        let id_from_host = device_id.trim();
+        let id_from_host = device_id.trim().to_string();
         let resolved_label = resolve_announced_label(&label, &addr);
+        self.dispatch_announced_merge(&addr, &control_addr, &resolved_label, &id_from_host);
+        self.finish_net_host_announced_merge(&resolved_label, &addr);
+        self.spawn_ui_lang_push_to_host_control_addr(&control_addr);
+        self.push_initial_vm_window_snapshot_to(&control_addr, &id_from_host);
+    }
+
+    fn push_initial_vm_window_snapshot_to(&self, control_addr: &str, device_id: &str) {
+        if device_id.is_empty() {
+            return;
+        }
+        let Some(ep) = self
+            .endpoints
+            .iter()
+            .find(|e| Self::endpoint_addr_key(&e.addr) == Self::endpoint_addr_key(control_addr))
+            .cloned()
+        else {
+            return;
+        };
+        crate::app::vm_window_push_to_hosts::push_snapshot_to_endpoint(
+            &ep,
+            &self.vm_window_records,
+        );
+    }
+
+    fn dispatch_announced_merge(
+        &mut self,
+        addr: &str,
+        control_addr: &str,
+        resolved_label: &str,
+        id_from_host: &str,
+    ) {
         let new_addr = control_addr.trim().to_string();
         let new_key = Self::endpoint_addr_key(&new_addr);
         let lone_legacy = self.lone_legacy_endpoint_index();
         if !id_from_host.is_empty() {
             self.merge_announced_nonempty_device_id(
-                &addr,
+                addr,
                 id_from_host,
                 &new_addr,
                 &new_key,
-                &resolved_label,
+                resolved_label,
                 lone_legacy,
             );
         } else {
-            self.merge_announced_empty_device_id(&addr, &resolved_label);
+            self.merge_announced_empty_device_id(addr, resolved_label);
         }
-        self.finish_net_host_announced_merge(&resolved_label, &addr);
-        self.spawn_ui_lang_push_to_host_control_addr(&control_addr);
     }
 
     fn finish_net_host_announced_merge(&mut self, resolved_label: &str, addr: &str) {

@@ -10,8 +10,9 @@ mod response;
 mod run;
 mod state;
 mod telemetry;
+mod vm_window_remote;
 
 pub use announce::HostAnnounceConfig;
 pub use errors::ServeError;
-pub use run::{handle_connection, run_serve};
-pub use state::ServeState;
+pub use run::{ServeUiChannels, handle_connection, run_serve};
+pub use state::{ServeState, VmWindowReloadMsg};

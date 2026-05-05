@@ -14,9 +14,9 @@ use super::vm_window_device_card_clone::paint_vm_window_device_card_clone;
 use super::widgets::subtle_button_toolbar;
 use crate::app::CenterApp;
 use crate::app::constants::DEVICE_CARD_GAP;
-use crate::app::device_store;
 use crate::app::i18n::{Msg, UiLang, t};
 use crate::app::vm_window_db;
+use crate::app::vm_window_push_to_hosts;
 
 impl CenterApp {
     pub(crate) fn panel_window_management(&mut self, ui: &mut egui::Ui) {
@@ -29,7 +29,28 @@ impl CenterApp {
         } else {
             self.panel_window_mgmt_masonry(ui, lang);
         }
-        self.apply_pending_endpoint_remove();
+        self.apply_pending_vm_window_delete();
+    }
+
+    fn apply_pending_vm_window_delete(&mut self) {
+        let Some(idx) = self.pending_delete_vm_window_row_ix.take() else {
+            return;
+        };
+        let Some(row) = self.vm_window_records.get(idx).cloned() else {
+            return;
+        };
+        let path = vm_window_db::center_vm_window_db_path();
+        if let Err(e) = vm_window_db::delete_by_record_id(&path, &row.record_id) {
+            tracing::warn!(error = %e, record_id = %row.record_id, "vm_window_db: delete");
+            return;
+        }
+        self.vm_window_records
+            .retain(|r| r.record_id != row.record_id);
+        vm_window_push_to_hosts::push_snapshot_for_device(
+            &self.endpoints,
+            &self.vm_window_records,
+            &row.device_id,
+        );
     }
 
     fn panel_window_mgmt_toolbar(&mut self, ui: &mut egui::Ui, lang: UiLang) {
@@ -42,14 +63,25 @@ impl CenterApp {
 
     fn panel_window_mgmt_toolbar_left(&mut self, ui: &mut egui::Ui, lang: UiLang) {
         if subtle_button_toolbar(ui, t(lang, Msg::WinMgmtReloadDb), true).clicked() {
-            self.reload_vm_window_records_from_db();
+            self.refetch_vm_windows_from_all_hosts();
         }
-        let _ = subtle_button_toolbar(ui, t(lang, Msg::HpWinMgmtCreateBtn), false);
+        if subtle_button_toolbar(ui, t(lang, Msg::HpWinMgmtCreateBtn), true).clicked() {
+            self.open_vm_window_create_dialog();
+        }
     }
 
-    fn reload_vm_window_records_from_db(&mut self) {
-        let path = device_store::registration_db_path();
-        self.vm_window_records = vm_window_db::load_vm_windows(&path).unwrap_or_default();
+    fn refetch_vm_windows_from_all_hosts(&mut self) {
+        let path = vm_window_db::center_vm_window_db_path();
+        match vm_window_db::list_all(&path) {
+            Ok(rows) => {
+                self.vm_window_records = rows;
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, "vm_window_db: list_all (reload)");
+                return;
+            }
+        }
+        vm_window_push_to_hosts::push_snapshot_to_all(&self.endpoints, &self.vm_window_records);
     }
 
     fn panel_window_mgmt_empty_state(&self, ui: &mut egui::Ui, lang: UiLang) {

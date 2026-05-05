@@ -107,6 +107,27 @@ async fn dispatch_spoof_host_requests(req: ControlRequest) -> Result<ControlResp
     }
 }
 
+fn is_vm_request(req: &ControlRequest) -> bool {
+    matches!(
+        req,
+        ControlRequest::ListVms
+            | ControlRequest::StartVmGroup { .. }
+            | ControlRequest::StopVmGroup { .. }
+            | ControlRequest::SetScriptArtifact { .. }
+            | ControlRequest::LoadScriptVm { .. }
+    )
+}
+
+fn is_spoof_host_request(req: &ControlRequest) -> bool {
+    matches!(
+        req,
+        ControlRequest::ApplySpoofProfile { .. }
+            | ControlRequest::ApplySpoofStep { .. }
+            | ControlRequest::HostDesktopSnapshot { .. }
+            | ControlRequest::HostResourceSnapshot
+    )
+}
+
 async fn dispatch_request_rest(
     req: ControlRequest,
     request_id: &str,
@@ -117,18 +138,21 @@ async fn dispatch_request_rest(
             super::apply_host_ui::handle_apply_host_ui_persist_json(json, state).await
         }
         ControlRequest::SetUiLang { lang } => super::apply_host_ui::handle_set_ui_lang(lang, state),
+        ControlRequest::ApplyVmWindowSnapshot {
+            device_id,
+            records_json,
+        } => {
+            super::vm_window_remote::handle_apply_vm_window_snapshot(device_id, records_json, state)
+                .await
+        }
         ControlRequest::Ping | ControlRequest::Hello => Err(ServeError::Io(std::io::Error::other(
             "internal: dispatch_request_rest received Ping/Hello",
         ))),
-        ControlRequest::ListVms
-        | ControlRequest::StartVmGroup { .. }
-        | ControlRequest::StopVmGroup { .. }
-        | ControlRequest::SetScriptArtifact { .. }
-        | ControlRequest::LoadScriptVm { .. } => dispatch_vm_requests(req, request_id, state).await,
-        ControlRequest::ApplySpoofProfile { .. }
-        | ControlRequest::ApplySpoofStep { .. }
-        | ControlRequest::HostDesktopSnapshot { .. }
-        | ControlRequest::HostResourceSnapshot => dispatch_spoof_host_requests(req).await,
+        other if is_vm_request(&other) => dispatch_vm_requests(other, request_id, state).await,
+        other if is_spoof_host_request(&other) => dispatch_spoof_host_requests(other).await,
+        other => Err(ServeError::Io(std::io::Error::other(format!(
+            "internal: unhandled ControlRequest variant {other:?}"
+        )))),
     }
 }
 

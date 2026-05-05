@@ -1,11 +1,20 @@
 use std::sync::mpsc as sync_mpsc;
 use std::sync::{Arc, Mutex};
 
-use titan_common::{Capabilities, ControlPush, HostRuntimeProbes, UiLang};
+use titan_common::{Capabilities, ControlPush, HostRuntimeProbes, UiLang, VmWindowRecord};
 use tokio::sync::broadcast;
 
 use crate::agent_binding_table::AgentBindingTable;
 use crate::ui_persist::HostUiPersist;
+
+/// Serve thread → egui thread mailbox for VM-window state changes.
+///
+/// Each variant carries the **complete** set of rows held by the host SQLite, so the
+/// egui side can rebuild its display without partial-state edge cases.
+#[derive(Debug, Clone)]
+pub enum VmWindowReloadMsg {
+    Replace { records: Vec<VmWindowRecord> },
+}
 
 fn host_capability_hint(caps: &Capabilities) -> &'static str {
     if cfg!(windows) && caps.openvmm {
@@ -27,6 +36,8 @@ pub struct ServeState {
     pub(crate) persist_apply_tx: Option<sync_mpsc::Sender<HostUiPersist>>,
     /// When set, [`titan_common::ControlRequest::SetUiLang`] queues only language (no serve restart).
     pub(crate) lang_apply_tx: Option<sync_mpsc::Sender<UiLang>>,
+    /// When set, VM window mutations from Titan Center are forwarded to the egui thread.
+    pub(crate) vm_windows_reload_tx: Option<sync_mpsc::Sender<VmWindowReloadMsg>>,
 }
 
 impl ServeState {
@@ -38,6 +49,7 @@ impl ServeState {
         runtime_probes: HostRuntimeProbes,
         persist_apply_tx: Option<sync_mpsc::Sender<HostUiPersist>>,
         lang_apply_tx: Option<sync_mpsc::Sender<UiLang>>,
+        vm_windows_reload_tx: Option<sync_mpsc::Sender<VmWindowReloadMsg>>,
     ) -> Self {
         let (telemetry_tx, _) = broadcast::channel(1024);
         Self {
@@ -48,6 +60,7 @@ impl ServeState {
             runtime_probes,
             persist_apply_tx,
             lang_apply_tx,
+            vm_windows_reload_tx,
         }
     }
 
@@ -75,8 +88,25 @@ impl ServeState {
         c
     }
 
+    /// Subscribe to the host's telemetry broadcast (test-only helper for integration tests).
+    pub fn subscribe_telemetry_for_test(&self) -> broadcast::Receiver<ControlPush> {
+        self.telemetry_tx.subscribe()
+    }
+
     /// Minimal state for integration tests.
     pub fn for_test() -> Arc<Self> {
+        Self::for_test_inner(None)
+    }
+
+    /// Like [`Self::for_test`] but wires `vm_windows_reload_tx` so tests can observe
+    /// `ApplyVmWindowSnapshot` apply paths via [`VmWindowReloadMsg`].
+    pub fn for_test_with_reload_tx(tx: sync_mpsc::Sender<VmWindowReloadMsg>) -> Arc<Self> {
+        Self::for_test_inner(Some(tx))
+    }
+
+    fn for_test_inner(
+        vm_windows_reload_tx: Option<sync_mpsc::Sender<VmWindowReloadMsg>>,
+    ) -> Arc<Self> {
         let (telemetry_tx, _) = broadcast::channel(1024);
         Arc::new(Self {
             telemetry_tx,
@@ -86,6 +116,7 @@ impl ServeState {
             runtime_probes: HostRuntimeProbes::default(),
             persist_apply_tx: None,
             lang_apply_tx: None,
+            vm_windows_reload_tx,
         })
     }
 }

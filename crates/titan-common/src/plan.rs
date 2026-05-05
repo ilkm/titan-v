@@ -125,22 +125,28 @@ mod tests {
 
     #[test]
     fn validate_rejects_processor_zero() {
-        let mut s = VmSpoofProfile::default();
-        s.processor_count = Some(0);
+        let s = VmSpoofProfile {
+            processor_count: Some(0),
+            ..VmSpoofProfile::default()
+        };
         assert!(s.validate().is_err());
     }
 
     #[test]
     fn validate_rejects_vlan_out_of_range() {
-        let mut s = VmSpoofProfile::default();
-        s.vlan_id_access = Some(5000);
+        let s = VmSpoofProfile {
+            vlan_id_access: Some(5000),
+            ..VmSpoofProfile::default()
+        };
         assert!(s.validate().is_err());
     }
 
     #[test]
     fn validate_rejects_empty_secure_boot_template() {
-        let mut s = VmSpoofProfile::default();
-        s.secure_boot_template = Some("   ".into());
+        let s = VmSpoofProfile {
+            secure_boot_template: Some("   ".into()),
+            ..VmSpoofProfile::default()
+        };
         assert!(s.validate().is_err());
     }
 }

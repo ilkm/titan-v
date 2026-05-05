@@ -243,6 +243,7 @@ impl CenterApp {
                 );
             },
         );
+        let _ = lang;
     }
 
     /// Settings: LAN discovery + LAN host registration only.

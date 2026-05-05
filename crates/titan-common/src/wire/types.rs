@@ -60,6 +60,16 @@ pub enum ControlRequest {
     ApplyHostUiPersistJson { json: String },
     /// Center asks the host UI to switch display language (egui thread applies on next frame).
     SetUiLang { lang: UiLang },
+    /// Center pushes the authoritative `VmWindowRecord` rows that belong to this host
+    /// (`device_id` matches the host's own id). Host replaces its in-memory list and the
+    /// `panel_window_mgmt` viewer redraws on the next frame.
+    ///
+    /// `records_json` is the JSON-encoded `Vec<VmWindowRecord>` already filtered for the recipient
+    /// host. Center is the sole source of truth (Center-side SQLite); host stores nothing on disk.
+    ApplyVmWindowSnapshot {
+        device_id: String,
+        records_json: String,
+    },
 }
 
 /// One row in a [`ControlResponse::VmList`] payload.
@@ -138,6 +148,14 @@ pub enum ControlResponse {
     /// Result of [`ControlRequest::SetUiLang`].
     SetUiLangAck {
         ok: bool,
+    },
+    /// Result of [`ControlRequest::ApplyVmWindowSnapshot`]. `applied` is the row count adopted
+    /// by the host (rejected requests with mismatched `device_id` set `ok = false`).
+    ApplyVmWindowSnapshotAck {
+        ok: bool,
+        applied: u32,
+        #[serde(default)]
+        detail: String,
     },
 }
 

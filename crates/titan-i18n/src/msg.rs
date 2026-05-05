@@ -88,6 +88,22 @@ pub enum Msg {
     WinMgmtNoWindows,
     /// Window management: empty list hint (create on Titan Host).
     WinMgmtEmptyHint,
+    /// Center create-window dialog: device selector label.
+    CenterWinMgmtDevice,
+    /// Center: device combo placeholder until user picks a host.
+    CenterWinMgmtDevicePlaceholder,
+    CenterWinMgmtErrNoDevice,
+    /// Center: no rows in registered device list.
+    CenterWinMgmtErrNoDevices,
+    CenterWinMgmtDbErr,
+    CenterWinMgmtToastCreated,
+    /// Center: TCP push of VM window row to the selected host failed or was rejected.
+    CenterWinMgmtHostSyncErr,
+    /// Center create: same host already has this VM ID or directory.
+    CenterWinMgmtErrVmDup,
+    /// Center settings: TCP port for Titan Host to pull `vm_window_records` (restart Center to apply).
+    CenterVmWindowApiTcpPort,
+    CenterVmWindowApiTcpPortHint,
     ColState,
     /// VM tile second line: "Host · {device label}".
     VmTileHostPrefix,
@@ -123,6 +139,13 @@ pub enum Msg {
     HpSectionLanAnnounce,
     /// Host settings card: display identity overrides.
     HpSectionIdentity,
+    /// Host settings: VM files root (`{root}/{vm_id}` for each window).
+    HpSectionVmStorage,
+    HpVmRootDir,
+    HpVmRootDirHint,
+    /// Legacy Host setting (no longer in use): kept for backward i18n compat; will be removed.
+    HpCenterVmWindowApiAddr,
+    HpCenterVmWindowApiAddrHint,
 
     /// Host: open dialog to define a new VM window.
     HpWinMgmtCreateBtn,
@@ -134,11 +157,25 @@ pub enum Msg {
     HpWinMgmtDisk,
     HpWinMgmtVmDir,
     HpWinMgmtVmDirHint,
+    /// Host create-window: numeric folder segment under configured VM root.
+    HpWinMgmtVmId,
+    HpWinMgmtVmIdHint,
     HpWinMgmtConfirm,
     HpWinMgmtErrDir,
-    /// After create: local save + UDP notify to center succeeded.
+    /// Host create-window: VM id out of range (100–999999999).
+    HpWinMgmtErrVmId,
+    /// Host create-window: cannot resolve VM root directory (configure in Settings).
+    HpWinMgmtErrVmRoot,
+    /// Host create-window: this VM ID is already used (same path as an existing row).
+    HpWinMgmtErrVmIdDup,
+    /// After create: UDP notify to center succeeded (host list updates after center TCP echo).
     HpWinMgmtSavedNotified,
+    /// Host create: beacon JSON could not be built.
     HpWinMgmtSaveErr,
+    /// Host window tab: pull rows from Titan Center TCP API.
+    HpWinMgmtPullCenter,
+    /// Host: set Center VM list API address in Settings before sync.
+    HpCenterVmApiMissingAddr,
 
     /// System tray: restore main window (egui apps).
     TrayShowMainWindow,

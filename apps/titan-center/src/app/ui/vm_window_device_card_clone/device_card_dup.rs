@@ -91,14 +91,22 @@ pub fn paint_vm_window_device_card_clone(
         .inner
 }
 
-fn vm_window_clone_row_meta(row: &VmWindowRecord) -> (String, String, u32) {
-    let title = Path::new(&row.vm_directory)
+fn vm_directory_leaf_title(vm_directory: &str) -> Option<String> {
+    Path::new(vm_directory)
         .file_name()
         .and_then(|s| s.to_str())
         .filter(|s| !s.is_empty())
         .map(str::to_string)
+}
+
+fn vm_window_clone_row_meta(row: &VmWindowRecord) -> (String, String, u32) {
+    let window_title = vm_directory_leaf_title(&row.vm_directory)
         .unwrap_or_else(|| row.record_id.chars().take(12).collect());
-    (title, row.host_control_addr.clone(), 0)
+    let label_s = match row.host_label.trim() {
+        "" => window_title,
+        device => format!("{device} {window_title}"),
+    };
+    (label_s, row.host_control_addr.clone(), 0)
 }
 
 #[rustfmt::skip]
@@ -211,7 +219,7 @@ fn paint_preview_delete_btn(
     card_index: usize,
 ) {
     if danger_preview_delete_button(ui, btn_rect, t(lang, Msg::DeviceMgmtPreviewDelete)).clicked() {
-        app.pending_remove_endpoint = Some(card_index);
+        app.pending_delete_vm_window_row_ix = Some(card_index);
         ui.ctx().request_repaint();
     }
 }

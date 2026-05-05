@@ -1,11 +1,15 @@
-//! SQLite table `vm_window_records` (host-reported planned VM windows).
+//! Center-local SQLite for `vm_window_records` (single source of truth for VM windows).
+//!
+//! Center owns CRUD; hosts only render the rows that Center pushes via
+//! [`titan_common::ControlRequest::ApplyVmWindowSnapshot`]. Schema mirrors what host used to
+//! carry, so the JSON wire format stays intact.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use rusqlite::{Connection, params};
-use titan_common::VmWindowRecord;
+use titan_common::{VM_WINDOW_FOLDER_ID_MIN, VmWindowRecord};
 
-const VM_WINDOWS_DDL: &str = r#"
+const DDL: &str = r#"
 CREATE TABLE IF NOT EXISTS vm_window_records (
     record_id TEXT NOT NULL PRIMARY KEY,
     device_id TEXT NOT NULL,
@@ -15,15 +19,37 @@ CREATE TABLE IF NOT EXISTS vm_window_records (
     memory_mib INTEGER NOT NULL,
     disk_mib INTEGER NOT NULL,
     vm_directory TEXT NOT NULL,
+    vm_id INTEGER NOT NULL DEFAULT 0,
     created_at_unix_ms INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_vm_window_device ON vm_window_records(device_id);
-CREATE INDEX IF NOT EXISTS idx_vm_window_addr ON vm_window_records(host_control_addr);
 "#;
 
-pub(super) fn ensure_table(conn: &Connection) -> rusqlite::Result<()> {
-    conn.execute_batch(VM_WINDOWS_DDL)?;
-    Ok(())
+/// `~/Library/Application Support/titan-center/vm_windows.sqlite` (or platform equivalent).
+///
+/// Overridable via `TITAN_CENTER_VM_WINDOW_DB_PATH` (absolute path). Used by integration tests
+/// to redirect the on-disk store into a temp directory and avoid clobbering the real DB.
+pub fn center_vm_window_db_path() -> PathBuf {
+    if let Ok(p) = std::env::var("TITAN_CENTER_VM_WINDOW_DB_PATH") {
+        let s = p.trim();
+        if !s.is_empty() {
+            return PathBuf::from(s);
+        }
+    }
+    let base = dirs::data_local_dir()
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+    base.join("titan-center").join("vm_windows.sqlite")
+}
+
+fn open(path: &Path) -> rusqlite::Result<Connection> {
+    if let Some(parent) = path.parent()
+        && let Err(e) = std::fs::create_dir_all(parent)
+    {
+        tracing::warn!("vm_window_db: create_dir_all {:?}: {e}", parent);
+    }
+    let conn = Connection::open(path)?;
+    conn.execute_batch(DDL)?;
+    Ok(conn)
 }
 
 fn row_from_sql(row: &rusqlite::Row<'_>) -> rusqlite::Result<VmWindowRecord> {
@@ -36,20 +62,23 @@ fn row_from_sql(row: &rusqlite::Row<'_>) -> rusqlite::Result<VmWindowRecord> {
         memory_mib: row.get::<_, i64>(5)? as u32,
         disk_mib: row.get::<_, i64>(6)? as u32,
         vm_directory: row.get(7)?,
-        created_at_unix_ms: row.get(8)?,
+        vm_id: row.get::<_, i64>(8)? as u32,
+        created_at_unix_ms: row.get(9)?,
     })
 }
 
-pub fn load_vm_windows(path: &Path) -> rusqlite::Result<Vec<VmWindowRecord>> {
+const SELECT_COLS: &str = "record_id, device_id, host_control_addr, host_label, cpu_count, \
+     memory_mib, disk_mib, vm_directory, vm_id, created_at_unix_ms";
+
+pub fn list_all(path: &Path) -> rusqlite::Result<Vec<VmWindowRecord>> {
     if !path.exists() {
         return Ok(Vec::new());
     }
-    let conn = crate::app::device_store::open(path)?;
-    let mut stmt = conn.prepare(
-        "SELECT record_id, device_id, host_control_addr, host_label, cpu_count, \
-         memory_mib, disk_mib, vm_directory, created_at_unix_ms \
-         FROM vm_window_records ORDER BY created_at_unix_ms ASC",
-    )?;
+    let conn = open(path)?;
+    let sql = format!(
+        "SELECT {SELECT_COLS} FROM vm_window_records ORDER BY created_at_unix_ms ASC, vm_id ASC"
+    );
+    let mut stmt = conn.prepare(&sql)?;
     let rows = stmt.query_map([], row_from_sql)?;
     let mut out = Vec::new();
     for r in rows {
@@ -58,13 +87,34 @@ pub fn load_vm_windows(path: &Path) -> rusqlite::Result<Vec<VmWindowRecord>> {
     Ok(out)
 }
 
-pub fn insert_vm_window(path: &Path, row: &VmWindowRecord) -> rusqlite::Result<()> {
-    let conn = crate::app::device_store::open(path)?;
+/// Returns `true` when another row already uses `vm_id` (≥ min) or the same trimmed `vm_directory`.
+pub fn conflicts_for(
+    path: &Path,
+    record_id: &str,
+    vm_id: u32,
+    vm_directory: &str,
+) -> rusqlite::Result<bool> {
+    let rows = list_all(path)?;
+    let dir = vm_directory.trim();
+    Ok(rows.iter().any(|r| {
+        if r.record_id == record_id {
+            return false;
+        }
+        let same_id = r.vm_id >= VM_WINDOW_FOLDER_ID_MIN
+            && vm_id >= VM_WINDOW_FOLDER_ID_MIN
+            && r.vm_id == vm_id;
+        let same_dir = !dir.is_empty() && r.vm_directory.trim() == dir;
+        same_id || same_dir
+    }))
+}
+
+pub fn upsert(path: &Path, row: &VmWindowRecord) -> rusqlite::Result<()> {
+    let conn = open(path)?;
     conn.execute(
         "INSERT OR REPLACE INTO vm_window_records \
          (record_id, device_id, host_control_addr, host_label, cpu_count, memory_mib, disk_mib, \
-          vm_directory, created_at_unix_ms) \
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+          vm_directory, vm_id, created_at_unix_ms) \
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
         params![
             row.record_id,
             row.device_id,
@@ -74,8 +124,22 @@ pub fn insert_vm_window(path: &Path, row: &VmWindowRecord) -> rusqlite::Result<(
             row.memory_mib as i64,
             row.disk_mib as i64,
             row.vm_directory,
+            row.vm_id as i64,
             row.created_at_unix_ms,
         ],
     )?;
     Ok(())
+}
+
+/// Returns the number of rows actually deleted (0 when missing).
+pub fn delete_by_record_id(path: &Path, record_id: &str) -> rusqlite::Result<usize> {
+    if !path.exists() {
+        return Ok(0);
+    }
+    let conn = open(path)?;
+    let n = conn.execute(
+        "DELETE FROM vm_window_records WHERE record_id = ?1",
+        params![record_id],
+    )?;
+    Ok(n)
 }

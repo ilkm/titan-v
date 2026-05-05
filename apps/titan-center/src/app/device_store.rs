@@ -183,7 +183,6 @@ pub(crate) fn open(path: &Path) -> rusqlite::Result<Connection> {
         ensure_device_id_pk_schema(&conn)?;
         ensure_kv_schema(&conn)?;
     }
-    super::vm_window_db::ensure_table(&conn)?;
     Ok(conn)
 }
 

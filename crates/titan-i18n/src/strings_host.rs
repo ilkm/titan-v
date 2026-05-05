@@ -53,6 +53,20 @@ fn translate_hp_settings_sections(lang: UiLang, msg: Msg) -> Option<&'static str
         (UiLang::Zh, Msg::HpSectionLanAnnounce) => Some("局域网注册"),
         (UiLang::En, Msg::HpSectionIdentity) => Some("Host identity"),
         (UiLang::Zh, Msg::HpSectionIdentity) => Some("主机标识"),
+        (UiLang::En, Msg::HpSectionVmStorage) => Some("VM storage"),
+        (UiLang::Zh, Msg::HpSectionVmStorage) => Some("虚拟机存储"),
+        (UiLang::En, Msg::HpVmRootDir) => Some("VM root directory"),
+        (UiLang::Zh, Msg::HpVmRootDir) => Some("虚拟机根目录"),
+        (UiLang::En, Msg::HpVmRootDirHint) => Some("Leave empty to use ~/titan/vm"),
+        (UiLang::Zh, Msg::HpVmRootDirHint) => Some("留空则使用 ~/titan/vm"),
+        (UiLang::En, Msg::HpCenterVmWindowApiAddr) => Some("Titan Center VM list API (host:port)"),
+        (UiLang::Zh, Msg::HpCenterVmWindowApiAddr) => Some("中控虚拟机窗口接口 (主机:端口)"),
+        (UiLang::En, Msg::HpCenterVmWindowApiAddrHint) => {
+            Some("TCP on the port set in Titan Center settings (default 7793).")
+        }
+        (UiLang::Zh, Msg::HpCenterVmWindowApiAddrHint) => {
+            Some("与 Titan 中控设置中的 TCP 端口一致（默认 7793）。")
+        }
         _ => None,
     }
 }
@@ -63,6 +77,11 @@ fn translate_hp_window_mgmt(lang: UiLang, msg: Msg) -> Option<&'static str> {
 }
 
 fn translate_hp_window_mgmt_fields(lang: UiLang, msg: Msg) -> Option<&'static str> {
+    translate_hp_window_mgmt_fields_modal(lang, msg)
+        .or_else(|| translate_hp_window_mgmt_fields_ids(lang, msg))
+}
+
+fn translate_hp_window_mgmt_fields_modal(lang: UiLang, msg: Msg) -> Option<&'static str> {
     match (lang, msg) {
         (UiLang::En, Msg::HpWinMgmtCreateBtn) => Some("Create window"),
         (UiLang::Zh, Msg::HpWinMgmtCreateBtn) => Some("创建窗口"),
@@ -74,26 +93,75 @@ fn translate_hp_window_mgmt_fields(lang: UiLang, msg: Msg) -> Option<&'static st
         (UiLang::Zh, Msg::HpWinMgmtMem) => Some("内存 (MiB，1024 = 1 GiB)"),
         (UiLang::En, Msg::HpWinMgmtDisk) => Some("Disk (MiB, 1024 = 1 GiB)"),
         (UiLang::Zh, Msg::HpWinMgmtDisk) => Some("磁盘 (MiB，1024 = 1 GiB)"),
+        _ => None,
+    }
+}
+
+fn translate_hp_window_mgmt_fields_ids(lang: UiLang, msg: Msg) -> Option<&'static str> {
+    match (lang, msg) {
         (UiLang::En, Msg::HpWinMgmtVmDir) => Some("VM directory"),
         (UiLang::Zh, Msg::HpWinMgmtVmDir) => Some("虚拟机目录"),
         (UiLang::En, Msg::HpWinMgmtVmDirHint) => Some("~/titan/vm/001 (auto-increment)"),
         (UiLang::Zh, Msg::HpWinMgmtVmDirHint) => Some("~/titan/vm/001（编号自动递增）"),
+        (UiLang::En, Msg::HpWinMgmtVmId) => Some("VM ID"),
+        (UiLang::Zh, Msg::HpWinMgmtVmId) => Some("虚拟机 ID"),
+        (UiLang::En, Msg::HpWinMgmtVmIdHint) => Some("100–999999999"),
+        (UiLang::Zh, Msg::HpWinMgmtVmIdHint) => Some("100–999999999"),
+        (UiLang::En, Msg::HpWinMgmtPullCenter) => Some("Sync from Center"),
+        (UiLang::Zh, Msg::HpWinMgmtPullCenter) => Some("从中控同步"),
+        (UiLang::En, Msg::HpCenterVmApiMissingAddr) => {
+            Some("Set Titan Center VM list API (host:port) in Settings first.")
+        }
+        (UiLang::Zh, Msg::HpCenterVmApiMissingAddr) => {
+            Some("请先在设置中填写中控虚拟机窗口接口 (主机:端口)。")
+        }
         (UiLang::En, Msg::HpWinMgmtConfirm) => Some("Create"),
         (UiLang::Zh, Msg::HpWinMgmtConfirm) => Some("创建"),
         _ => None,
     }
 }
 
-fn translate_hp_window_mgmt_status(lang: UiLang, msg: Msg) -> Option<&'static str> {
+fn translate_hp_window_mgmt_status_ok_err(lang: UiLang, msg: Msg) -> Option<&'static str> {
     match (lang, msg) {
         (UiLang::En, Msg::HpWinMgmtErrDir) => Some("VM directory is required."),
         (UiLang::Zh, Msg::HpWinMgmtErrDir) => Some("请填写虚拟机目录。"),
         (UiLang::En, Msg::HpWinMgmtSavedNotified) => {
-            Some("Saved locally and notified Titan Center (SQLite).")
+            Some("Titan Center saved this window and the local list has been updated.")
         }
-        (UiLang::Zh, Msg::HpWinMgmtSavedNotified) => Some("已保存并已通知中控（写入数据库）。"),
-        (UiLang::En, Msg::HpWinMgmtSaveErr) => Some("Could not save the window list locally."),
-        (UiLang::Zh, Msg::HpWinMgmtSaveErr) => Some("无法将窗口列表保存到本地。"),
+        (UiLang::Zh, Msg::HpWinMgmtSavedNotified) => {
+            Some("中控已保存该虚拟机窗口，本地列表已更新。")
+        }
+        (UiLang::En, Msg::HpWinMgmtSaveErr) => {
+            Some("Could not submit the VM window to Titan Center (busy or misconfigured).")
+        }
+        (UiLang::Zh, Msg::HpWinMgmtSaveErr) => {
+            Some("无法向 Titan 中控提交虚拟机窗口（忙或配置异常）。")
+        }
         _ => None,
     }
+}
+
+fn translate_hp_window_mgmt_status_validation(lang: UiLang, msg: Msg) -> Option<&'static str> {
+    match (lang, msg) {
+        (UiLang::En, Msg::HpWinMgmtErrVmId) => Some("VM ID must be between 100 and 999999999."),
+        (UiLang::Zh, Msg::HpWinMgmtErrVmId) => Some("虚拟机 ID 须在 100–999999999 之间。"),
+        (UiLang::En, Msg::HpWinMgmtErrVmRoot) => {
+            Some("Set a VM root directory in Settings (or ensure a home directory exists).")
+        }
+        (UiLang::Zh, Msg::HpWinMgmtErrVmRoot) => {
+            Some("请在设置中填写虚拟机根目录（或确保存在用户主目录）。")
+        }
+        (UiLang::En, Msg::HpWinMgmtErrVmIdDup) => {
+            Some("This VM ID is already in use (matches an existing window path).")
+        }
+        (UiLang::Zh, Msg::HpWinMgmtErrVmIdDup) => {
+            Some("该虚拟机 ID 已存在（与已有窗口路径重复）。")
+        }
+        _ => None,
+    }
+}
+
+fn translate_hp_window_mgmt_status(lang: UiLang, msg: Msg) -> Option<&'static str> {
+    translate_hp_window_mgmt_status_ok_err(lang, msg)
+        .or_else(|| translate_hp_window_mgmt_status_validation(lang, msg))
 }

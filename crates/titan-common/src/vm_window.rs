@@ -1,14 +1,47 @@
-//! LAN UDP: host → center registration of a **window** (planned VM) row for SQLite + UI.
+//! Shared `VmWindowRecord` shape and helpers (host SQLite is the single source of truth).
 
 use serde::{Deserialize, Serialize};
 
-/// JSON `kind` for [`VmWindowRegisterBeacon`].
-pub const VM_WINDOW_REGISTER_BEACON_KIND: &str = "titan.v1.vm_window";
+/// Lower bound for [`VmWindowRecord::vm_id`] when used as `{vm_root}/{vm_id}` folder id (non-zero).
+pub const VM_WINDOW_FOLDER_ID_MIN: u32 = 100;
+/// Upper bound for [`VmWindowRecord::vm_id`] as folder id (inclusive).
+pub const VM_WINDOW_FOLDER_ID_MAX: u32 = 999_999_999;
 
-/// Schema for [`VmWindowRegisterBeacon`]; bump when fields change incompatibly.
-pub const VM_WINDOW_REGISTER_SCHEMA_VERSION: u32 = 1;
+/// Smallest id in [`VM_WINDOW_FOLDER_ID_MIN`..=`VM_WINDOW_FOLDER_ID_MAX`] not present in `existing`.
+///
+/// `vm_id == 0` entries in storage are ignored (legacy / unspecified). If every id in range is
+/// taken, returns [`VM_WINDOW_FOLDER_ID_MAX`] (caller should still run duplicate checks).
+pub fn next_unused_vm_folder_id(existing: impl IntoIterator<Item = u32>) -> u32 {
+    let mut ids: Vec<u32> = existing
+        .into_iter()
+        .filter(|&id| (VM_WINDOW_FOLDER_ID_MIN..=VM_WINDOW_FOLDER_ID_MAX).contains(&id))
+        .collect();
+    if ids.is_empty() {
+        return VM_WINDOW_FOLDER_ID_MIN;
+    }
+    ids.sort_unstable();
+    ids.dedup();
+    let mut expect = VM_WINDOW_FOLDER_ID_MIN;
+    for &id in &ids {
+        if id < expect {
+            continue;
+        }
+        if id > expect {
+            return expect;
+        }
+        expect = match expect.checked_add(1) {
+            Some(n) if n <= VM_WINDOW_FOLDER_ID_MAX => n,
+            _ => return VM_WINDOW_FOLDER_ID_MAX,
+        };
+    }
+    if expect <= VM_WINDOW_FOLDER_ID_MAX {
+        expect
+    } else {
+        VM_WINDOW_FOLDER_ID_MAX
+    }
+}
 
-/// One VM window row (persisted in Titan Center SQLite; echoed in Titan Host local JSON).
+/// One VM window row (persisted in Titan Host SQLite `vm_window_records`; center mirrors via TCP RPC + telemetry push).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct VmWindowRecord {
     pub record_id: String,
@@ -20,39 +53,14 @@ pub struct VmWindowRecord {
     pub memory_mib: u32,
     pub disk_mib: u32,
     pub vm_directory: String,
+    /// Numeric VM folder id when using `{vm_root}/{vm_id}` layout; `0` = legacy / unspecified.
+    #[serde(default)]
+    pub vm_id: u32,
     pub created_at_unix_ms: i64,
 }
 
-/// UDP JSON payload: Titan Host → Titan Center (same listener port as host announce).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct VmWindowRegisterBeacon {
-    pub kind: String,
-    pub schema: u32,
-    pub record: VmWindowRecord,
-}
-
-impl VmWindowRegisterBeacon {
-    #[must_use]
-    pub fn new(record: VmWindowRecord) -> Self {
-        Self {
-            kind: VM_WINDOW_REGISTER_BEACON_KIND.to_string(),
-            schema: VM_WINDOW_REGISTER_SCHEMA_VERSION,
-            record,
-        }
-    }
-
-    pub fn validate(&self) -> Result<(), &'static str> {
-        if self.kind != VM_WINDOW_REGISTER_BEACON_KIND {
-            return Err("vm window beacon kind mismatch");
-        }
-        if self.schema != VM_WINDOW_REGISTER_SCHEMA_VERSION {
-            return Err("vm window beacon schema mismatch");
-        }
-        validate_vm_window_record(&self.record)
-    }
-}
-
-fn validate_vm_window_record(r: &VmWindowRecord) -> Result<(), &'static str> {
+/// Validates a row before persistence or control-plane apply.
+pub fn validate_vm_window_record(r: &VmWindowRecord) -> Result<(), &'static str> {
     if r.record_id.trim().is_empty() {
         return Err("empty record_id");
     }
@@ -62,6 +70,9 @@ fn validate_vm_window_record(r: &VmWindowRecord) -> Result<(), &'static str> {
     if r.vm_directory.trim().is_empty() {
         return Err("empty vm_directory");
     }
+    if r.vm_id != 0 && !(VM_WINDOW_FOLDER_ID_MIN..=VM_WINDOW_FOLDER_ID_MAX).contains(&r.vm_id) {
+        return Err("vm_id out of range");
+    }
     Ok(())
 }
 
@@ -70,22 +81,15 @@ mod tests {
     use super::*;
 
     #[test]
-    fn vm_window_register_beacon_json_roundtrip() {
-        let record = VmWindowRecord {
-            record_id: "rid-1".into(),
-            device_id: "dev-1".into(),
-            host_control_addr: "192.168.1.10:7788".into(),
-            host_label: "lab".into(),
-            cpu_count: 2,
-            memory_mib: 4096,
-            disk_mib: 65536,
-            vm_directory: r"C:\VMs\001".into(),
-            created_at_unix_ms: 1_700_000_000_000,
-        };
-        let b = VmWindowRegisterBeacon::new(record.clone());
-        let raw = serde_json::to_vec(&b).unwrap();
-        let got: VmWindowRegisterBeacon = serde_json::from_slice(&raw).unwrap();
-        assert_eq!(got.record, record);
-        assert!(got.validate().is_ok());
+    fn next_unused_vm_folder_id_gaps() {
+        assert_eq!(next_unused_vm_folder_id([100]), 101);
+        assert_eq!(next_unused_vm_folder_id([100, 101, 200]), 102);
+        assert_eq!(next_unused_vm_folder_id(100_u32..=200_u32), 201);
+        assert_eq!(
+            next_unused_vm_folder_id([] as [u32; 0]),
+            VM_WINDOW_FOLDER_ID_MIN
+        );
+        assert_eq!(next_unused_vm_folder_id([0, 50]), VM_WINDOW_FOLDER_ID_MIN);
+        assert_eq!(next_unused_vm_folder_id([150]), VM_WINDOW_FOLDER_ID_MIN);
     }
 }

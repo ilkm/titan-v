@@ -1,5 +1,7 @@
 use eframe::egui;
+use titan_common::VmWindowRecord;
 
+use crate::serve::VmWindowReloadMsg;
 use crate::titan_i18n::{self as i18n, Msg};
 
 use crate::host_app::model::{HostApp, PERSIST_KEY};
@@ -33,6 +35,24 @@ impl HostApp {
         self.render_host_side_nav(ctx);
         self.render_host_central_panel(ctx);
         self.render_host_lang_settings_window(ctx);
+    }
+
+    fn replace_vm_window_rows(&mut self, records: Vec<VmWindowRecord>) {
+        self.vm_window_records = records;
+        self.vm_window_masonry_heights.retain(|k, _| {
+            self.vm_window_records
+                .iter()
+                .any(|r| r.record_id.as_str() == k.as_str())
+        });
+    }
+
+    fn drain_vm_windows_reload(&mut self, ctx: &egui::Context) {
+        while let Ok(msg) = self.vm_windows_reload_rx.try_recv() {
+            match msg {
+                VmWindowReloadMsg::Replace { records } => self.replace_vm_window_rows(records),
+            }
+            ctx.request_repaint();
+        }
     }
 }
 
@@ -84,6 +104,7 @@ impl eframe::App for HostApp {
             self.persist.ui_lang = lang;
             ctx.request_repaint();
         }
+        self.drain_vm_windows_reload(ctx);
         if let Some(tray) = self._tray.as_ref() {
             titan_tray::sync_tray_if_needed(
                 tray,
