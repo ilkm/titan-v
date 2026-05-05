@@ -22,6 +22,11 @@ impl CenterApp {
             titan_common::ControlPush::HostDesktopPreviewJpeg { jpeg_bytes, .. } => {
                 self.apply_cp_desktop_jpeg(host_key, jpeg_bytes);
             }
+            // Liveness-only pushes carry no display payload; presence alone refreshes
+            // `last_host_telemetry_at` in `on_net_host_telemetry`.
+            titan_common::ControlPush::HostHeartbeat { .. } => {}
+            // Tear-down is handled at the higher level in `on_net_host_telemetry`.
+            titan_common::ControlPush::HostByeNow => {}
         }
     }
 

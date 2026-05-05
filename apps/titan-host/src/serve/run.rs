@@ -103,6 +103,34 @@ fn spawn_telemetry_resource_live_loop(tx: broadcast::Sender<ControlPush>) {
     });
 }
 
+/// 50 ms cadence liveness ping. Center treats every push as proof-of-life; missing 3 in a row
+/// (~150 ms) trips `TELEMETRY_STALE_AFTER_SECS = 0.5s` so a crashed / unplugged host is detected
+/// quickly without paying for per-ms keepalive packets.
+const HEARTBEAT_INTERVAL: Duration = Duration::from_millis(50);
+
+fn spawn_telemetry_heartbeat_loop(tx: broadcast::Sender<ControlPush>) {
+    tokio::spawn(async move {
+        let mut ticker = tokio::time::interval(HEARTBEAT_INTERVAL);
+        ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+        loop {
+            ticker.tick().await;
+            if tx.receiver_count() == 0 {
+                continue;
+            }
+            let _ = tx.send(ControlPush::HostHeartbeat {
+                ts_ms: heartbeat_now_ms(),
+            });
+        }
+    });
+}
+
+fn heartbeat_now_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
+}
+
 async fn telemetry_desktop_preview_tick(tx: &broadcast::Sender<ControlPush>) {
     const MAX_W: u32 = 640;
     const MAX_H: u32 = 360;
@@ -158,6 +186,7 @@ pub async fn run_serve(
     tracing::info!(%bind, fingerprint = %security.identity.spki_sha256_hex, "QUIC control + telemetry plane listening");
     spawn_telemetry_resource_live_loop(state.telemetry_tx.clone());
     spawn_telemetry_desktop_preview_loop(state.telemetry_tx.clone());
+    spawn_telemetry_heartbeat_loop(state.telemetry_tx.clone());
 
     accept_loop(endpoint, state, shutdown).await
 }
@@ -179,31 +208,50 @@ fn serve_io_err(err: anyhow::Error) -> ServeError {
 async fn accept_loop(
     endpoint: Endpoint,
     state: Arc<ServeState>,
-    mut shutdown: watch::Receiver<bool>,
+    shutdown: watch::Receiver<bool>,
 ) -> Result<(), ServeError> {
+    accept_until_shutdown(&endpoint, &state, shutdown).await;
+    graceful_shutdown_quic(&endpoint, &state).await;
+    Ok(())
+}
+
+async fn accept_until_shutdown(
+    endpoint: &Endpoint,
+    state: &Arc<ServeState>,
+    mut shutdown: watch::Receiver<bool>,
+) {
     loop {
         tokio::select! {
             res = shutdown.changed() => {
                 if res.is_err() {
                     tracing::info!("serve shutdown signal (sender dropped)");
-                    break;
+                    return;
                 }
                 if *shutdown.borrow() {
                     tracing::info!("serve stopped from system tray");
-                    break;
+                    return;
                 }
             }
             inc = endpoint.accept() => {
                 let Some(inc) = inc else {
                     tracing::info!("quic endpoint accept yielded None; closing");
-                    break;
+                    return;
                 };
                 spawn_connection(inc, state.clone());
             }
         }
     }
-    endpoint.close(quinn::VarInt::from_u32(0), b"shutdown");
-    Ok(())
+}
+
+/// Best-effort clean teardown: broadcast `HostByeNow` so existing telemetry uni-streams flush
+/// the byte to the wire, give them a short window to do so, then close the endpoint (which
+/// emits CONNECTION_CLOSE frames to every active peer). Center observes the byte / close at
+/// sub-RTT instead of waiting for the QUIC idle timeout.
+async fn graceful_shutdown_quic(endpoint: &Endpoint, state: &Arc<ServeState>) {
+    let _ = state.telemetry_tx.send(ControlPush::HostByeNow);
+    tokio::time::sleep(Duration::from_millis(30)).await;
+    endpoint.close(quinn::VarInt::from_u32(0), b"bye");
+    let _ = tokio::time::timeout(Duration::from_millis(50), endpoint.wait_idle()).await;
 }
 
 fn spawn_connection(inc: Incoming, state: Arc<ServeState>) {

@@ -34,7 +34,9 @@ impl Default for HostUiPersist {
             ui_lang: UiLang::default(),
             listen: "0.0.0.0:7788".into(),
             announce_enabled: true,
-            announce_periodic_secs: None,
+            // Default 1 s safety net so Center can recover even if the initial burst is lost on a
+            // congested LAN. Sub-second snap-back relies on `spawn_initial_burst_announce`.
+            announce_periodic_secs: Some(1),
             center_register_udp_port: DEFAULT_CENTER_REGISTER_UDP_PORT,
             center_poll_listen_port: DEFAULT_CENTER_POLL_UDP_PORT,
             public_addr_override: String::new(),

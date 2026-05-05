@@ -17,8 +17,13 @@ use crate::pairing::Pairing;
 use crate::trust_store::TrustStore;
 use crate::verifier::{FingerprintClientVerifier, FingerprintServerVerifier};
 
-const DEFAULT_IDLE_TIMEOUT: Duration = Duration::from_secs(20);
-const DEFAULT_KEEPALIVE: Duration = Duration::from_secs(7);
+/// Aggressive idle timeout so a dead peer is detected by quinn at ~500 ms even without an
+/// application heartbeat. Application-layer 50 ms heartbeat (telemetry `HostHeartbeat`) typically
+/// fires the offline path first; this is the transport-level fallback for crashed peers.
+const DEFAULT_IDLE_TIMEOUT: Duration = Duration::from_millis(500);
+/// Must satisfy `keepalive < idle_timeout / 3` so quinn sends ≥3 PING attempts before
+/// `max_idle_timeout` fires.
+const DEFAULT_KEEPALIVE: Duration = Duration::from_millis(150);
 
 pub fn install_default_crypto_provider() {
     let _ = rustls::crypto::ring::default_provider().install_default();

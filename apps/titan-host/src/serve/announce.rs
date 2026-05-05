@@ -79,21 +79,14 @@ fn build_announce_payload(
 }
 
 fn spawn_periodic_announce(interval: Duration, center_register_udp_port: u16, payload: Vec<u8>) {
-    let dest: SocketAddr = match format!("255.255.255.255:{center_register_udp_port}").parse() {
-        Ok(a) => a,
-        Err(_) => return,
+    let Some(dest) = broadcast_dest(center_register_udp_port) else {
+        return;
     };
     thread::spawn(move || {
-        let sock = match UdpSocket::bind("0.0.0.0:0") {
-            Ok(s) => s,
-            Err(e) => {
-                tracing::warn!(error = %e, "host announce: periodic UDP bind failed");
-                return;
-            }
+        let sock = match build_broadcast_socket("periodic") {
+            Some(s) => s,
+            None => return,
         };
-        if let Err(e) = sock.set_broadcast(true) {
-            tracing::warn!(error = %e, "host announce: periodic set_broadcast failed");
-        }
         loop {
             if let Err(e) = sock.send_to(&payload, dest) {
                 tracing::debug!(error = %e, "host announce: periodic send_to failed");
@@ -101,6 +94,47 @@ fn spawn_periodic_announce(interval: Duration, center_register_udp_port: u16, pa
             thread::sleep(interval);
         }
     });
+}
+
+/// Initial burst: 50 ms × 10 announces right after the QUIC endpoint comes up so a freshly
+/// booted host is visible to Center within ~50 ms regardless of `periodic_interval`.
+const INITIAL_BURST_INTERVAL: Duration = Duration::from_millis(50);
+const INITIAL_BURST_COUNT: u32 = 10;
+
+fn spawn_initial_burst_announce(center_register_udp_port: u16, payload: Vec<u8>) {
+    let Some(dest) = broadcast_dest(center_register_udp_port) else {
+        return;
+    };
+    thread::spawn(move || {
+        let sock = match build_broadcast_socket("burst") {
+            Some(s) => s,
+            None => return,
+        };
+        for _ in 0..INITIAL_BURST_COUNT {
+            if let Err(e) = sock.send_to(&payload, dest) {
+                tracing::debug!(error = %e, "host announce: burst send_to failed");
+            }
+            thread::sleep(INITIAL_BURST_INTERVAL);
+        }
+    });
+}
+
+fn broadcast_dest(port: u16) -> Option<SocketAddr> {
+    format!("255.255.255.255:{port}").parse().ok()
+}
+
+fn build_broadcast_socket(label: &'static str) -> Option<UdpSocket> {
+    let sock = match UdpSocket::bind("0.0.0.0:0") {
+        Ok(s) => s,
+        Err(e) => {
+            tracing::warn!(error = %e, label, "host announce: UDP bind failed");
+            return None;
+        }
+    };
+    if let Err(e) = sock.set_broadcast(true) {
+        tracing::warn!(error = %e, label, "host announce: set_broadcast failed");
+    }
+    Some(sock)
 }
 
 fn center_poll_try_reply(sock: &UdpSocket, buf: &[u8], n: usize, peer: SocketAddr, payload: &[u8]) {
@@ -166,6 +200,7 @@ fn start_announce_sidecars(cfg: &HostAnnounceConfig, payload: Vec<u8>) {
     if cfg.center_poll_listen_port > 0 {
         spawn_center_poll_responder(cfg.center_poll_listen_port, payload.clone());
     }
+    spawn_initial_burst_announce(cfg.center_register_udp_port, payload.clone());
     if let Some(iv) = cfg.periodic_interval
         && !iv.is_zero()
     {

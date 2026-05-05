@@ -20,7 +20,9 @@ use crate::app::ui::theme::apply_center_theme;
 
 impl CenterApp {
     /// Interval between automatic `Hello` attempts when not connected (`control_addr` non-empty).
-    pub(crate) const AUTO_HELLO_RETRY_SECS: f32 = 3.0;
+    /// Combined with announce-driven `force_reconnect`, the upper bound for a typical reconnect
+    /// is one period; UDP `HostAnnounceBeacon` from a freshly booted host shortcuts this further.
+    pub(crate) const AUTO_HELLO_RETRY_SECS: f32 = 0.3;
 
     /// Build the status tray once the winit/eframe loop is running (required on macOS).
     pub(crate) fn maybe_init_tray_icon_once(&mut self) {

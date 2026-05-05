@@ -165,7 +165,7 @@ async fn telemetry_connect_loop(
     tx: Sender<NetUiMsg>,
     ctx: egui::Context,
 ) {
-    let mut backoff_ms: u64 = 200;
+    let mut backoff_ms: u64 = 50;
     while !stop.load(Ordering::SeqCst) {
         backoff_ms = try_one_session(
             &quic_addr,
@@ -193,12 +193,12 @@ async fn try_one_session(
     match start_telemetry_session(quic_addr).await {
         Ok((connection, recv)) => {
             read_until_disconnect(connection, recv, host_key, session_gen, stop, tx, ctx).await;
-            200
+            50
         }
         Err(e) => {
             tracing::warn!(addr = %quic_addr, error = %e, "telemetry: subscribe failed");
             tokio::time::sleep(Duration::from_millis(backoff_ms)).await;
-            backoff_ms.saturating_mul(2).min(10_000)
+            backoff_ms.saturating_mul(2).min(500)
         }
     }
 }

@@ -23,6 +23,23 @@ impl CenterApp {
         self.finish_net_host_announced_merge(&resolved_label, &addr);
         self.spawn_ui_lang_push_to_host_control_addr(&quic_addr);
         self.push_initial_vm_window_snapshot_to(&quic_addr, &id_from_host);
+        self.maybe_event_reconnect_on_announce(&addr);
+    }
+
+    /// If the announce came from the currently-selected control host and we are not connected,
+    /// drop any cached (possibly stale) QUIC connection and arm an immediate `auto_hello`.
+    /// Combined with the host-side initial burst (50 ms × 10), this gets a fresh hello in flight
+    /// within a single LAN RTT of the host coming back up.
+    fn maybe_event_reconnect_on_announce(&mut self, announced_key: &str) {
+        if self.host_connected {
+            return;
+        }
+        if announced_key != Self::endpoint_addr_key(&self.control_addr) {
+            return;
+        }
+        self.force_reconnect_to_control_host();
+        self.auto_hello_accum = Self::AUTO_HELLO_RETRY_SECS;
+        self.ctx.request_repaint();
     }
 
     fn auto_trust_announced_host(&self, fingerprint: &str, device_id: &str, label: &str) {

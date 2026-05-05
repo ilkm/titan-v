@@ -19,14 +19,10 @@ pub const DEVICE_CARD_MAX_WIDTH: f32 = 480.0;
 pub const DESKTOP_PREVIEW_POLL_SECS: f32 = 2.0;
 
 /// If no telemetry push arrives for this long while the session is marked live, clear the live
-/// telemetry flag (VM inventory may be stale). **Device card online** is driven by periodic
-/// Hello reachability, not by this timer. Pushes include periodic `HostResourceLive` plus pushes
-/// after control-plane responses (`HostTelemetry`).
-///
-/// Sized to be slightly above the QUIC `max_idle_timeout` (10s; see `titan-quic` `endpoint.rs`)
-/// so the QUIC stream-error path normally wins, but if it ever stalls we still flip to offline
-/// within ~15s of the host going dark instead of waiting two minutes (debug session 638716).
-pub const TELEMETRY_STALE_AFTER_SECS: f64 = 15.0;
+/// telemetry flag and trigger a force-reconnect. With the host emitting a 50 ms `HostHeartbeat`
+/// push, three consecutive misses (~150 ms) fall well inside this 500 ms window, so a healthy
+/// link never trips it; a crashed / unplugged host does within ~500 ms.
+pub const TELEMETRY_STALE_AFTER_SECS: f64 = 0.5;
 
 /// Max concurrent telemetry TCP readers (one per distinct `host_key`).
 pub const TELEMETRY_MAX_CONCURRENT: usize = 8;

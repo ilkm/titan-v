@@ -216,6 +216,12 @@ pub enum ControlPush {
         width_px: u32,
         height_px: u32,
     },
+    /// 50 ms cadence liveness ping. Center uses arrival to refresh `last_host_telemetry_at`,
+    /// so missing 3 in a row trips staleness inside ~150 ms even on hard host crashes.
+    HostHeartbeat { ts_ms: u64 },
+    /// Sent once during a clean host shutdown so Center flips offline at sub-RTT instead of
+    /// waiting for QUIC idle timeout. Always followed by `connection.close(...)`.
+    HostByeNow,
 }
 
 /// Center → host framed request (command TCP).
