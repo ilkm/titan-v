@@ -5,5 +5,6 @@ mod device_card;
 mod helpers;
 mod host_config_window;
 mod tab;
+mod tofu_dialog;
 
 pub(crate) use helpers::{device_mgmt_card_height_hint, device_mgmt_cols_and_card_width};

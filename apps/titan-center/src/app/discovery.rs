@@ -224,7 +224,7 @@ pub fn discovery_udp_loop(
     spawn_generation: Arc<AtomicU64>,
     interval: Duration,
     udp_port: u16,
-    host_control: String,
+    host_quic_addr: String,
     bind_ipv4s: Vec<String>,
 ) {
     use std::thread;
@@ -232,7 +232,7 @@ pub fn discovery_udp_loop(
     let Some(sockets) = open_udp_broadcast_pairs(&bind_ipv4s, udp_port, "discovery") else {
         return;
     };
-    let beacon = DiscoveryBeacon::new(host_control.clone());
+    let beacon = DiscoveryBeacon::new(host_quic_addr.clone());
     let payload = match serde_json::to_vec(&beacon) {
         Ok(p) => p,
         Err(e) => {
@@ -245,7 +245,7 @@ pub fn discovery_udp_loop(
         if spawn_generation.load(Ordering::SeqCst) != my_gen {
             break;
         }
-        if !host_control.trim().is_empty() {
+        if !host_quic_addr.trim().is_empty() {
             udp_send_payload_to_all(&sockets, &payload, "discovery");
         }
         thread::sleep(interval);

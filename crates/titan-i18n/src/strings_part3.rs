@@ -6,7 +6,53 @@ pub(super) fn translate(lang: UiLang, msg: Msg) -> Option<&'static str> {
         .or_else(|| inventory_and_preview(lang, msg))
         .or_else(|| monitor_counts(lang, msg))
         .or_else(|| monitor_hints_and_actions(lang, msg))
+        .or_else(|| tofu_dialog(lang, msg))
+        .or_else(|| center_settings_mtls(lang, msg))
         .or_else(|| tray(lang, msg))
+}
+
+fn tofu_dialog(lang: UiLang, msg: Msg) -> Option<&'static str> {
+    match (lang, msg) {
+        (UiLang::En, Msg::CenterTofuDialogTitle) => Some("Trust this host?"),
+        (UiLang::Zh, Msg::CenterTofuDialogTitle) => Some("信任该宿主机？"),
+        (UiLang::En, Msg::CenterTofuDialogSubtitle) => Some(
+            "This host is not in the trust store yet. Verify the fingerprint matches the one shown on the Titan Host settings panel before continuing.",
+        ),
+        (UiLang::Zh, Msg::CenterTofuDialogSubtitle) => {
+            Some("该宿主机尚未在信任列表中，请先比对其 Titan Host 设置页中的指纹是否一致再继续。")
+        }
+        (UiLang::En, Msg::CenterTofuHostLabel) => Some("Host address"),
+        (UiLang::Zh, Msg::CenterTofuHostLabel) => Some("宿主地址"),
+        (UiLang::En, Msg::CenterTofuFingerprintLabel) => Some("SPKI fingerprint (sha256)"),
+        (UiLang::Zh, Msg::CenterTofuFingerprintLabel) => Some("SPKI 指纹（sha256）"),
+        (UiLang::En, Msg::CenterTofuWarning) => Some(
+            "Trusting an unknown fingerprint exposes this control plane to MITM. Confirm only when the value matches the fingerprint shown on the host machine.",
+        ),
+        (UiLang::Zh, Msg::CenterTofuWarning) => {
+            Some("信任未知指纹存在中间人风险，请确认指纹与目标宿主机本地显示一致后再点击。")
+        }
+        (UiLang::En, Msg::CenterTofuConfirm) => Some("Trust and connect"),
+        (UiLang::Zh, Msg::CenterTofuConfirm) => Some("信任并连接"),
+        _ => None,
+    }
+}
+
+fn center_settings_mtls(lang: UiLang, msg: Msg) -> Option<&'static str> {
+    match (lang, msg) {
+        (UiLang::En, Msg::CenterSettingsMtlsSection) => Some("mTLS / trusted hosts"),
+        (UiLang::Zh, Msg::CenterSettingsMtlsSection) => Some("mTLS / 受信宿主机"),
+        (UiLang::En, Msg::CenterSettingsLocalFingerprint) => Some("Local fingerprint"),
+        (UiLang::Zh, Msg::CenterSettingsLocalFingerprint) => Some("本机指纹"),
+        (UiLang::En, Msg::CenterSettingsTrustedHosts) => Some("Trusted hosts"),
+        (UiLang::Zh, Msg::CenterSettingsTrustedHosts) => Some("受信宿主机"),
+        (UiLang::En, Msg::CenterSettingsNoTrustedHosts) => {
+            Some("No host has been trusted yet (LAN announcements add hosts automatically).")
+        }
+        (UiLang::Zh, Msg::CenterSettingsNoTrustedHosts) => {
+            Some("尚未信任任何宿主机（局域网注册会自动加入受信列表）。")
+        }
+        _ => None,
+    }
 }
 
 fn center_vm_window_create_i18n(lang: UiLang, msg: Msg) -> Option<&'static str> {

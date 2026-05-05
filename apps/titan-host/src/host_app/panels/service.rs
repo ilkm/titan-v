@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use egui::RichText;
 use titan_common::UiLang;
 
@@ -5,6 +7,8 @@ use crate::titan_egui_widgets::{form_field_row, primary_button_large, section_ca
 use crate::titan_i18n::{self as i18n, Msg};
 
 use crate::host_app::model::HostApp;
+
+const PAIRING_WINDOW: Duration = Duration::from_secs(5 * 60);
 
 impl HostApp {
     pub(crate) fn panel_service(&mut self, ui: &mut egui::Ui) {
@@ -25,8 +29,64 @@ impl HostApp {
         section_card(ui, i18n::t(lang, Msg::HpSectionVmStorage), |ui| {
             self.panel_service_vm_root_row(ui, lang);
         });
+        section_card(ui, i18n::t(lang, Msg::HpSectionMtlsPairing), |ui| {
+            self.panel_service_mtls_pairing(ui, lang);
+        });
         ui.add_space(8.0);
         self.panel_service_actions(ui, lang);
+    }
+
+    fn panel_service_mtls_pairing(&mut self, ui: &mut egui::Ui, lang: UiLang) {
+        self.panel_service_mtls_fingerprint_row(ui, lang);
+        ui.add_space(6.0);
+        self.panel_service_mtls_pairing_controls(ui, lang);
+        ui.add_space(8.0);
+        self.panel_service_mtls_trust_list(ui, lang);
+    }
+
+    fn panel_service_mtls_fingerprint_row(&self, ui: &mut egui::Ui, lang: UiLang) {
+        let muted = ui.visuals().widgets.inactive.text_color();
+        let fp = &self.host_security.identity.spki_sha256_hex;
+        let label = i18n::t(lang, Msg::HpQuicFingerprintLabel);
+        ui.label(RichText::new(format!("{label}: {fp}")).small().color(muted));
+    }
+
+    fn panel_service_mtls_pairing_controls(&mut self, ui: &mut egui::Ui, lang: UiLang) {
+        let snap = self.host_security.pairing.snapshot();
+        if snap.open {
+            let secs = snap.ttl_remaining_ms / 1000;
+            ui.label(RichText::new(i18n::hp_quic_pairing_remaining(lang, secs)).small());
+            if primary_button_large(ui, i18n::t(lang, Msg::HpQuicPairingClose), true).clicked() {
+                self.host_security.pairing.close();
+            }
+        } else if primary_button_large(ui, i18n::t(lang, Msg::HpQuicPairingOpenBtn), true).clicked()
+        {
+            self.host_security.pairing.open(PAIRING_WINDOW);
+        }
+    }
+
+    fn panel_service_mtls_trust_list(&self, ui: &mut egui::Ui, lang: UiLang) {
+        let muted = ui.visuals().widgets.inactive.text_color();
+        let trusted = self.host_security.trust.list();
+        if trusted.is_empty() {
+            ui.label(
+                RichText::new(i18n::t(lang, Msg::HpQuicNoTrustedCenters))
+                    .small()
+                    .color(muted),
+            );
+            return;
+        }
+        ui.label(RichText::new(i18n::t(lang, Msg::HpQuicTrustedCentersHeader)).small());
+        for entry in &trusted {
+            ui.label(
+                RichText::new(format!(
+                    "  {} — {} ({})",
+                    entry.label, entry.fingerprint, entry.source
+                ))
+                .small()
+                .color(muted),
+            );
+        }
     }
 
     fn panel_service_env_hint(&self, ui: &mut egui::Ui) {

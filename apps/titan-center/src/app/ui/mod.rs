@@ -2,6 +2,7 @@
 
 mod control_panel;
 mod monitor_panel;
+mod mtls_panel;
 pub(crate) mod theme;
 mod vm_window_device_card_clone;
 pub(crate) mod widgets;

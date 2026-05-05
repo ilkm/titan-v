@@ -75,3 +75,11 @@ pub fn hp_control_listening(lang: UiLang, listen: &str) -> String {
         UiLang::Zh => format!("控制面已监听 {listen}"),
     }
 }
+
+#[must_use]
+pub fn hp_quic_pairing_remaining(lang: UiLang, secs: u64) -> String {
+    match lang {
+        UiLang::En => format!("Pairing window open: {secs}s left to auto-trust new centers."),
+        UiLang::Zh => format!("配对窗口开启中：剩余 {secs} 秒，自动信任新中控。"),
+    }
+}

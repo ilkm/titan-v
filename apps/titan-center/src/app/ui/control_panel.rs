@@ -246,12 +246,13 @@ impl CenterApp {
         let _ = lang;
     }
 
-    /// Settings: LAN discovery + LAN host registration only.
+    /// Settings: LAN discovery + LAN host registration + mTLS trust readout.
     pub(crate) fn panel_settings_host(&mut self, ui: &mut egui::Ui) {
         self.refresh_discovery_iface_rows(ui);
         ui.with_layout(egui::Layout::top_down(egui::Align::Min), |ui| {
             self.settings_discovery_section(ui);
             self.settings_host_collect_section(ui);
+            self.settings_mtls_section(ui);
         });
     }
 

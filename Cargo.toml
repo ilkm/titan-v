@@ -4,6 +4,7 @@ members = [
     "crates/titan-common",
     "crates/titan-egui-widgets",
     "crates/titan-i18n",
+    "crates/titan-quic",
     "crates/titan-tray",
     "apps/titan-host",
     "apps/titan-center",

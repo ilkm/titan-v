@@ -38,27 +38,29 @@ fn lan_register_label_for_beacon(addr: &str, label_raw: &str) -> String {
     }
 }
 
-fn lan_register_parse_announced(slice: &[u8]) -> Option<(String, String, String)> {
+fn lan_register_parse_announced(slice: &[u8]) -> Option<(String, String, String, String)> {
     let beacon: HostAnnounceBeacon = serde_json::from_slice(slice).ok()?;
     beacon.validate().ok()?;
-    let addr = beacon.host_control_addr.trim().to_string();
+    let addr = beacon.host_quic_addr.trim().to_string();
     if addr.is_empty() {
         return None;
     }
     let label = lan_register_label_for_beacon(&addr, beacon.label.trim());
     let device_id = beacon.device_id.trim().to_string();
-    Some((addr, label, device_id))
+    let fingerprint = beacon.host_spki_sha256_hex.trim().to_string();
+    Some((addr, label, device_id, fingerprint))
 }
 
 fn lan_register_try_dispatch(slice: &[u8], tx: &Sender<NetUiMsg>, ctx: &Context) -> bool {
-    let Some((addr, label, device_id)) = lan_register_parse_announced(slice) else {
+    let Some((addr, label, device_id, fingerprint)) = lan_register_parse_announced(slice) else {
         return true;
     };
     if tx
         .send(NetUiMsg::HostAnnounced {
-            control_addr: addr,
+            quic_addr: addr,
             label,
             device_id,
+            fingerprint,
         })
         .is_err()
     {

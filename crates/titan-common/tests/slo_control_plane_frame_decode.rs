@@ -10,9 +10,20 @@
 use std::time::Instant;
 
 use titan_common::{
-    Capabilities, ControlHostFrame, ControlResponse, encode_control_host_frame,
-    read_control_host_frame,
+    Capabilities, ControlHostFrame, ControlResponse, FRAME_HEADER_LEN, MAX_PAYLOAD_BYTES,
+    decode_control_host_payload, encode_control_host_frame, parse_header,
 };
+
+fn read_control_host_frame_blocking(buf: &[u8]) -> ControlHostFrame {
+    assert!(buf.len() >= FRAME_HEADER_LEN);
+    let header_arr: [u8; FRAME_HEADER_LEN] = buf[..FRAME_HEADER_LEN]
+        .try_into()
+        .expect("FRAME_HEADER_LEN exact slice");
+    let (_ver, len) = parse_header(&header_arr).expect("parse header");
+    assert!(len <= MAX_PAYLOAD_BYTES);
+    let payload = &buf[FRAME_HEADER_LEN..FRAME_HEADER_LEN + len as usize];
+    decode_control_host_payload(payload).expect("decode payload")
+}
 
 #[test]
 fn control_host_frame_decode_p99_budget() {
@@ -27,8 +38,7 @@ fn control_host_frame_decode_p99_budget() {
     let mut samples = Vec::with_capacity(n);
     for _ in 0..n {
         let t0 = Instant::now();
-        let mut cur = wire.as_slice();
-        let _f = read_control_host_frame(&mut cur).expect("decode");
+        let _f = read_control_host_frame_blocking(&wire);
         samples.push(t0.elapsed().as_nanos() as u64);
     }
     samples.sort_unstable();

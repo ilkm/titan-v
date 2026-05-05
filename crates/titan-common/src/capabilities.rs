@@ -107,7 +107,7 @@ impl Capabilities {
         Self::default()
     }
 
-    /// Values the host reports on the control TCP socket; extend with real probes later.
+    /// Values the host reports on the QUIC control plane; extend with real probes later.
     #[must_use]
     pub fn host_control_plane() -> Self {
         Self::host_control_plane_with_agents(false, false, HostSpoofProbeCaps::default())

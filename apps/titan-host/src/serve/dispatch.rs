@@ -145,6 +145,9 @@ async fn dispatch_request_rest(
             super::vm_window_remote::handle_apply_vm_window_snapshot(device_id, records_json, state)
                 .await
         }
+        ControlRequest::SubscribeTelemetry => {
+            Ok(ControlResponse::SubscribeTelemetryAck { ok: true })
+        }
         ControlRequest::Ping | ControlRequest::Hello => Err(ServeError::Io(std::io::Error::other(
             "internal: dispatch_request_rest received Ping/Hello",
         ))),

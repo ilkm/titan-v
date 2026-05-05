@@ -5,6 +5,10 @@ use crate::state::VmPowerState;
 
 use crate::PROTOCOL_VERSION;
 
+use super::codec::{
+    read_control_host_frame, read_control_request_frame, read_response_frame,
+    read_telemetry_push_frame,
+};
 use super::*;
 
 #[test]

@@ -217,7 +217,22 @@ impl CenterApp {
         self.render_settings_window(ctx);
         self.render_host_config_window(ctx);
         self.render_vm_window_create_dialog(ctx);
+        self.render_tofu_overlay(ctx);
         self.render_ui_toast(ctx);
+    }
+
+    fn render_tofu_overlay(&mut self, ctx: &egui::Context) {
+        if self.tofu_pending.is_none() {
+            return;
+        }
+        let lang = self.ui_lang;
+        egui::Area::new(egui::Id::new("titan_center_tofu_overlay_area"))
+            .order(egui::Order::Foreground)
+            .fixed_pos(ctx.screen_rect().min)
+            .show(ctx, |ui| {
+                ui.set_min_size(ctx.screen_rect().size());
+                self.show_tofu_dialog(ui, lang);
+            });
     }
 
     /// Persist the registered device list to SQLite (same store as app shutdown).

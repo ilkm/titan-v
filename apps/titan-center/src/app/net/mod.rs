@@ -1,12 +1,14 @@
-//! Control-plane TCP client, UI↔background thread messages, and stream tuning.
+//! Control-plane QUIC client, UI↔background thread messages.
 
 mod client;
 mod msg;
-mod tcp_tune;
+mod quic_client;
 
 pub use client::{
-    capabilities_summary, exchange_one, fetch_desktop_snapshot, fetch_host_resource_snapshot,
-    hello_host, read_telemetry_push, telemetry_addr_for_control,
+    capabilities_summary, fetch_desktop_snapshot, fetch_host_resource_snapshot, hello_host,
 };
 pub use msg::NetUiMsg;
-pub use tcp_tune::tune_connected_stream;
+pub use quic_client::{
+    ControlClient, ensure_connection_for_telemetry, exchange_one, forget_host, init_global,
+    read_one_telemetry_push, try_get_global,
+};

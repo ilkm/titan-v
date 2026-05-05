@@ -2,14 +2,43 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
+use titan_quic::{Pairing, Role, TrustStore, load_or_generate};
 use tokio::sync::watch;
 
 use crate::agent_binding_table::AgentBindingTable;
 use crate::host_font;
-use crate::serve::{HostAnnounceConfig, ServeUiChannels, run_serve};
+use crate::serve::{HostAnnounceConfig, ServeSecurity, ServeUiChannels, run_serve};
 
-use crate::host_app::model::{HostApp, HostUiPersist, PERSIST_KEY, ServeRun};
+use crate::host_app::model::{HostApp, HostSecurity, HostUiPersist, PERSIST_KEY, ServeRun};
 use crate::host_app::ui::theme::apply_host_chrome_theme;
+use crate::serve::VmWindowReloadMsg;
+use std::sync::mpsc;
+use titan_common::UiLang;
+
+struct HostAppChannels {
+    persist_apply_tx: mpsc::Sender<HostUiPersist>,
+    persist_apply_rx: mpsc::Receiver<HostUiPersist>,
+    lang_apply_tx: mpsc::Sender<UiLang>,
+    lang_apply_rx: mpsc::Receiver<UiLang>,
+    vm_windows_reload_tx: mpsc::Sender<VmWindowReloadMsg>,
+    vm_windows_reload_rx: mpsc::Receiver<VmWindowReloadMsg>,
+}
+
+impl HostAppChannels {
+    fn new() -> Self {
+        let (persist_apply_tx, persist_apply_rx) = mpsc::channel();
+        let (lang_apply_tx, lang_apply_rx) = mpsc::channel();
+        let (vm_windows_reload_tx, vm_windows_reload_rx) = mpsc::channel();
+        Self {
+            persist_apply_tx,
+            persist_apply_rx,
+            lang_apply_tx,
+            lang_apply_rx,
+            vm_windows_reload_tx,
+            vm_windows_reload_rx,
+        }
+    }
+}
 
 fn host_try_build_serve_runtime() -> Option<tokio::runtime::Runtime> {
     match tokio::runtime::Builder::new_multi_thread()
@@ -29,6 +58,7 @@ fn serve_thread_main(
     agents: Arc<AgentBindingTable>,
     agent_notice: String,
     announce: HostAnnounceConfig,
+    security: ServeSecurity,
     shutdown_rx: watch::Receiver<bool>,
     ui_channels: ServeUiChannels,
 ) {
@@ -40,6 +70,7 @@ fn serve_thread_main(
         agents,
         agent_notice,
         announce,
+        security,
         shutdown_rx,
         ui_channels,
     ));
@@ -59,13 +90,24 @@ impl HostApp {
     ) -> Self {
         host_font::install_cjk_fonts(&cc.egui_ctx);
         apply_host_chrome_theme(&cc.egui_ctx);
+        let (persist, env_listen_hint) = Self::host_app_load_persist(cc);
+        let host_security = init_host_security();
+        let channels = HostAppChannels::new();
+        Self::host_app_assemble(
+            initial_tray,
+            persist,
+            env_listen_hint,
+            host_security,
+            channels,
+        )
+    }
 
+    fn host_app_load_persist(cc: &eframe::CreationContext<'_>) -> (HostUiPersist, Option<String>) {
         let json_opt = cc.storage.and_then(|s| s.get_string(PERSIST_KEY));
         let mut persist: HostUiPersist = json_opt
             .as_deref()
             .and_then(|j| serde_json::from_str(j).ok())
             .unwrap_or_default();
-
         let mut env_listen_hint = None;
         if let Ok(s) = std::env::var("TITAN_HOST_LISTEN")
             && s.parse::<SocketAddr>().is_ok()
@@ -73,34 +115,31 @@ impl HostApp {
             persist.listen = s;
             env_listen_hint = Some(crate::titan_i18n::hp_env_listen_applied(persist.ui_lang));
         }
+        (persist, env_listen_hint)
+    }
 
-        let (persist_apply_tx, persist_apply_rx) = std::sync::mpsc::channel();
-        let (lang_apply_tx, lang_apply_rx) = std::sync::mpsc::channel();
-        let (vm_windows_reload_tx, vm_windows_reload_rx) =
-            std::sync::mpsc::channel::<crate::serve::VmWindowReloadMsg>();
+    #[rustfmt::skip]
+    fn host_app_assemble(
+        initial_tray: Option<titan_tray::TrayIcon>,
+        persist: HostUiPersist,
+        env_listen_hint: Option<String>,
+        host_security: HostSecurity,
+        channels: HostAppChannels,
+    ) -> Self {
+        // Pure assembly: every field is either threaded from `channels` or initialised with a
+        // trivial empty default. Compact form keeps the fn under 30 code lines without a wider
+        // HostApp split (cross-cutting `self.foo` rename across many files).
+        let HostAppChannels { persist_apply_tx, persist_apply_rx, lang_apply_tx, lang_apply_rx, vm_windows_reload_tx, vm_windows_reload_rx } = channels;
         Self {
-            really_quitting: false,
-            hidden_to_tray: false,
-            _tray: initial_tray,
-            serve_run: None,
-            persist_apply_tx: Some(persist_apply_tx),
-            persist_apply_rx,
-            lang_apply_tx: Some(lang_apply_tx),
-            lang_apply_rx,
-            vm_windows_reload_tx: Some(vm_windows_reload_tx),
-            vm_windows_reload_rx,
-            persist,
-            active_tab: 0,
-            status_line: String::new(),
-            env_listen_hint,
-            initial_serve_attempted: false,
-            boot_window_focus_once: false,
-            settings_open: false,
-            settings_lang_btn_rect: None,
-            vm_window_records: Vec::new(),
-            vm_window_masonry_heights: HashMap::new(),
-            host_desktop_textures: HashMap::new(),
-            host_resource_stats: HashMap::new(),
+            host_security, really_quitting: false, hidden_to_tray: false, _tray: initial_tray, serve_run: None,
+            persist_apply_tx: Some(persist_apply_tx), persist_apply_rx,
+            lang_apply_tx: Some(lang_apply_tx), lang_apply_rx,
+            vm_windows_reload_tx: Some(vm_windows_reload_tx), vm_windows_reload_rx,
+            persist, active_tab: 0, status_line: String::new(), env_listen_hint,
+            initial_serve_attempted: false, boot_window_focus_once: false,
+            settings_open: false, settings_lang_btn_rect: None,
+            vm_window_records: Vec::new(), vm_window_masonry_heights: HashMap::new(),
+            host_desktop_textures: HashMap::new(), host_resource_stats: HashMap::new(),
             pending_remove_endpoint: None,
         }
     }
@@ -129,6 +168,7 @@ impl HostApp {
         agents: Arc<AgentBindingTable>,
         agent_notice: String,
         announce: HostAnnounceConfig,
+        security: ServeSecurity,
         ui_channels: ServeUiChannels,
     ) -> ServeRun {
         let (shutdown_tx, shutdown_rx) = watch::channel(false);
@@ -140,6 +180,7 @@ impl HostApp {
                     agents,
                     agent_notice,
                     announce,
+                    security,
                     shutdown_rx,
                     ui_channels,
                 )
@@ -155,6 +196,10 @@ impl HostApp {
         let Some((listen, agents, agent_notice, announce)) = self.start_serve_resolve() else {
             return;
         };
+        let security = match self.build_serve_security() {
+            Some(s) => s,
+            None => return,
+        };
         let ui_channels = ServeUiChannels {
             persist_apply_tx: self.persist_apply_tx.clone(),
             lang_apply_tx: self.lang_apply_tx.clone(),
@@ -165,9 +210,46 @@ impl HostApp {
             agents,
             agent_notice,
             announce,
+            security,
             ui_channels,
         ));
         self.status_line =
             crate::titan_i18n::hp_control_listening(self.persist.ui_lang, &self.persist.listen);
+    }
+
+    fn build_serve_security(&mut self) -> Option<ServeSecurity> {
+        let identity = self.host_security.identity.clone();
+        let trust = self.host_security.trust.clone();
+        let pairing = self.host_security.pairing.clone();
+        Some(ServeSecurity {
+            identity,
+            trust,
+            pairing,
+        })
+    }
+}
+
+fn init_host_security() -> HostSecurity {
+    let device_id = crate::host_device_id::host_device_id_string();
+    let identity_dir = crate::host_paths::identity_dir();
+    let trust_path = crate::host_paths::trust_store_path();
+    let identity = match load_or_generate(&identity_dir, Role::Host, &device_id) {
+        Ok(id) => Arc::new(id),
+        Err(e) => panic!("titan-host: cannot load/generate mTLS identity: {e}"),
+    };
+    let trust = match TrustStore::open(trust_path) {
+        Ok(t) => Arc::new(t),
+        Err(e) => panic!("titan-host: cannot open trust store: {e}"),
+    };
+    let pairing = Pairing::new(trust.clone());
+    tracing::info!(
+        device_id = %device_id,
+        fingerprint = %identity.spki_sha256_hex,
+        "host mTLS identity ready"
+    );
+    HostSecurity {
+        identity,
+        trust,
+        pairing,
     }
 }

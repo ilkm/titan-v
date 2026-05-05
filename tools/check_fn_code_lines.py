@@ -195,7 +195,13 @@ def find_fn_body_end(src: str) -> int | None:
 
 
 def _char_literal_start(src: str, i: int) -> bool:
-    """Heuristic: `'` starts char if next is escape or single non-quote char then '."""
+    """Heuristic: `'` at position i starts a char literal (vs a lifetime label).
+
+    A lifetime is `'IDENT` where IDENT is `[a-zA-Z_][a-zA-Z0-9_]*` and is never
+    followed by a closing `'`. A char literal always ends with `'` (e.g. `'a'`,
+    `'\\n'`, `'b'`). When the next char is `_` or alpha, we walk the identifier
+    and only treat it as a char literal when a closing `'` immediately follows.
+    """
     if i + 1 >= len(src):
         return False
     nxt = src[i + 1]
@@ -203,9 +209,11 @@ def _char_literal_start(src: str, i: int) -> bool:
         return True
     if nxt == "'":
         return False
-    # lifetime 'a
-    if nxt.isalpha() and i + 2 < len(src) and src[i + 2].isalnum():
-        return False
+    if nxt == "_" or nxt.isalpha():
+        j = i + 1
+        while j < len(src) and (src[j].isalnum() or src[j] == "_"):
+            j += 1
+        return j < len(src) and src[j] == "'"
     return True
 
 

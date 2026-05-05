@@ -17,12 +17,14 @@ pub enum NetUiMsg {
         caps_summary: String,
         error: String,
     },
-    /// LAN UDP: host announced its control-plane TCP address; merge into device list.
+    /// LAN UDP: host announced its QUIC control-plane address + mTLS SPKI fingerprint.
     HostAnnounced {
-        control_addr: String,
+        quic_addr: String,
         label: String,
-        /// OS machine id from host (`machine-uid`); empty for legacy beacons.
+        /// OS machine id from host (`machine-uid`); never empty in v3 beacons.
         device_id: String,
+        /// SHA-256(SPKI) hex (lowercase, 64 chars). Center auto-trusts on first sight.
+        fingerprint: String,
     },
     /// JPEG desktop frame for device management preview (`control_addr` = normalized host address key).
     DesktopSnapshot {

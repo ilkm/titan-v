@@ -1,5 +1,6 @@
 //! Center UI: persisted host table, control-plane (multi-message TCP), VM inventory, window masonry.
 
+pub mod center_paths;
 mod constants;
 pub mod device_store;
 mod discovery;
@@ -23,12 +24,28 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::time::Instant;
 
 use titan_common::{HostResourceStats, VmWindowRecord};
+use titan_quic::{Identity, TrustStore};
 
 pub use persist_data::{HostEndpoint, NavTab};
 
 use self::fleet_state::HostLiveState;
 use self::i18n::UiLang;
 use self::net::NetUiMsg;
+
+/// Center-side mTLS identity + trust store, shared across UI and background workers.
+pub struct CenterSecurity {
+    pub identity: Arc<Identity>,
+    pub trust: Arc<TrustStore>,
+}
+
+/// Pending TOFU (trust on first use) prompt for a manually-entered Host whose fingerprint
+/// is not yet in the trust store.
+#[derive(Debug, Clone)]
+pub struct TofuPrompt {
+    pub host_addr: String,
+    pub fingerprint: String,
+    pub label: String,
+}
 
 /// Center manager application state (UI thread).
 /// One background telemetry TCP session for a given endpoint key ([`CenterApp::endpoint_addr_key`]).
@@ -40,6 +57,10 @@ pub(crate) struct TelemetryLink {
 }
 
 pub struct CenterApp {
+    pub(crate) center_security: CenterSecurity,
+    /// Pending TOFU dialog data (`Some` when a manually-added host's fingerprint is unknown);
+    /// drained by [`CenterApp::confirm_tofu_pending`] / [`CenterApp::dismiss_tofu_pending`].
+    pub(crate) tofu_pending: Option<TofuPrompt>,
     pub(crate) ctx: egui::Context,
     pub(crate) endpoints: Vec<HostEndpoint>,
     pub(crate) selected_host: usize,

@@ -6,7 +6,26 @@ pub(super) fn translate(lang: UiLang, msg: Msg) -> Option<&'static str> {
     translate_hp_chrome(lang, msg)
         .or_else(|| translate_hp_service_listen(lang, msg))
         .or_else(|| translate_hp_settings_sections(lang, msg))
+        .or_else(|| translate_hp_pairing(lang, msg))
         .or_else(|| translate_hp_window_mgmt(lang, msg))
+}
+
+fn translate_hp_pairing(lang: UiLang, msg: Msg) -> Option<&'static str> {
+    match (lang, msg) {
+        (UiLang::En, Msg::HpSectionMtlsPairing) => Some("mTLS pairing"),
+        (UiLang::Zh, Msg::HpSectionMtlsPairing) => Some("mTLS 配对"),
+        (UiLang::En, Msg::HpQuicFingerprintLabel) => Some("Local fingerprint"),
+        (UiLang::Zh, Msg::HpQuicFingerprintLabel) => Some("本机指纹"),
+        (UiLang::En, Msg::HpQuicPairingOpenBtn) => Some("Open pairing window (5 min)"),
+        (UiLang::Zh, Msg::HpQuicPairingOpenBtn) => Some("开启配对窗口（5 分钟）"),
+        (UiLang::En, Msg::HpQuicPairingClose) => Some("Close pairing window"),
+        (UiLang::Zh, Msg::HpQuicPairingClose) => Some("关闭配对窗口"),
+        (UiLang::En, Msg::HpQuicTrustedCentersHeader) => Some("Trusted centers"),
+        (UiLang::Zh, Msg::HpQuicTrustedCentersHeader) => Some("已信任的中控"),
+        (UiLang::En, Msg::HpQuicNoTrustedCenters) => Some("No center has paired yet."),
+        (UiLang::Zh, Msg::HpQuicNoTrustedCenters) => Some("尚未有中控完成配对。"),
+        _ => None,
+    }
 }
 
 fn translate_hp_chrome(lang: UiLang, msg: Msg) -> Option<&'static str> {

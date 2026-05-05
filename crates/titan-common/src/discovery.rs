@@ -1,36 +1,43 @@
-//! LAN discovery beacon (UDP JSON): center broadcasts where the **host control plane** listens.
+//! LAN discovery beacons (UDP JSON).
+//!
+//! Two related broadcast flows live here:
+//!
+//! 1. **Center↔Host registration** — `CenterPollBeacon` (Center→LAN) and `HostAnnounceBeacon`
+//!    (Host→Center). The host announce includes the host's self-signed mTLS SPKI fingerprint
+//!    so Center can auto-trust it on first sight.
+//! 2. **In-guest helper** — `DiscoveryBeacon` (Center→VM-internal automation) advertises the
+//!    host's QUIC control endpoint so guest scripts can find it without hard-coding addresses.
 
 use serde::{Deserialize, Serialize};
 
-/// JSON `kind` for [`DiscoveryBeacon`]; guests must reject unknown kinds.
+/// JSON `kind` for [`DiscoveryBeacon`]; in-guest automation may listen for it.
 pub const DISCOVERY_BEACON_KIND: &str = "titan.v1.discovery";
 
-/// Schema carried in [`DiscoveryBeacon::schema`]; bump when fields change incompatibly.
+/// Schema for [`DiscoveryBeacon`]; bump when fields change incompatibly.
 pub const DISCOVERY_SCHEMA_VERSION: u32 = 1;
 
-/// Default UDP destination port for beacons (optional in-guest automation may listen here).
+/// Default UDP destination port for [`DiscoveryBeacon`] (Center→VM-internal).
 pub const DEFAULT_DISCOVERY_UDP_PORT: u16 = 7789;
 
-/// Payload sent as UTF-8 JSON over UDP (e.g. to `255.255.255.255:7789`).
+/// Payload sent as UTF-8 JSON over UDP from Center to in-guest automation.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DiscoveryBeacon {
     pub kind: String,
     pub schema: u32,
-    /// `titan-host serve` control-plane TCP address, e.g. `192.168.1.10:7788`.
-    pub host_control_addr: String,
+    /// QUIC control endpoint for the host this beacon advertises (e.g. `192.168.1.10:7788`).
+    pub host_quic_addr: String,
 }
 
 impl DiscoveryBeacon {
     #[must_use]
-    pub fn new(host_control_addr: impl Into<String>) -> Self {
+    pub fn new(host_quic_addr: impl Into<String>) -> Self {
         Self {
             kind: DISCOVERY_BEACON_KIND.to_string(),
             schema: DISCOVERY_SCHEMA_VERSION,
-            host_control_addr: host_control_addr.into(),
+            host_quic_addr: host_quic_addr.into(),
         }
     }
 
-    /// Validates `kind` / `schema` before trusting `host_control_addr`.
     pub fn validate(&self) -> Result<(), &'static str> {
         if self.kind != DISCOVERY_BEACON_KIND {
             return Err("discovery beacon kind mismatch");
@@ -38,49 +45,52 @@ impl DiscoveryBeacon {
         if self.schema != DISCOVERY_SCHEMA_VERSION {
             return Err("discovery beacon schema mismatch");
         }
-        if self.host_control_addr.trim().is_empty() {
-            return Err("empty host_control_addr");
+        if self.host_quic_addr.trim().is_empty() {
+            return Err("empty host_quic_addr");
         }
         Ok(())
     }
 }
 
 /// JSON `kind` for [`HostAnnounceBeacon`]; center listens on UDP and merges into device list.
-pub const HOST_ANNOUNCE_BEACON_KIND: &str = "titan.v1.host_announce";
+pub const HOST_ANNOUNCE_BEACON_KIND: &str = "titan.v3.host_announce";
 
-/// Schema for [`HostAnnounceBeacon`].
-pub const HOST_ANNOUNCE_SCHEMA_VERSION: u32 = 2;
+/// Schema for [`HostAnnounceBeacon`]. v3 is the **only** accepted schema; QUIC + mTLS by default.
+pub const HOST_ANNOUNCE_SCHEMA_VERSION: u32 = 3;
 
 /// Default UDP port **Titan Center** binds for LAN host registration (host sends to this port).
 pub const DEFAULT_CENTER_REGISTER_UDP_PORT: u16 = 7791;
 
-/// Payload sent by `titan-host serve` so Titan Center can auto-add the device (LAN).
+/// Payload sent by `titan-host serve` so Titan Center can auto-add the device on the LAN.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HostAnnounceBeacon {
     pub kind: String,
     pub schema: u32,
-    /// Control-plane TCP address clients should use, e.g. `192.168.1.10:7788`.
-    pub host_control_addr: String,
-    /// Display label in the center device list (may be empty; center will synthesize).
+    /// QUIC endpoint clients dial (UDP), e.g. `192.168.1.10:7788`.
+    pub host_quic_addr: String,
+    /// Display label in the center device list (may be empty; center synthesizes one).
     pub label: String,
-    /// OS-stable machine id from `titan-host` (`machine-uid`); empty for legacy beacons (schema v1).
-    #[serde(default)]
+    /// OS-stable machine id from `titan-host` (`machine-uid`); never empty.
     pub device_id: String,
+    /// SHA-256(SPKI(host cert)) hex (lowercase, 64 chars). Center trust store keys on this.
+    pub host_spki_sha256_hex: String,
 }
 
 impl HostAnnounceBeacon {
     #[must_use]
     pub fn new(
-        host_control_addr: impl Into<String>,
+        host_quic_addr: impl Into<String>,
         label: impl Into<String>,
         device_id: impl Into<String>,
+        host_spki_sha256_hex: impl Into<String>,
     ) -> Self {
         Self {
             kind: HOST_ANNOUNCE_BEACON_KIND.to_string(),
             schema: HOST_ANNOUNCE_SCHEMA_VERSION,
-            host_control_addr: host_control_addr.into(),
+            host_quic_addr: host_quic_addr.into(),
             label: label.into(),
             device_id: device_id.into(),
+            host_spki_sha256_hex: host_spki_sha256_hex.into(),
         }
     }
 
@@ -88,21 +98,31 @@ impl HostAnnounceBeacon {
         if self.kind != HOST_ANNOUNCE_BEACON_KIND {
             return Err("host announce beacon kind mismatch");
         }
-        if self.schema != 1 && self.schema != HOST_ANNOUNCE_SCHEMA_VERSION {
+        if self.schema != HOST_ANNOUNCE_SCHEMA_VERSION {
             return Err("host announce beacon schema mismatch");
         }
-        if self.host_control_addr.trim().is_empty() {
-            return Err("empty host_control_addr");
+        if self.host_quic_addr.trim().is_empty() {
+            return Err("empty host_quic_addr");
+        }
+        if self.device_id.trim().is_empty() {
+            return Err("empty device_id");
+        }
+        if !is_lowercase_hex_64(&self.host_spki_sha256_hex) {
+            return Err("host_spki_sha256_hex must be 64 lowercase hex chars");
         }
         Ok(())
     }
 }
 
-/// JSON `kind` for [`CenterPollBeacon`]; hosts listen on [`DEFAULT_CENTER_POLL_UDP_PORT`] UDP.
-pub const CENTER_POLL_BEACON_KIND: &str = "titan.v1.center_poll";
+fn is_lowercase_hex_64(s: &str) -> bool {
+    s.len() == 64 && s.chars().all(|c| matches!(c, '0'..='9' | 'a'..='f'))
+}
 
-/// Schema for [`CenterPollBeacon`].
-pub const CENTER_POLL_SCHEMA_VERSION: u32 = 1;
+/// JSON `kind` for [`CenterPollBeacon`]; hosts listen on [`DEFAULT_CENTER_POLL_UDP_PORT`] UDP.
+pub const CENTER_POLL_BEACON_KIND: &str = "titan.v3.center_poll";
+
+/// Schema for [`CenterPollBeacon`]; v3 only.
+pub const CENTER_POLL_SCHEMA_VERSION: u32 = 3;
 
 /// UDP **destination** port for center→LAN poll packets; `titan-host serve` binds this port to listen.
 pub const DEFAULT_CENTER_POLL_UDP_PORT: u16 = 7792;
@@ -144,9 +164,13 @@ impl CenterPollBeacon {
 mod announce_tests {
     use super::*;
 
+    fn fake_fp() -> String {
+        "0".repeat(64)
+    }
+
     #[test]
     fn host_announce_roundtrip() {
-        let b = HostAnnounceBeacon::new("192.168.1.2:7788", "rack-a", "machine-id-hex");
+        let b = HostAnnounceBeacon::new("192.168.1.2:7788", "rack-a", "machine-id-hex", fake_fp());
         let v = serde_json::to_vec(&b).unwrap();
         let d: HostAnnounceBeacon = serde_json::from_slice(&v).unwrap();
         assert_eq!(d, b);
@@ -154,11 +178,16 @@ mod announce_tests {
     }
 
     #[test]
-    fn host_announce_schema_v1_without_device_id_still_parses() {
-        let json = br#"{"kind":"titan.v1.host_announce","schema":1,"host_control_addr":"10.0.0.2:7788","label":"h1"}"#;
+    fn host_announce_rejects_short_fingerprint() {
+        let b = HostAnnounceBeacon::new("10.0.0.2:7788", "h", "mid", "abc");
+        assert!(b.validate().is_err());
+    }
+
+    #[test]
+    fn host_announce_rejects_v2_schema() {
+        let json = br#"{"kind":"titan.v3.host_announce","schema":2,"host_quic_addr":"10.0.0.2:7788","label":"h","device_id":"mid","host_spki_sha256_hex":"00000000000000000000000000000000000000000000000000000000000000aa"}"#;
         let d: HostAnnounceBeacon = serde_json::from_slice(json).unwrap();
-        assert!(d.device_id.is_empty());
-        d.validate().unwrap();
+        assert!(d.validate().is_err());
     }
 
     #[test]

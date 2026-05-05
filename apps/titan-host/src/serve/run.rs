@@ -1,18 +1,21 @@
+//! QUIC + mTLS control plane: each Center connection gets its own QUIC connection,
+//! every RPC opens its own bi-stream, telemetry rides a single uni-stream per connection.
+
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc as sync_mpsc;
 use std::time::Duration;
 
+use anyhow::{Context, Result};
+use quinn::{Connection, Endpoint, Incoming};
 use titan_common::{
-    ControlHostFrame, ControlPush, ControlRequestFrame, ControlResponse, HostRuntimeProbes, UiLang,
-    control_plane_telemetry_addr, encode_control_host_frame, encode_telemetry_push_frame,
-    telemetry_push_payload_fits,
+    ControlHostFrame, ControlPush, ControlRequest, ControlResponse, HostRuntimeProbes, UiLang,
 };
-use tokio::io::AsyncWriteExt;
-use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::broadcast;
-use tokio::sync::watch;
+use titan_quic::{
+    Identity, Pairing, TrustStore, build_server_config, frame_io, install_default_crypto_provider,
+};
+use tokio::sync::{broadcast, watch};
 use tokio::time::timeout;
 
 use crate::agent_binding_table::AgentBindingTable;
@@ -21,12 +24,9 @@ use crate::ui_persist::HostUiPersist;
 use super::announce::{HostAnnounceConfig, spawn_host_announce_background};
 use super::dispatch::dispatch_request;
 use super::errors::ServeError;
-use super::io::read_one_control_request;
-use super::limits::{DEFAULT_CONN_TIMEOUT, DEFAULT_IDLE_BETWEEN_FRAMES, MAX_FRAMES_PER_CONNECTION};
+use super::limits::DEFAULT_IDLE_BETWEEN_FRAMES;
 use super::state::{ServeState, VmWindowReloadMsg};
 use super::telemetry;
-
-use crate::tcp_tune::tcp_listen_tokio;
 
 static NEXT_CONN_ID: AtomicU64 = AtomicU64::new(1);
 
@@ -36,6 +36,13 @@ pub struct ServeUiChannels {
     pub persist_apply_tx: Option<sync_mpsc::Sender<HostUiPersist>>,
     pub lang_apply_tx: Option<sync_mpsc::Sender<UiLang>>,
     pub vm_windows_reload_tx: Option<sync_mpsc::Sender<VmWindowReloadMsg>>,
+}
+
+/// Crypto material + trust store + pairing flag injected from the egui side.
+pub struct ServeSecurity {
+    pub identity: Arc<Identity>,
+    pub trust: Arc<TrustStore>,
+    pub pairing: Arc<Pairing>,
 }
 
 async fn build_serve_state(
@@ -77,16 +84,6 @@ fn log_runtime_probes(gpu_partition_available: bool, runtime_probes: &HostRuntim
     );
 }
 
-async fn write_telemetry_frame(sock: &mut TcpStream, push: &ControlPush) -> std::io::Result<()> {
-    let frame =
-        encode_telemetry_push_frame(push).map_err(|e| std::io::Error::other(e.to_string()))?;
-    sock.write_all(&frame).await?;
-    // No per-frame flush: coalesce with TCP stack for high-rate desktop preview (live feel).
-    Ok(())
-}
-
-/// Push-only telemetry TCP: center connects and receives `ControlPush` frames (no requests).
-/// Pushes [`ControlPush::HostResourceLive`] on a fixed cadence while any telemetry TCP client is subscribed.
 fn spawn_telemetry_resource_live_loop(tx: broadcast::Sender<ControlPush>) {
     tokio::spawn(async move {
         let mut ticker = tokio::time::interval(Duration::from_secs(1));
@@ -125,13 +122,12 @@ async fn telemetry_desktop_preview_tick(tx: &broadcast::Sender<ControlPush>) {
         width_px,
         height_px,
     };
-    if !telemetry_push_payload_fits(&push) {
+    if !titan_common::telemetry_push_payload_fits(&push) {
         return;
     }
     let _ = tx.send(push);
 }
 
-/// Desktop JPEG over telemetry at ~3 FPS (device-card thumbnail scenario).
 fn spawn_telemetry_desktop_preview_loop(tx: broadcast::Sender<ControlPush>) {
     const TICK: Duration = Duration::from_millis(333);
     tokio::spawn(async move {
@@ -144,91 +140,44 @@ fn spawn_telemetry_desktop_preview_loop(tx: broadcast::Sender<ControlPush>) {
     });
 }
 
-async fn telemetry_accept_one_client(
-    mut sock: TcpStream,
-    peer: SocketAddr,
-    state: Arc<ServeState>,
-) {
-    let _ = sock.set_nodelay(true);
-    let mut rx = state.telemetry_tx.subscribe();
-    tracing::info!(%peer, "telemetry subscriber connected");
-    if let Some(initial) = telemetry::build_telemetry_push(None).await {
-        let _ = write_telemetry_frame(&mut sock, &initial).await;
-        let _ = sock.flush().await;
-    }
-    tokio::spawn(async move {
-        loop {
-            match rx.recv().await {
-                Ok(push) => {
-                    if write_telemetry_frame(&mut sock, &push).await.is_err() {
-                        break;
-                    }
-                }
-                Err(broadcast::error::RecvError::Lagged(_)) => continue,
-                Err(broadcast::error::RecvError::Closed) => break,
-            }
-        }
-    });
-}
-
-fn spawn_telemetry_accept_loop(listener: TcpListener, state: Arc<ServeState>) {
-    tokio::spawn(async move {
-        loop {
-            match listener.accept().await {
-                Ok((sock, peer)) => {
-                    let st = state.clone();
-                    tokio::spawn(telemetry_accept_one_client(sock, peer, st));
-                }
-                Err(e) => tracing::warn!(error = %e, "telemetry accept"),
-            }
-        }
-    });
-}
-
 /// Listens until `shutdown` becomes true or the sender is dropped.
-///
-/// System tray / window lifecycle should own the matching [`watch::Sender`] and call
-/// [`titan_tray::spawn_tray_shutdown_for_serve`] with `tooltip` and [`UiLang`](titan_common::UiLang),
-/// or equivalent.
 pub async fn run_serve(
     bind: SocketAddr,
     agent_bindings: Arc<AgentBindingTable>,
     agent_bindings_notice: String,
     announce: HostAnnounceConfig,
+    security: ServeSecurity,
     shutdown: watch::Receiver<bool>,
     ui_channels: ServeUiChannels,
 ) -> Result<(), ServeError> {
+    install_default_crypto_provider();
     let state = build_serve_state(agent_bindings, agent_bindings_notice, ui_channels).await?;
-    let listener = tcp_listen_tokio(bind).map_err(ServeError::Io)?;
-    let local = listener.local_addr().map_err(ServeError::Io)?;
-    spawn_host_announce_background(announce, bind, local);
-
-    let telemetry_bind = control_plane_telemetry_addr(bind);
-    let telemetry_listener = tcp_listen_tokio(telemetry_bind).map_err(ServeError::Io)?;
-    tracing::info!(%bind, "control-plane command TCP listening");
-    tracing::info!(%telemetry_bind, "control-plane telemetry TCP (push-only) listening");
-    spawn_telemetry_accept_loop(telemetry_listener, state.clone());
+    let endpoint = build_endpoint(&security, bind).map_err(serve_io_err)?;
+    let local = endpoint.local_addr().map_err(ServeError::Io)?;
+    spawn_host_announce_background(announce, bind, local, &security.identity);
+    tracing::info!(%bind, fingerprint = %security.identity.spki_sha256_hex, "QUIC control + telemetry plane listening");
     spawn_telemetry_resource_live_loop(state.telemetry_tx.clone());
     spawn_telemetry_desktop_preview_loop(state.telemetry_tx.clone());
 
-    accept_loop(listener, state, shutdown).await
+    accept_loop(endpoint, state, shutdown).await
 }
 
-fn spawn_control_connection(sock: TcpStream, peer: SocketAddr, state: Arc<ServeState>) {
-    tokio::spawn(async move {
-        let conn_id = NEXT_CONN_ID.fetch_add(1, Ordering::Relaxed);
-        let span = tracing::info_span!("control_conn", conn_id, %peer);
-        let _enter = span.enter();
-        if let Err(e) = handle_connection(sock, DEFAULT_CONN_TIMEOUT, conn_id, state).await {
-            tracing::warn!(error = %e, "control connection closed with error");
-        } else {
-            tracing::info!("control connection closed");
-        }
-    });
+fn build_endpoint(security: &ServeSecurity, bind: SocketAddr) -> Result<Endpoint> {
+    let server_cfg = build_server_config(
+        security.identity.as_ref(),
+        security.trust.clone(),
+        Some(security.pairing.clone()),
+    )
+    .context("build server config")?;
+    titan_quic::bind_server_endpoint(bind, server_cfg)
+}
+
+fn serve_io_err(err: anyhow::Error) -> ServeError {
+    ServeError::Io(std::io::Error::other(err.to_string()))
 }
 
 async fn accept_loop(
-    listener: TcpListener,
+    endpoint: Endpoint,
     state: Arc<ServeState>,
     mut shutdown: watch::Receiver<bool>,
 ) -> Result<(), ServeError> {
@@ -237,76 +186,165 @@ async fn accept_loop(
             res = shutdown.changed() => {
                 if res.is_err() {
                     tracing::info!("serve shutdown signal (sender dropped)");
-                    return Ok(());
+                    break;
                 }
                 if *shutdown.borrow() {
                     tracing::info!("serve stopped from system tray");
-                    return Ok(());
+                    break;
                 }
             }
-            accept_res = listener.accept() => {
-                let (sock, peer) = accept_res.map_err(ServeError::Io)?;
-                spawn_control_connection(sock, peer, state.clone());
+            inc = endpoint.accept() => {
+                let Some(inc) = inc else {
+                    tracing::info!("quic endpoint accept yielded None; closing");
+                    break;
+                };
+                spawn_connection(inc, state.clone());
             }
         }
     }
+    endpoint.close(quinn::VarInt::from_u32(0), b"shutdown");
+    Ok(())
 }
 
-/// Handles one client session: read frames in a loop until idle timeout, EOF, or cap.
+fn spawn_connection(inc: Incoming, state: Arc<ServeState>) {
+    let conn_id = NEXT_CONN_ID.fetch_add(1, Ordering::Relaxed);
+    let span = tracing::info_span!("quic_conn", conn_id);
+    tokio::spawn(async move {
+        let _enter = span.enter();
+        let connection = match inc.await {
+            Ok(c) => c,
+            Err(e) => {
+                tracing::warn!(error = %e, "quic handshake failed");
+                return;
+            }
+        };
+        tracing::info!(remote = %connection.remote_address(), "quic connection accepted");
+        if let Err(e) = handle_connection(connection, conn_id, state).await {
+            tracing::warn!(error = %e, "quic connection ended with error");
+        } else {
+            tracing::info!("quic connection closed");
+        }
+    });
+}
+
+/// Runs one QUIC connection's accept_bi() loop until it closes.
 pub async fn handle_connection(
-    mut sock: TcpStream,
-    session_deadline: Duration,
+    connection: Connection,
     conn_id: u64,
     state: Arc<ServeState>,
 ) -> Result<(), ServeError> {
-    timeout(session_deadline, session_loop(&mut sock, conn_id, &state))
-        .await
-        .map_err(|_| ServeError::Timeout)?
-}
-
-async fn session_dispatch_one(
-    sock: &mut TcpStream,
-    req: ControlRequestFrame,
-    state: &Arc<ServeState>,
-    conn_id: u64,
-    frame_seq: u64,
-) -> Result<(), ServeError> {
-    let request_id = format!("{conn_id}-{frame_seq}");
-    tracing::info!(%request_id, body = ?req.body, id = req.id, "control request");
-    let res = dispatch_request(req.body.clone(), &request_id, state).await?;
-    let reuse_vms = match &res {
-        ControlResponse::VmList { vms } => Some(vms.clone()),
-        _ => None,
-    };
-    let frame = encode_control_host_frame(&ControlHostFrame::Response {
-        id: req.id,
-        body: res.clone(),
-    })?;
-    sock.write_all(&frame).await?;
-    sock.flush().await?;
-    telemetry::publish_telemetry_after_dispatch(state, reuse_vms, &res);
-    Ok(())
-}
-
-async fn session_loop(
-    sock: &mut TcpStream,
-    conn_id: u64,
-    state: &Arc<ServeState>,
-) -> Result<(), ServeError> {
     let mut frame_seq: u64 = 0;
     loop {
-        if frame_seq >= u64::from(MAX_FRAMES_PER_CONNECTION) {
-            tracing::warn!(conn_id, "max frames per connection reached; closing");
-            break;
+        match connection.accept_bi().await {
+            Ok((mut send, mut recv)) => {
+                frame_seq += 1;
+                let conn = connection.clone();
+                let st = state.clone();
+                let seq = frame_seq;
+                tokio::spawn(async move {
+                    if let Err(e) =
+                        serve_one_rpc(conn, &mut send, &mut recv, conn_id, seq, &st).await
+                    {
+                        tracing::warn!(error = %e, conn_id, seq, "rpc stream ended with error");
+                    }
+                });
+            }
+            Err(quinn::ConnectionError::ApplicationClosed(_)) => return Ok(()),
+            Err(quinn::ConnectionError::LocallyClosed) => return Ok(()),
+            Err(quinn::ConnectionError::ConnectionClosed(_)) => return Ok(()),
+            Err(quinn::ConnectionError::TimedOut) => return Ok(()),
+            Err(e) => return Err(ServeError::Io(std::io::Error::other(e.to_string()))),
         }
-        let req = match timeout(DEFAULT_IDLE_BETWEEN_FRAMES, read_one_control_request(sock)).await {
-            Ok(Ok(Some(r))) => r,
-            Ok(Ok(None)) => break,
-            Ok(Err(e)) => return Err(e),
-            Err(_) => return Err(ServeError::Timeout),
-        };
-        frame_seq += 1;
-        session_dispatch_one(sock, req, state, conn_id, frame_seq).await?;
+    }
+}
+
+async fn serve_one_rpc(
+    connection: Connection,
+    send: &mut quinn::SendStream,
+    recv: &mut quinn::RecvStream,
+    conn_id: u64,
+    seq: u64,
+    state: &Arc<ServeState>,
+) -> Result<(), ServeError> {
+    let Some(req) = read_one_request_with_idle(recv).await? else {
+        return Ok(());
+    };
+    let request_id = format!("{conn_id}-{seq}");
+    tracing::info!(%request_id, body = ?req.body, id = req.id, "control request");
+    let want_telemetry = matches!(req.body, ControlRequest::SubscribeTelemetry);
+    let res = dispatch_request(req.body.clone(), &request_id, state).await?;
+    write_response_and_finish(send, req.id, &res).await?;
+    let reuse_vms = if let ControlResponse::VmList { vms } = &res {
+        Some(vms.clone())
+    } else {
+        None
+    };
+    telemetry::publish_telemetry_after_dispatch(state, reuse_vms, &res);
+    if want_telemetry {
+        spawn_telemetry_uni_pump(connection, state.clone());
     }
     Ok(())
+}
+
+async fn read_one_request_with_idle(
+    recv: &mut quinn::RecvStream,
+) -> Result<Option<titan_common::ControlRequestFrame>, ServeError> {
+    timeout(
+        DEFAULT_IDLE_BETWEEN_FRAMES,
+        frame_io::read_one_control_request(recv),
+    )
+    .await
+    .map_err(|_| ServeError::Timeout)?
+    .map_err(map_anyhow)
+}
+
+async fn write_response_and_finish(
+    send: &mut quinn::SendStream,
+    id: u64,
+    res: &ControlResponse,
+) -> Result<(), ServeError> {
+    let response = ControlHostFrame::Response {
+        id,
+        body: res.clone(),
+    };
+    frame_io::write_control_host(send, &response)
+        .await
+        .map_err(map_anyhow)?;
+    send.finish()
+        .map_err(|e| ServeError::Io(std::io::Error::other(e.to_string())))
+}
+
+fn map_anyhow(e: anyhow::Error) -> ServeError {
+    ServeError::Io(std::io::Error::other(e.to_string()))
+}
+
+fn spawn_telemetry_uni_pump(connection: Connection, state: Arc<ServeState>) {
+    tokio::spawn(async move {
+        let mut send = match connection.open_uni().await {
+            Ok(s) => s,
+            Err(e) => {
+                tracing::warn!(error = %e, "telemetry: open_uni failed");
+                return;
+            }
+        };
+        let mut rx = state.telemetry_tx.subscribe();
+        if let Some(initial) = telemetry::build_telemetry_push(None).await
+            && let Err(e) = frame_io::write_telemetry_push(&mut send, &initial).await
+        {
+            tracing::debug!(error = %e, "telemetry: write initial failed");
+            return;
+        }
+        loop {
+            match rx.recv().await {
+                Ok(push) => {
+                    if let Err(e) = frame_io::write_telemetry_push(&mut send, &push).await {
+                        tracing::debug!(error = %e, "telemetry: stream closed");
+                        return;
+                    }
+                }
+                Err(broadcast::error::RecvError::Lagged(_)) => continue,
+                Err(broadcast::error::RecvError::Closed) => return,
+            }
+        }
+    });
 }

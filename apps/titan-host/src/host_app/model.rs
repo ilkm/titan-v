@@ -9,6 +9,7 @@ use eframe::egui;
 use tokio::sync::watch;
 
 use titan_common::{HostResourceStats, VmWindowRecord};
+use titan_quic::{Identity, Pairing, TrustStore};
 
 use crate::agent_binding_table::AgentBindingTable;
 use crate::serve::{HostAnnounceConfig, VmWindowReloadMsg};
@@ -64,7 +65,15 @@ impl ServeRun {
     }
 }
 
+/// mTLS identity, fingerprint trust list, and pairing-window state for the host's QUIC server.
+pub struct HostSecurity {
+    pub identity: Arc<Identity>,
+    pub trust: Arc<TrustStore>,
+    pub pairing: Arc<Pairing>,
+}
+
 pub struct HostApp {
+    pub(crate) host_security: HostSecurity,
     pub(crate) really_quitting: bool,
     pub(crate) hidden_to_tray: bool,
     pub(crate) _tray: Option<titan_tray::TrayIcon>,

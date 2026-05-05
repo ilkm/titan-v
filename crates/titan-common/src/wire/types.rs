@@ -70,6 +70,10 @@ pub enum ControlRequest {
         device_id: String,
         records_json: String,
     },
+    /// Center asks the host to start streaming `ControlPush` telemetry on a newly-opened
+    /// **unidirectional** QUIC stream. Host acks on the original bi-stream, then opens the uni
+    /// stream and writes [`ControlPush`] frames for as long as the QUIC connection is alive.
+    SubscribeTelemetry,
 }
 
 /// One row in a [`ControlResponse::VmList`] payload.
@@ -156,6 +160,11 @@ pub enum ControlResponse {
         applied: u32,
         #[serde(default)]
         detail: String,
+    },
+    /// Result of [`ControlRequest::SubscribeTelemetry`]: `ok = true` means the host has opened
+    /// (or queued opening) a unidirectional telemetry stream on the same QUIC connection.
+    SubscribeTelemetryAck {
+        ok: bool,
     },
 }
 

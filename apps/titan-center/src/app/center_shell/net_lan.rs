@@ -7,20 +7,41 @@ use crate::app::persist_data::HostEndpoint;
 impl CenterApp {
     pub(crate) fn apply_net_host_announced(
         &mut self,
-        control_addr: String,
+        quic_addr: String,
         label: String,
         device_id: String,
+        fingerprint: String,
     ) {
-        let addr = Self::endpoint_addr_key(&control_addr);
+        let addr = Self::endpoint_addr_key(&quic_addr);
         if addr.is_empty() {
             return;
         }
         let id_from_host = device_id.trim().to_string();
         let resolved_label = resolve_announced_label(&label, &addr);
-        self.dispatch_announced_merge(&addr, &control_addr, &resolved_label, &id_from_host);
+        self.dispatch_announced_merge(&addr, &quic_addr, &resolved_label, &id_from_host);
+        self.auto_trust_announced_host(&fingerprint, &id_from_host, &resolved_label);
         self.finish_net_host_announced_merge(&resolved_label, &addr);
-        self.spawn_ui_lang_push_to_host_control_addr(&control_addr);
-        self.push_initial_vm_window_snapshot_to(&control_addr, &id_from_host);
+        self.spawn_ui_lang_push_to_host_control_addr(&quic_addr);
+        self.push_initial_vm_window_snapshot_to(&quic_addr, &id_from_host);
+    }
+
+    fn auto_trust_announced_host(&self, fingerprint: &str, device_id: &str, label: &str) {
+        if fingerprint.len() != 64 {
+            return;
+        }
+        let entry = titan_quic::TrustEntry {
+            fingerprint: fingerprint.to_string(),
+            label: label.to_string(),
+            role: "host".to_string(),
+            source: "lan-announce".to_string(),
+            added_at_epoch_s: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs())
+                .unwrap_or_default(),
+        };
+        if let Err(e) = self.center_security.trust.upsert(entry) {
+            tracing::warn!(error = %e, %device_id, "auto-trust upsert failed");
+        }
     }
 
     fn push_initial_vm_window_snapshot_to(&self, control_addr: &str, device_id: &str) {

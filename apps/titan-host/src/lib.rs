@@ -8,9 +8,9 @@ pub mod desktop_snapshot;
 pub mod host_app;
 pub mod host_device_id;
 mod host_font;
+pub mod host_paths;
 pub mod host_resources;
 pub mod host_runtime_probes;
-pub mod tcp_tune;
 pub mod ui_persist;
 /// Shared egui UI primitives (aligned with Titan Center).
 pub use titan_egui_widgets;

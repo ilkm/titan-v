@@ -7,3 +7,4 @@ mod net_lan;
 mod net_loop;
 mod paint;
 mod persist_session;
+mod tofu;

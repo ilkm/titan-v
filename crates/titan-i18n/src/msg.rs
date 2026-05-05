@@ -143,6 +143,18 @@ pub enum Msg {
     HpSectionVmStorage,
     HpVmRootDir,
     HpVmRootDirHint,
+    /// Host settings card: mTLS pairing window for trusting new Centers.
+    HpSectionMtlsPairing,
+    /// Host settings: SPKI fingerprint label for the local QUIC certificate.
+    HpQuicFingerprintLabel,
+    /// Host settings: button to open the mTLS pairing window.
+    HpQuicPairingOpenBtn,
+    /// Host settings: button to close the mTLS pairing window early.
+    HpQuicPairingClose,
+    /// Host settings: heading for trusted Centers list.
+    HpQuicTrustedCentersHeader,
+    /// Host settings: shown when the trust store has no entries.
+    HpQuicNoTrustedCenters,
     /// Legacy Host setting (no longer in use): kept for backward i18n compat; will be removed.
     HpCenterVmWindowApiAddr,
     HpCenterVmWindowApiAddrHint,
@@ -183,4 +195,25 @@ pub enum Msg {
     TrayQuit,
 
     BtnCancel,
+
+    /// Center: TOFU dialog title (manual host with unknown fingerprint).
+    CenterTofuDialogTitle,
+    /// Center: TOFU dialog explainer.
+    CenterTofuDialogSubtitle,
+    /// Center: TOFU dialog "Host" field label.
+    CenterTofuHostLabel,
+    /// Center: TOFU dialog fingerprint label.
+    CenterTofuFingerprintLabel,
+    /// Center: TOFU dialog risk warning.
+    CenterTofuWarning,
+    /// Center: TOFU dialog confirm button.
+    CenterTofuConfirm,
+    /// Center settings: mTLS / trusted hosts section title.
+    CenterSettingsMtlsSection,
+    /// Center settings: local fingerprint label.
+    CenterSettingsLocalFingerprint,
+    /// Center settings: trusted hosts header.
+    CenterSettingsTrustedHosts,
+    /// Center settings: empty trust list state.
+    CenterSettingsNoTrustedHosts,
 }

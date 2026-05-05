@@ -27,6 +27,7 @@ path = "src/main.rs"
 titan-common = { path = "../../crates/titan-common" }
 titan-egui-widgets = { path = "../../crates/titan-egui-widgets" }
 titan-i18n = { path = "../../crates/titan-i18n" }
+titan-quic = { path = "../../crates/titan-quic" }
 titan-tray = { path = "../../crates/titan-tray", features = ["egui"] }
 eframe = { version = "0.31" }
 egui = "0.31"
@@ -39,7 +40,8 @@ serde_json = "1.0"
 screenshots = "0.8"
 image = { version = "0.25", default-features = false, features = ["jpeg"] }
 thiserror = "2.0"
-socket2 = { version = "0.5", features = ["all"] }
+quinn = { version = "0.11", default-features = false, features = ["runtime-tokio", "rustls-ring"] }
+parking_lot = "0.12"
 tokio = { version = "1.43", features = [
     "io-util",
     "macros",
