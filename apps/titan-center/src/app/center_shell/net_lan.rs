@@ -29,17 +29,11 @@ impl CenterApp {
         if fingerprint.len() != 64 {
             return;
         }
-        let entry = titan_quic::TrustEntry {
-            fingerprint: fingerprint.to_string(),
-            label: label.to_string(),
-            role: "host".to_string(),
-            source: "lan-announce".to_string(),
-            added_at_epoch_s: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|d| d.as_secs())
-                .unwrap_or_default(),
-        };
-        if let Err(e) = self.center_security.trust.upsert(entry) {
+        if let Err(e) = self
+            .center_security
+            .trust
+            .upsert(build_lan_trust_entry(fingerprint, label))
+        {
             tracing::warn!(error = %e, %device_id, "auto-trust upsert failed");
         }
     }
@@ -215,5 +209,18 @@ fn resolve_announced_label(label: &str, addr: &str) -> String {
         format!("host-{}", addr.replace([':', '.'], "-"))
     } else {
         label.trim().to_string()
+    }
+}
+
+fn build_lan_trust_entry(fingerprint: &str, label: &str) -> titan_quic::TrustEntry {
+    titan_quic::TrustEntry {
+        fingerprint: fingerprint.to_string(),
+        label: label.to_string(),
+        role: "host".to_string(),
+        source: "lan-announce".to_string(),
+        added_at_epoch_s: std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or_default(),
     }
 }

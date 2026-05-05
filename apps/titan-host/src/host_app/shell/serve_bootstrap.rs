@@ -242,6 +242,7 @@ fn init_host_security() -> HostSecurity {
         Err(e) => panic!("titan-host: cannot open trust store: {e}"),
     };
     let pairing = Pairing::new(trust.clone());
+    auto_open_pairing_if_first_run(&trust, &pairing);
     tracing::info!(
         device_id = %device_id,
         fingerprint = %identity.spki_sha256_hex,
@@ -252,4 +253,19 @@ fn init_host_security() -> HostSecurity {
         trust,
         pairing,
     }
+}
+
+/// First-run TOFU bootstrap: when the host has never paired with any Center, automatically
+/// open the pairing window for 5 minutes so the Center side (which auto-trusts the host via
+/// UDP announce) can complete a symmetric trust handshake without a manual step. After the
+/// first Center pairs, the trust store is non-empty and this branch never reopens the window;
+/// further Centers must be paired explicitly via the Host UI button.
+fn auto_open_pairing_if_first_run(trust: &Arc<TrustStore>, pairing: &Arc<Pairing>) {
+    if !trust.list().is_empty() {
+        return;
+    }
+    pairing.open(std::time::Duration::from_secs(5 * 60));
+    tracing::info!(
+        "host mTLS: empty trust store; auto-opened pairing window (5 min) for first Center"
+    );
 }
