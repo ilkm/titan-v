@@ -103,6 +103,7 @@ fn vm_window_create_build_row(
         disk_mib: form.disk_mib,
         vm_directory: form.vm_id.to_string(),
         vm_id: form.vm_id,
+        remark: String::new(),
         created_at_unix_ms: ms,
     }
 }

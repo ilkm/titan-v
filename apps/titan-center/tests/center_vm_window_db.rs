@@ -15,6 +15,7 @@ fn sample(record_id: &str, vm_id: u32, dir: &str) -> VmWindowRecord {
         disk_mib: 2048,
         vm_directory: dir.into(),
         vm_id,
+        remark: String::new(),
         created_at_unix_ms: 1,
     }
 }

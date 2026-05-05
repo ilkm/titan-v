@@ -20,10 +20,28 @@ CREATE TABLE IF NOT EXISTS vm_window_records (
     disk_mib INTEGER NOT NULL,
     vm_directory TEXT NOT NULL,
     vm_id INTEGER NOT NULL DEFAULT 0,
+    remark TEXT NOT NULL DEFAULT '',
     created_at_unix_ms INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_vm_window_device ON vm_window_records(device_id);
 "#;
+
+/// Forward-compat ALTERs for DBs created before a column was introduced. Idempotent: each
+/// branch first checks `pragma_table_info` so re-running on a fresh DB does nothing.
+fn ensure_remark_column(conn: &Connection) -> rusqlite::Result<()> {
+    let has_remark: bool = conn.query_row(
+        "SELECT COUNT(*) FROM pragma_table_info('vm_window_records') WHERE name='remark'",
+        [],
+        |r| r.get::<_, i64>(0).map(|n| n > 0),
+    )?;
+    if !has_remark {
+        conn.execute(
+            "ALTER TABLE vm_window_records ADD COLUMN remark TEXT NOT NULL DEFAULT ''",
+            [],
+        )?;
+    }
+    Ok(())
+}
 
 /// `~/Library/Application Support/titan-center/vm_windows.sqlite` (or platform equivalent).
 ///
@@ -49,6 +67,7 @@ fn open(path: &Path) -> rusqlite::Result<Connection> {
     }
     let conn = Connection::open(path)?;
     conn.execute_batch(DDL)?;
+    ensure_remark_column(&conn)?;
     Ok(conn)
 }
 
@@ -63,12 +82,13 @@ fn row_from_sql(row: &rusqlite::Row<'_>) -> rusqlite::Result<VmWindowRecord> {
         disk_mib: row.get::<_, i64>(6)? as u32,
         vm_directory: row.get(7)?,
         vm_id: row.get::<_, i64>(8)? as u32,
-        created_at_unix_ms: row.get(9)?,
+        remark: row.get(9)?,
+        created_at_unix_ms: row.get(10)?,
     })
 }
 
 const SELECT_COLS: &str = "record_id, device_id, host_control_addr, host_label, cpu_count, \
-     memory_mib, disk_mib, vm_directory, vm_id, created_at_unix_ms";
+     memory_mib, disk_mib, vm_directory, vm_id, remark, created_at_unix_ms";
 
 pub fn list_all(path: &Path) -> rusqlite::Result<Vec<VmWindowRecord>> {
     if !path.exists() {
@@ -113,8 +133,8 @@ pub fn upsert(path: &Path, row: &VmWindowRecord) -> rusqlite::Result<()> {
     conn.execute(
         "INSERT OR REPLACE INTO vm_window_records \
          (record_id, device_id, host_control_addr, host_label, cpu_count, memory_mib, disk_mib, \
-          vm_directory, vm_id, created_at_unix_ms) \
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+          vm_directory, vm_id, remark, created_at_unix_ms) \
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
         params![
             row.record_id,
             row.device_id,
@@ -125,6 +145,7 @@ pub fn upsert(path: &Path, row: &VmWindowRecord) -> rusqlite::Result<()> {
             row.disk_mib as i64,
             row.vm_directory,
             row.vm_id as i64,
+            row.remark,
             row.created_at_unix_ms,
         ],
     )?;

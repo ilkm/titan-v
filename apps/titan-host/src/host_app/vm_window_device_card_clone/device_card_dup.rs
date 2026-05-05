@@ -47,7 +47,7 @@ impl VmWindowCardPaintPrep {
             addr_s,
             win_n,
             preview_key: format!("vmwin:{}", row.record_id),
-            remark: row.vm_directory.clone(),
+            remark: row.remark.clone(),
         }
     }
 }

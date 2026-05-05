@@ -56,6 +56,9 @@ pub struct VmWindowRecord {
     /// Numeric VM folder id when using `{vm_root}/{vm_id}` layout; `0` = legacy / unspecified.
     #[serde(default)]
     pub vm_id: u32,
+    /// Free-form user note shown on the window-management card; edited via the Center UI.
+    #[serde(default)]
+    pub remark: String,
     pub created_at_unix_ms: i64,
 }
 

@@ -205,6 +205,7 @@ impl CenterApp {
         }
         self.telemetry_live = false;
         self.last_host_telemetry_at = None;
+        self.force_reconnect_to_control_host();
         self.recompute_host_connected();
         self.ctx.request_repaint();
     }

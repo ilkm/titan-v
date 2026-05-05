@@ -341,11 +341,11 @@ impl CenterApp {
     }
 
     fn on_net_telemetry_link_lost(&mut self, host_key: String, session_gen: u64) {
-        if self
+        let stale = self
             .telemetry_links
             .get(&host_key)
-            .is_none_or(|l| l.session_gen != session_gen)
-        {
+            .is_none_or(|l| l.session_gen != session_gen);
+        if stale {
             return;
         }
         if let Some(s) = self.fleet_by_endpoint.get_mut(&host_key) {
@@ -356,6 +356,7 @@ impl CenterApp {
         if host_key == Self::endpoint_addr_key(&self.control_addr) {
             self.telemetry_live = false;
             self.last_host_telemetry_at = None;
+            self.force_reconnect_to_control_host();
             self.recompute_host_connected();
             self.mark_control_endpoint_offline();
         }

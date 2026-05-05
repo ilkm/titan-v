@@ -164,6 +164,7 @@ fn sample_vm_window(server_addr: std::net::SocketAddr, host_id: &str) -> VmWindo
         disk_mib: 4096,
         vm_directory: "/tmp/vm/100".into(),
         vm_id: 100,
+        remark: String::new(),
         created_at_unix_ms: 1,
     }
 }

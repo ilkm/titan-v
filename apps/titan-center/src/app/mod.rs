@@ -156,6 +156,11 @@ pub struct CenterApp {
     pub(crate) device_remark_edit_index: Option<usize>,
     /// Request focus on the remark `TextEdit` the first frame after opening edit mode.
     device_remark_edit_focus_next: bool,
+    /// Window-mgmt card: `record_id` of the row whose remark is being edited (`None` = display).
+    /// Stored by record id (not row index) so masonry reorder / snapshot replace can't race the edit.
+    pub(crate) vm_window_remark_edit_record_id: Option<String>,
+    /// Request focus on the VM-window remark `TextEdit` the first frame after entering edit mode.
+    pub(crate) vm_window_remark_edit_focus_next: bool,
     /// Last painted card height per control addr key (Connect tab masonry / waterfall).
     pub(crate) device_masonry_heights: HashMap<String, f32>,
     /// Window management tab: last painted card height per `VmWindowRecord::record_id`.

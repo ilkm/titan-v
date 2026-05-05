@@ -66,17 +66,7 @@ impl ControlClient {
         {
             return Ok(c);
         }
-        let socket: SocketAddr = addr
-            .parse()
-            .with_context(|| format!("invalid host quic addr {addr}"))?;
-        let sni = sni_for_host(addr);
-        let connecting = self
-            .endpoint
-            .connect(socket, &sni)
-            .with_context(|| format!("quinn connect {addr}"))?;
-        let connection = connecting
-            .await
-            .with_context(|| format!("quinn handshake {addr}"))?;
+        let connection = ensure_connection_dial(&self.endpoint, addr).await?;
         self.pool
             .lock()
             .insert(addr.to_string(), connection.clone());
@@ -88,6 +78,19 @@ impl ControlClient {
             c.close(quinn::VarInt::from_u32(0), b"forget");
         }
     }
+}
+
+async fn ensure_connection_dial(endpoint: &Endpoint, addr: &str) -> Result<Connection> {
+    let socket: SocketAddr = addr
+        .parse()
+        .with_context(|| format!("invalid host quic addr {addr}"))?;
+    let sni = sni_for_host(addr);
+    let connecting = endpoint
+        .connect(socket, &sni)
+        .with_context(|| format!("quinn connect {addr}"))?;
+    connecting
+        .await
+        .map_err(|e| anyhow::Error::from(e).context(format!("quinn handshake {addr}")))
 }
 
 pub fn init_global(identity: Arc<Identity>, trust: Arc<TrustStore>) -> Result<Arc<ControlClient>> {

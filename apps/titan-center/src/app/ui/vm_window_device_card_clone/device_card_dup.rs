@@ -3,23 +3,28 @@
 //! Many `paint_*` helpers exceed clippy’s default arity; lists stay explicit at call sites.
 #![allow(clippy::too_many_arguments)]
 
+use std::cell::Cell;
 use std::path::Path;
 
 use egui::{
-    Color32, CornerRadius, FontId, Frame, Label, Margin, Rect, RichText, Sense, TextStyle,
-    TextWrapMode, Vec2, WidgetText, pos2, vec2,
+    Align, Color32, CornerRadius, FontId, Frame, Label, Layout, Margin, Rect, RichText, Sense,
+    TextStyle, TextWrapMode, Vec2, WidgetText, pos2, vec2,
 };
 use titan_common::VmWindowRecord;
 
 use super::helpers_dup::{
     DEVICE_CARD_BODY_COL_GAP, DEVICE_PREVIEW_PLACEHOLDER_BG, DEVICE_PREVIEW_PLACEHOLDER_TEXT,
-    card_outline, device_card_resource_values, device_card_stat_label_value_gap,
-    device_card_two_col_row, device_mgmt_remark_row_interact,
+    VM_WINDOW_REMARK_HINT_COLOR, card_outline, device_card_resource_values,
+    device_card_stat_label_value_gap, device_card_two_col_row, device_mgmt_remark_row_interact,
 };
 use crate::app::CenterApp;
-use crate::app::constants::{ACCENT, CARD_CORNER_RADIUS, CARD_SURFACE, OK_GREEN, card_shadow};
+use crate::app::constants::{
+    ACCENT, CARD_CORNER_RADIUS, CARD_SURFACE, FORM_VALUE_TEXT, OK_GREEN, card_shadow,
+};
 use crate::app::i18n::{Msg, UiLang, host_running_windows_line, t};
-use crate::app::ui::widgets::{danger_preview_delete_button, preview_overlay_configure_button};
+use crate::app::ui::widgets::{
+    danger_preview_delete_button, dialog_underline_text_row_gap, preview_overlay_configure_button,
+};
 
 const CARD_BODY_GRID_PX: f32 = 13.0;
 const METRIC_BODY_ROW_GAP: f32 = 5.0;
@@ -31,11 +36,11 @@ const PREVIEW_OVERLAY_BTN_GAP: f32 = 8.0;
 
 struct VmWindowCardPaintPrep {
     row_ix: usize,
+    record_id: String,
     label_s: String,
     addr_s: String,
     win_n: u32,
     preview_key: String,
-    remark: String,
 }
 
 impl VmWindowCardPaintPrep {
@@ -43,11 +48,11 @@ impl VmWindowCardPaintPrep {
         let (label_s, addr_s, win_n) = vm_window_clone_row_meta(row);
         Self {
             row_ix,
+            record_id: row.record_id.clone(),
             label_s,
             addr_s,
             win_n,
             preview_key: format!("vmwin:{}", row.record_id),
-            remark: row.vm_directory.clone(),
         }
     }
 }
@@ -77,6 +82,7 @@ pub fn paint_vm_window_device_card_clone(
                 app,
                 ui,
                 prep.row_ix,
+                &prep.record_id,
                 card_w,
                 lang,
                 false,
@@ -85,7 +91,6 @@ pub fn paint_vm_window_device_card_clone(
                 prep.win_n,
                 false,
                 &prep.preview_key,
-                prep.remark.as_str(),
             )
         })
         .inner
@@ -110,27 +115,15 @@ fn vm_window_clone_row_meta(row: &VmWindowRecord) -> (String, String, u32) {
 }
 
 #[rustfmt::skip]
-fn paint_device_masonry_frame_inner(app: &mut CenterApp, ui: &mut egui::Ui, row_ix: usize, card_w: f32, lang: UiLang, is_sel: bool, label_s: &str, addr_s: &str, win_n: u32, online: bool, preview_key: &str, remark_body: &str) -> egui::Response {
+fn paint_device_masonry_frame_inner(app: &mut CenterApp, ui: &mut egui::Ui, row_ix: usize, record_id: &str, card_w: f32, lang: UiLang, is_sel: bool, label_s: &str, addr_s: &str, win_n: u32, online: bool, preview_key: &str) -> egui::Response {
     device_card_set_fixed_width(ui, card_w);
     let card_tl = ui.cursor().min;
     let mut select_split_y = card_tl.y;
     let mut select_interact_top_y = card_tl.y;
     ui.vertical(|ui| {
         paint_device_card_column(
-            app,
-            ui,
-            row_ix,
-            card_w,
-            lang,
-            is_sel,
-            label_s,
-            addr_s,
-            win_n,
-            online,
-            preview_key,
-            remark_body,
-            &mut select_split_y,
-            &mut select_interact_top_y,
+            app, ui, row_ix, record_id, card_w, lang, is_sel, label_s, addr_s, win_n, online,
+            preview_key, &mut select_split_y, &mut select_interact_top_y,
         );
     });
     device_card_select_interact(ui, pos2(card_tl.x, select_interact_top_y), select_split_y, row_ix)
@@ -143,7 +136,7 @@ fn device_card_set_fixed_width(ui: &mut egui::Ui, card_w: f32) {
 }
 
 #[rustfmt::skip]
-fn paint_device_card_column(app: &mut CenterApp, ui: &mut egui::Ui, row_ix: usize, card_w: f32, lang: UiLang, is_sel: bool, label_s: &str, addr_s: &str, win_n: u32, online: bool, preview_key: &str, remark_body: &str, select_split_y: &mut f32, select_interact_top_y: &mut f32) {
+fn paint_device_card_column(app: &mut CenterApp, ui: &mut egui::Ui, row_ix: usize, record_id: &str, card_w: f32, lang: UiLang, is_sel: bool, label_s: &str, addr_s: &str, win_n: u32, online: bool, preview_key: &str, select_split_y: &mut f32, select_interact_top_y: &mut f32) {
     ui.spacing_mut().item_spacing.y = 0.0;
     paint_device_preview_slot(app, ui, row_ix, preview_key, card_w, lang, online);
     *select_interact_top_y = ui.cursor().min.y;
@@ -153,7 +146,7 @@ fn paint_device_card_column(app: &mut CenterApp, ui: &mut egui::Ui, row_ix: usiz
         ui.vertical(|ui| {
             ui.spacing_mut().item_spacing.y = 6.0;
             paint_device_status_and_metrics(ui, lang, app, preview_key, online, is_sel, label_s, inner_w, addr_s, win_n, select_split_y);
-            paint_vm_dup_remark_block(ui, lang, inner_w, remark_body);
+            paint_vm_dup_remark_block(app, ui, lang, inner_w, row_ix, record_id);
         });
     });
 }
@@ -605,20 +598,15 @@ fn paint_metric_row_addr_win(
     );
 }
 
-fn paint_vm_dup_remark_block(ui: &mut egui::Ui, lang: UiLang, inner_w: f32, rem: &str) {
+#[rustfmt::skip]
+fn paint_vm_dup_remark_block(app: &mut CenterApp, ui: &mut egui::Ui, lang: UiLang, inner_w: f32, row_ix: usize, record_id: &str) {
     let (weak, remark_font, title_rt, stat_lbl_gap) = remark_block_style(ui, lang);
-    let hint = t(lang, Msg::DeviceMgmtRemarkDblclkHint);
-    let right_rt = remark_display_right_richtext(rem, hint, &remark_font, weak);
-    let touch_id = egui::Id::new(("vm_window_clone_remark", rem));
-    let _ = device_mgmt_remark_row_interact(
-        ui,
-        inner_w,
-        stat_lbl_gap,
-        title_rt,
-        right_rt,
-        touch_id,
-        REMARK_ROW_H,
-    );
+    let editing = app.vm_window_remark_edit_record_id.as_deref() == Some(record_id);
+    if editing {
+        paint_vm_dup_remark_edit_row(app, ui, lang, inner_w, row_ix, record_id, &title_rt, &remark_font, stat_lbl_gap);
+    } else {
+        paint_vm_dup_remark_display_row(app, ui, lang, inner_w, row_ix, record_id, title_rt, remark_font, weak, stat_lbl_gap);
+    }
 }
 
 fn remark_block_style(ui: &egui::Ui, lang: UiLang) -> (Color32, FontId, RichText, f32) {
@@ -642,6 +630,125 @@ fn remark_display_right_richtext(
     } else {
         RichText::new(rem).font(remark_font.clone()).color(weak)
     }
+}
+
+#[rustfmt::skip]
+fn paint_vm_dup_remark_display_row(app: &mut CenterApp, ui: &mut egui::Ui, lang: UiLang, inner_w: f32, row_ix: usize, record_id: &str, title_rt: RichText, remark_font: FontId, weak: Color32, stat_lbl_gap: f32) {
+    let hint = t(lang, Msg::DeviceMgmtRemarkDblclkHint);
+    let rem = app
+        .vm_window_records
+        .get(row_ix)
+        .filter(|r| r.record_id == record_id)
+        .map(|r| r.remark.clone())
+        .unwrap_or_default();
+    let right_rt = remark_display_right_richtext(&rem, hint, &remark_font, weak);
+    let touch_id = ui.make_persistent_id(("vm_window_clone_remark_touch", record_id));
+    let row_resp = device_mgmt_remark_row_interact(ui, inner_w, stat_lbl_gap, title_rt, right_rt, touch_id, REMARK_ROW_H);
+    if row_resp.double_clicked() {
+        app.vm_window_remark_edit_record_id = Some(record_id.to_string());
+        app.vm_window_remark_edit_focus_next = true;
+    }
+}
+
+#[rustfmt::skip]
+fn paint_vm_dup_remark_edit_row(app: &mut CenterApp, ui: &mut egui::Ui, lang: UiLang, inner_w: f32, row_ix: usize, record_id: &str, title_rt: &RichText, remark_font: &FontId, stat_lbl_gap: f32) {
+    let edit_id = ui.make_persistent_id(("vm_window_clone_remark_edit", record_id));
+    let request_focus = std::mem::take(&mut app.vm_window_remark_edit_focus_next);
+    let end_edit = Cell::new(false);
+    ui.allocate_ui_with_layout(egui::vec2(inner_w, REMARK_ROW_H), Layout::left_to_right(Align::Min), |ui| {
+        vm_dup_remark_edit_layout(ui, app, lang, row_ix, record_id, title_rt, remark_font, stat_lbl_gap, edit_id, request_focus, &end_edit);
+    });
+    if end_edit.get() {
+        app.commit_vm_window_remark_edit(record_id);
+    }
+}
+
+fn vm_dup_remark_edit_layout(
+    ui: &mut egui::Ui,
+    app: &mut CenterApp,
+    lang: UiLang,
+    row_ix: usize,
+    record_id: &str,
+    title_rt: &RichText,
+    remark_font: &FontId,
+    stat_lbl_gap: f32,
+    edit_id: egui::Id,
+    request_focus: bool,
+    end_edit: &Cell<bool>,
+) {
+    ui.spacing_mut().item_spacing.x = 0.0;
+    ui.add(Label::new(title_rt.clone()));
+    ui.add_space(stat_lbl_gap);
+    ui.with_layout(Layout::top_down(Align::Min), |ui| {
+        ui.set_width(ui.available_width());
+        let te_resp =
+            vm_dup_remark_edit_field(ui, app, lang, row_ix, record_id, remark_font, edit_id);
+        if request_focus {
+            te_resp.request_focus();
+        }
+        if te_resp.lost_focus() {
+            end_edit.set(true);
+        }
+    });
+}
+
+fn vm_dup_remark_edit_field(
+    ui: &mut egui::Ui,
+    app: &mut CenterApp,
+    lang: UiLang,
+    row_ix: usize,
+    record_id: &str,
+    remark_font: &FontId,
+    edit_id: egui::Id,
+) -> egui::Response {
+    let buf = vm_dup_remark_edit_buf_mut(app, row_ix, record_id);
+    let hint = vm_dup_remark_hint_richtext(lang, remark_font);
+    dialog_underline_text_row_gap(
+        ui,
+        |ui| vm_dup_remark_textedit(ui, buf, edit_id, remark_font, hint),
+        0.0,
+    )
+}
+
+fn vm_dup_remark_hint_richtext(lang: UiLang, remark_font: &FontId) -> RichText {
+    RichText::new(t(lang, Msg::DeviceMgmtRemarkDblclkHint))
+        .font(remark_font.clone())
+        .color(VM_WINDOW_REMARK_HINT_COLOR)
+}
+
+fn vm_dup_remark_textedit(
+    ui: &mut egui::Ui,
+    buf: &mut String,
+    edit_id: egui::Id,
+    remark_font: &FontId,
+    hint: RichText,
+) -> egui::text_edit::TextEditOutput {
+    egui::TextEdit::singleline(buf)
+        .id(edit_id)
+        .frame(false)
+        .background_color(Color32::TRANSPARENT)
+        .margin(Margin::symmetric(0, 4))
+        .font(remark_font.clone())
+        .desired_width(ui.available_width())
+        .hint_text(hint)
+        .text_color(FORM_VALUE_TEXT)
+        .show(ui)
+}
+
+/// Find the row by `record_id`, falling back to `row_ix` if the masonry order shifted under us.
+/// Always returns a valid `&mut String` (worst case: the row's own remark) so the `TextEdit`
+/// keeps a stable buffer across frames.
+fn vm_dup_remark_edit_buf_mut<'a>(
+    app: &'a mut CenterApp,
+    row_ix: usize,
+    record_id: &str,
+) -> &'a mut String {
+    let pos = app
+        .vm_window_records
+        .iter()
+        .position(|r| r.record_id == record_id)
+        .unwrap_or(row_ix.min(app.vm_window_records.len().saturating_sub(1)));
+    &mut app.vm_window_records[pos].remark
 }
 
 fn device_card_select_interact(

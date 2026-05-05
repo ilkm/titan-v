@@ -46,6 +46,36 @@ impl CenterApp {
         }
         self.vm_window_records
             .retain(|r| r.record_id != row.record_id);
+        if self.vm_window_remark_edit_record_id.as_deref() == Some(row.record_id.as_str()) {
+            self.vm_window_remark_edit_record_id = None;
+            self.vm_window_remark_edit_focus_next = false;
+        }
+        vm_window_push_to_hosts::push_snapshot_for_device(
+            &self.endpoints,
+            &self.vm_window_records,
+            &row.device_id,
+        );
+    }
+
+    /// Persist the in-memory remark edit for `record_id` to SQLite, then push the refreshed
+    /// snapshot to the affected host. Called from the VM-window card when the inline `TextEdit`
+    /// loses focus.
+    pub(crate) fn commit_vm_window_remark_edit(&mut self, record_id: &str) {
+        self.vm_window_remark_edit_record_id = None;
+        self.vm_window_remark_edit_focus_next = false;
+        let Some(row) = self
+            .vm_window_records
+            .iter()
+            .find(|r| r.record_id == record_id)
+            .cloned()
+        else {
+            return;
+        };
+        let path = vm_window_db::center_vm_window_db_path();
+        if let Err(e) = vm_window_db::upsert(&path, &row) {
+            tracing::warn!(error = %e, record_id = %row.record_id, "vm_window_db: remark upsert");
+            return;
+        }
         vm_window_push_to_hosts::push_snapshot_for_device(
             &self.endpoints,
             &self.vm_window_records,

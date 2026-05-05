@@ -8,6 +8,9 @@ pub(super) const DEVICE_CARD_BODY_COL_GAP: f32 = 10.0;
 pub(super) const DEVICE_PREVIEW_PLACEHOLDER_BG: Color32 = Color32::from_rgb(236, 238, 242);
 pub(super) const DEVICE_PREVIEW_PLACEHOLDER_TEXT: Color32 = Color32::BLACK;
 
+/// Hint text colour for an empty remark (mirrors `ADD_HOST_DLG_MUTED` used by Connect cards).
+pub(super) const VM_WINDOW_REMARK_HINT_COLOR: Color32 = Color32::from_rgb(71, 85, 105);
+
 pub(super) fn format_rate_bps_short(bps: u64) -> String {
     if bps < 1024 {
         return format!("{bps}B");

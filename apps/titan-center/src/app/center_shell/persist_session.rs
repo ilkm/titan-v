@@ -58,6 +58,21 @@ impl CenterApp {
         }
     }
 
+    /// Drop the cached QUIC `Connection` for the active control host, clear `command_ready`, and
+    /// arm an immediate `auto_hello` retry. Called when the staleness check or telemetry link
+    /// loss fires: those signals mean the cached `Connection::close_reason()` is unreliable
+    /// (quinn idle timeout has not flipped), so we evict the entry ourselves so the next dial
+    /// builds a fresh handshake against the (possibly restarted) Host.
+    pub(crate) fn force_reconnect_to_control_host(&mut self) {
+        let addr = self.control_addr.clone();
+        if addr.trim().is_empty() {
+            return;
+        }
+        crate::app::net::forget_host(&addr);
+        self.command_ready = false;
+        self.auto_hello_accum = Self::AUTO_HELLO_RETRY_SECS;
+    }
+
     /// When the selected host has a live telemetry session, a periodic Hello failure must not clear the card (telemetry is authoritative).
     pub(crate) fn should_skip_probe_offline_for_addr(&self, addr_key: &str) -> bool {
         Self::endpoint_addr_key(&self.control_addr) == addr_key && self.host_connected
