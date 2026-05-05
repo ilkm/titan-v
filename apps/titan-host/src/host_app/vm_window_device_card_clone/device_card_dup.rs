@@ -71,6 +71,7 @@ pub fn paint_vm_window_device_card_clone(
     lang: UiLang,
 ) -> egui::Response {
     let prep = VmWindowCardPaintPrep::from_row(row, row_ix);
+    let record_id = row.record_id.as_str();
     vm_window_clone_card_shell(ui)
         .show(ui, |ui| {
             paint_device_masonry_frame_inner(
@@ -85,6 +86,7 @@ pub fn paint_vm_window_device_card_clone(
                 prep.win_n,
                 false,
                 &prep.preview_key,
+                record_id,
                 prep.remark.as_str(),
             )
         })
@@ -102,7 +104,7 @@ fn vm_window_clone_row_meta(row: &VmWindowRecord) -> (String, String, u32) {
 }
 
 #[rustfmt::skip]
-fn paint_device_masonry_frame_inner(app: &mut HostApp, ui: &mut egui::Ui, row_ix: usize, card_w: f32, lang: UiLang, is_sel: bool, label_s: &str, addr_s: &str, win_n: u32, online: bool, preview_key: &str, remark_body: &str) -> egui::Response {
+fn paint_device_masonry_frame_inner(app: &mut HostApp, ui: &mut egui::Ui, row_ix: usize, card_w: f32, lang: UiLang, is_sel: bool, label_s: &str, addr_s: &str, win_n: u32, online: bool, preview_key: &str, record_id: &str, remark_body: &str) -> egui::Response {
     device_card_set_fixed_width(ui, card_w);
     let card_tl = ui.cursor().min;
     let mut select_split_y = card_tl.y;
@@ -120,6 +122,7 @@ fn paint_device_masonry_frame_inner(app: &mut HostApp, ui: &mut egui::Ui, row_ix
             win_n,
             online,
             preview_key,
+            record_id,
             remark_body,
             &mut select_split_y,
             &mut select_interact_top_y,
@@ -135,7 +138,7 @@ fn device_card_set_fixed_width(ui: &mut egui::Ui, card_w: f32) {
 }
 
 #[rustfmt::skip]
-fn paint_device_card_column(app: &mut HostApp, ui: &mut egui::Ui, row_ix: usize, card_w: f32, lang: UiLang, is_sel: bool, label_s: &str, addr_s: &str, win_n: u32, online: bool, preview_key: &str, remark_body: &str, select_split_y: &mut f32, select_interact_top_y: &mut f32) {
+fn paint_device_card_column(app: &mut HostApp, ui: &mut egui::Ui, row_ix: usize, card_w: f32, lang: UiLang, is_sel: bool, label_s: &str, addr_s: &str, win_n: u32, online: bool, preview_key: &str, record_id: &str, remark_body: &str, select_split_y: &mut f32, select_interact_top_y: &mut f32) {
     ui.spacing_mut().item_spacing.y = 0.0;
     paint_device_preview_slot(app, ui, row_ix, preview_key, card_w, lang, online);
     *select_interact_top_y = ui.cursor().min.y;
@@ -145,7 +148,7 @@ fn paint_device_card_column(app: &mut HostApp, ui: &mut egui::Ui, row_ix: usize,
         ui.vertical(|ui| {
             ui.spacing_mut().item_spacing.y = 6.0;
             paint_device_status_and_metrics(ui, lang, app, preview_key, online, is_sel, label_s, inner_w, addr_s, win_n, select_split_y);
-            paint_vm_dup_remark_block(ui, lang, inner_w, remark_body);
+            paint_vm_dup_remark_block(ui, lang, inner_w, record_id, remark_body);
         });
     });
 }
@@ -597,11 +600,21 @@ fn paint_metric_row_addr_win(
     );
 }
 
-fn paint_vm_dup_remark_block(ui: &mut egui::Ui, lang: UiLang, inner_w: f32, rem: &str) {
+fn paint_vm_dup_remark_block(
+    ui: &mut egui::Ui,
+    lang: UiLang,
+    inner_w: f32,
+    record_id: &str,
+    rem: &str,
+) {
+    if rem.trim().is_empty() {
+        return;
+    }
     let (weak, remark_font, title_rt, stat_lbl_gap) = remark_block_style(ui, lang);
-    let hint = t(lang, Msg::DeviceMgmtRemarkDblclkHint);
-    let right_rt = remark_display_right_richtext(rem, hint, &remark_font, weak);
-    let touch_id = egui::Id::new(("vm_window_clone_remark", rem));
+    let right_rt = RichText::new(rem).font(remark_font).color(weak);
+    // Stable per row: `Id::new((…, rem))` collides when several cards share the same remark text
+    // (often empty), which breaks egui on double-click / focus.
+    let touch_id = ui.make_persistent_id(("vm_window_clone_remark_touch", record_id));
     let _ = device_mgmt_remark_row_interact(
         ui,
         inner_w,
@@ -621,19 +634,6 @@ fn remark_block_style(ui: &egui::Ui, lang: UiLang) -> (Color32, FontId, RichText
         .color(weak);
     let stat_lbl_gap = device_card_stat_label_value_gap(ui, CARD_BODY_GRID_PX);
     (weak, remark_font, title_rt, stat_lbl_gap)
-}
-
-fn remark_display_right_richtext(
-    rem: &str,
-    hint: &'static str,
-    remark_font: &FontId,
-    weak: Color32,
-) -> RichText {
-    if rem.is_empty() {
-        RichText::new(hint).font(remark_font.clone()).color(weak)
-    } else {
-        RichText::new(rem).font(remark_font.clone()).color(weak)
-    }
 }
 
 fn device_card_select_interact(
