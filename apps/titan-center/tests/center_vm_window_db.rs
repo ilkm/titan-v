@@ -37,9 +37,21 @@ fn conflict_check_detects_duplicate_vm_id_and_directory() {
     let dir = tempdir().unwrap();
     let path = dir.path().join("vm.sqlite");
     upsert(&path, &sample("a", 100, "/tmp/vm/100")).unwrap();
-    assert!(conflicts_for(&path, "new-record", 100, "/tmp/other").unwrap());
-    assert!(conflicts_for(&path, "new-record", 999, "/tmp/vm/100").unwrap());
-    assert!(!conflicts_for(&path, "new-record", 999, "/tmp/vm/999").unwrap());
+    assert!(conflicts_for(&path, "new-record", "host-a", 100, "/tmp/other").unwrap());
+    assert!(conflicts_for(&path, "new-record", "host-a", 999, "/tmp/vm/100").unwrap());
+    assert!(!conflicts_for(&path, "new-record", "host-a", 999, "/tmp/vm/999").unwrap());
+}
+
+#[test]
+fn conflict_check_ignores_vm_id_on_other_devices() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("vm.sqlite");
+    upsert(&path, &sample("a", 100, "/tmp/vm/100")).unwrap();
+    let mut other = sample("b", 100, "100");
+    other.device_id = "host-b".into();
+    upsert(&path, &other).unwrap();
+    assert!(!conflicts_for(&path, "new", "host-b", 101, "101").unwrap());
+    assert!(conflicts_for(&path, "new", "host-b", 100, "x").unwrap());
 }
 
 #[test]

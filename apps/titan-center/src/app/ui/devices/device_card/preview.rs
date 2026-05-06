@@ -21,13 +21,12 @@ pub(super) fn paint_device_preview_slot(
     preview_key: &str,
     card_w: f32,
     lang: UiLang,
-    online: bool,
 ) {
     let preview_h = device_preview_slot_height(card_w);
     let (preview_rect, _) = ui.allocate_exact_size(Vec2::new(card_w, preview_h), Sense::empty());
     let corners = preview_slot_top_corners();
     paint_device_preview_fill(app, ui, preview_key, preview_rect, corners, lang);
-    let show_chrome = online && ui.rect_contains_pointer(preview_rect);
+    let show_chrome = ui.rect_contains_pointer(preview_rect);
     paint_device_preview_hover_layer(
         ui,
         preview_rect,

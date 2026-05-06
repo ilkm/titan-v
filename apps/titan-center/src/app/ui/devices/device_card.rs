@@ -78,7 +78,7 @@ fn device_card_set_fixed_width(ui: &mut egui::Ui, card_w: f32) {
 fn paint_device_card_column(app: &mut CenterApp, ui: &mut egui::Ui, i: usize, card_w: f32, lang: UiLang, is_sel: bool, label_s: &str, addr_s: &str, win_n: u32, online: bool, select_split_y: &mut f32, select_interact_top_y: &mut f32) {
     ui.spacing_mut().item_spacing.y = 0.0;
     let preview_key = CenterApp::endpoint_addr_key(addr_s);
-    preview::paint_device_preview_slot(app, ui, i, &preview_key, card_w, lang, online);
+    preview::paint_device_preview_slot(app, ui, i, &preview_key, card_w, lang);
     *select_interact_top_y = ui.cursor().min.y;
     Frame::NONE.inner_margin(Margin::symmetric(12, 10)).show(ui, |ui| {
         let inner_w = (card_w - 24.0).max(1.0);

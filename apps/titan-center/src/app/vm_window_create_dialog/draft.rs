@@ -57,8 +57,14 @@ pub(crate) fn vm_window_local_persist_create(
     lang: UiLang,
 ) -> Result<(), String> {
     let path = vm_window_db::center_vm_window_db_path();
-    match vm_window_db::conflicts_for(&path, &row.record_id, row.vm_id, &row.vm_directory) {
-        Ok(true) => return Err(t(lang, Msg::HpWinMgmtErrVmId).to_string()),
+    match vm_window_db::conflicts_for(
+        &path,
+        &row.record_id,
+        &row.device_id,
+        row.vm_id,
+        &row.vm_directory,
+    ) {
+        Ok(true) => return Err(t(lang, Msg::CenterWinMgmtErrVmDup).to_string()),
         Ok(false) => {}
         Err(e) => {
             tracing::warn!(error = %e, "vm_window_db: conflicts_for");

@@ -107,17 +107,23 @@ pub fn list_all(path: &Path) -> rusqlite::Result<Vec<VmWindowRecord>> {
     Ok(out)
 }
 
-/// Returns `true` when another row already uses `vm_id` (≥ min) or the same trimmed `vm_directory`.
+/// Returns `true` when another row for the same `device_id` uses `vm_id` (≥ min) or the same
+/// trimmed `vm_directory` (paths are per-host; IDs may repeat across different machines).
 pub fn conflicts_for(
     path: &Path,
     record_id: &str,
+    device_id: &str,
     vm_id: u32,
     vm_directory: &str,
 ) -> rusqlite::Result<bool> {
     let rows = list_all(path)?;
     let dir = vm_directory.trim();
+    let did = device_id.trim();
     Ok(rows.iter().any(|r| {
         if r.record_id == record_id {
+            return false;
+        }
+        if r.device_id.trim() != did {
             return false;
         }
         let same_id = r.vm_id >= VM_WINDOW_FOLDER_ID_MIN
