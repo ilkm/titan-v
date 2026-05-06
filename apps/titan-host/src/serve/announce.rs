@@ -24,8 +24,15 @@ pub struct HostAnnounceConfig {
     pub center_register_udp_port: u16,
     /// Listen here for [`CenterPollBeacon`] from Titan Center (UDP).
     pub center_poll_listen_port: u16,
+    pub bind_ipv4: Option<Ipv4Addr>,
     pub public_addr_override: Option<String>,
     pub label_override: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+pub struct LanIpv4Row {
+    pub ip: Ipv4Addr,
+    pub iface: String,
 }
 
 #[derive(Clone, Debug)]
@@ -41,6 +48,7 @@ impl Default for HostAnnounceConfig {
             periodic_interval: None,
             center_register_udp_port: DEFAULT_CENTER_REGISTER_UDP_PORT,
             center_poll_listen_port: DEFAULT_CENTER_POLL_UDP_PORT,
+            bind_ipv4: None,
             public_addr_override: None,
             label_override: None,
         }
@@ -75,50 +83,63 @@ fn host_announce_payloads(
         whoami::fallible::hostname().unwrap_or_else(|_| "unknown-host".to_string())
     });
     let device_id = crate::host_device_id::host_device_id_string();
-    if let Some(public) = resolve_public_override(cfg.public_addr_override.as_deref()) {
-        let payload =
-            build_announce_payload(&public, &label, &device_id, &identity.spki_sha256_hex)?;
-        return Some((
-            public,
-            label,
-            device_id,
-            vec![AnnounceEndpoint {
-                bind_ip: Ipv4Addr::UNSPECIFIED,
-                payload,
-            }],
-        ));
+    let bind_ipv4s = resolve_bind_ipv4s(cfg.bind_ipv4);
+    if bind_ipv4s.is_empty() {
+        return None;
     }
-    build_multi_nic_announce_payloads(local, &label, &device_id, &identity.spki_sha256_hex)
-        .map(|endpoints| ("multi-nic".to_string(), label, device_id, endpoints))
+    build_bind_scoped_payloads(
+        local,
+        &label,
+        &device_id,
+        &identity.spki_sha256_hex,
+        cfg.public_addr_override.as_deref(),
+        &bind_ipv4s,
+    )
+    .map(|(primary, endpoints)| (primary, label, device_id, endpoints))
 }
 
-fn build_multi_nic_announce_payloads(
+fn build_bind_scoped_payloads(
     local: SocketAddr,
     label: &str,
     device_id: &str,
     fingerprint: &str,
-) -> Option<Vec<AnnounceEndpoint>> {
-    let port = local.port();
+    override_addr: Option<&str>,
+    bind_ipv4s: &[Ipv4Addr],
+) -> Option<(String, Vec<AnnounceEndpoint>)> {
+    let override_public = resolve_public_override(override_addr);
     let mut endpoints = Vec::new();
-    for ip in resolve_physical_ipv4s() {
-        let public = format!("{ip}:{port}");
+    for ip in bind_ipv4s {
+        let public = override_public
+            .clone()
+            .unwrap_or_else(|| format!("{ip}:{}", local.port()));
         let payload = build_announce_payload(&public, label, device_id, fingerprint)?;
         endpoints.push(AnnounceEndpoint {
-            bind_ip: ip,
+            bind_ip: *ip,
             payload,
         });
     }
-    if endpoints.is_empty() {
-        None
+    let primary = override_public.unwrap_or_else(|| format!("{}:{}", bind_ipv4s[0], local.port()));
+    Some((primary, endpoints))
+}
+
+fn resolve_bind_ipv4s(selected: Option<Ipv4Addr>) -> Vec<Ipv4Addr> {
+    let all = resolve_physical_ipv4s();
+    if let Some(ip) = selected {
+        if all.iter().any(|x| *x == ip) {
+            vec![ip]
+        } else {
+            tracing::warn!(%ip, "host announce: selected LAN bind IPv4 not available");
+            Vec::new()
+        }
     } else {
-        Some(endpoints)
+        all
     }
 }
 
-fn resolve_physical_ipv4s() -> Vec<Ipv4Addr> {
-    let mut out = Vec::new();
+pub fn list_physical_lan_ipv4_rows() -> Vec<LanIpv4Row> {
+    let mut rows = Vec::new();
     let Ok(ifaces) = if_addrs::get_if_addrs() else {
-        return out;
+        return rows;
     };
     for iface in ifaces {
         if iface.is_loopback() || is_virtual_iface_name(&iface.name) {
@@ -130,8 +151,21 @@ fn resolve_physical_ipv4s() -> Vec<Ipv4Addr> {
         if v4.ip.is_unspecified() {
             continue;
         }
-        out.push(v4.ip);
+        rows.push(LanIpv4Row {
+            ip: v4.ip,
+            iface: iface.name,
+        });
     }
+    rows.sort_by(|a, b| a.ip.cmp(&b.ip).then(a.iface.cmp(&b.iface)));
+    rows.dedup_by(|a, b| a.ip == b.ip && a.iface == b.iface);
+    rows
+}
+
+pub(crate) fn resolve_physical_ipv4s() -> Vec<Ipv4Addr> {
+    let mut out: Vec<Ipv4Addr> = list_physical_lan_ipv4_rows()
+        .into_iter()
+        .map(|row| row.ip)
+        .collect();
     out.sort();
     out.dedup();
     out

@@ -1,6 +1,7 @@
 //! Host egui app model (persist + serve handle).
 
 use std::collections::HashMap;
+use std::net::Ipv4Addr;
 use std::sync::Arc;
 use std::thread::JoinHandle;
 use std::time::Duration;
@@ -28,6 +29,7 @@ impl HostUiPersist {
                 .map(Duration::from_secs),
             center_register_udp_port: self.center_register_udp_port,
             center_poll_listen_port: self.center_poll_listen_port,
+            bind_ipv4: parse_bind_ipv4(&self.lan_bind_ipv4),
             public_addr_override: {
                 let s = self.public_addr_override.trim();
                 if s.is_empty() {
@@ -50,6 +52,15 @@ impl HostUiPersist {
     /// In-memory empty VM→agent table (no on-disk `agent-bindings.toml` in this build).
     pub(crate) fn agent_bindings_for_serve() -> (Arc<AgentBindingTable>, String) {
         (Arc::new(AgentBindingTable::new()), String::new())
+    }
+}
+
+fn parse_bind_ipv4(raw: &str) -> Option<Ipv4Addr> {
+    let s = raw.trim();
+    if s.is_empty() {
+        None
+    } else {
+        s.parse::<Ipv4Addr>().ok()
     }
 }
 

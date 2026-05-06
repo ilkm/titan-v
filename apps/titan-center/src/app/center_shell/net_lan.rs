@@ -141,6 +141,7 @@ impl CenterApp {
         if let Some(pos) = lone_legacy {
             self.rebind_announced_endpoint(pos, new_addr, new_key, resolved_label);
             self.endpoints[pos].device_id = id_from_host.to_string();
+            self.sync_vm_windows_for_device_rebind(id_from_host, new_addr, resolved_label);
             return;
         }
         self.push_announced_new_endpoint(addr, id_from_host, resolved_label);
@@ -161,6 +162,7 @@ impl CenterApp {
             return false;
         };
         self.rebind_announced_endpoint(pos, new_addr, new_key, resolved_label);
+        self.sync_vm_windows_for_device_rebind(id_from_host, new_addr, resolved_label);
         true
     }
 
@@ -254,6 +256,36 @@ impl CenterApp {
             return false;
         }
         true
+    }
+
+    fn sync_vm_windows_for_device_rebind(
+        &mut self,
+        device_id: &str,
+        new_addr: &str,
+        resolved_label: &str,
+    ) {
+        let db_path = crate::app::vm_window_db::center_vm_window_db_path();
+        for row in self
+            .vm_window_records
+            .iter_mut()
+            .filter(|r| r.device_id.trim() == device_id)
+        {
+            let mut row_changed = false;
+            if row.host_control_addr != new_addr {
+                row.host_control_addr = new_addr.to_string();
+                row_changed = true;
+            }
+            if row.host_label != resolved_label {
+                row.host_label = resolved_label.to_string();
+                row_changed = true;
+            }
+            if !row_changed {
+                continue;
+            }
+            if let Err(e) = crate::app::vm_window_db::upsert(&db_path, row) {
+                tracing::warn!(error = %e, record_id = %row.record_id, "vm_window_db upsert failed after host rebind");
+            }
+        }
     }
 }
 

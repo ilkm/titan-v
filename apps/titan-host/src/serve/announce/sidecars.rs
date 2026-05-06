@@ -1,4 +1,5 @@
 use std::net::{Ipv4Addr, SocketAddr, UdpSocket};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::thread;
 use std::time::Duration;
 
@@ -10,20 +11,24 @@ use super::{AnnounceEndpoint, HostAnnounceConfig};
 
 const INITIAL_BURST_INTERVAL: Duration = Duration::from_millis(50);
 const INITIAL_BURST_COUNT: u32 = 10;
+const POLL_RECV_TIMEOUT: Duration = Duration::from_millis(300);
+static ANNOUNCE_SIDECAR_GEN: AtomicU64 = AtomicU64::new(0);
 
 pub(super) fn start_announce_sidecars(cfg: &HostAnnounceConfig, endpoints: Vec<AnnounceEndpoint>) {
+    let my_gen = ANNOUNCE_SIDECAR_GEN.fetch_add(1, Ordering::SeqCst) + 1;
     if cfg.center_poll_listen_port > 0 {
-        spawn_center_poll_responder(cfg.center_poll_listen_port, endpoints.clone());
+        spawn_center_poll_responder(my_gen, cfg.center_poll_listen_port, endpoints.clone());
     }
-    spawn_initial_burst_announce(cfg.center_register_udp_port, endpoints.clone());
+    spawn_initial_burst_announce(my_gen, cfg.center_register_udp_port, endpoints.clone());
     if let Some(iv) = cfg.periodic_interval
         && !iv.is_zero()
     {
-        spawn_periodic_announce(iv, cfg.center_register_udp_port, endpoints);
+        spawn_periodic_announce(my_gen, iv, cfg.center_register_udp_port, endpoints);
     }
 }
 
 fn spawn_periodic_announce(
+    my_gen: u64,
     interval: Duration,
     center_register_udp_port: u16,
     endpoints: Vec<AnnounceEndpoint>,
@@ -34,26 +39,36 @@ fn spawn_periodic_announce(
     }
     thread::spawn(move || {
         loop {
+            if ANNOUNCE_SIDECAR_GEN.load(Ordering::SeqCst) != my_gen {
+                break;
+            }
             send_pairs(&pairs, "periodic");
             thread::sleep(interval);
         }
     });
 }
 
-fn spawn_initial_burst_announce(center_register_udp_port: u16, endpoints: Vec<AnnounceEndpoint>) {
+fn spawn_initial_burst_announce(
+    my_gen: u64,
+    center_register_udp_port: u16,
+    endpoints: Vec<AnnounceEndpoint>,
+) {
     let pairs = announce_pairs_for_broadcast(center_register_udp_port, &endpoints);
     if pairs.is_empty() {
         return;
     }
     thread::spawn(move || {
         for _ in 0..INITIAL_BURST_COUNT {
+            if ANNOUNCE_SIDECAR_GEN.load(Ordering::SeqCst) != my_gen {
+                break;
+            }
             send_pairs(&pairs, "burst");
             thread::sleep(INITIAL_BURST_INTERVAL);
         }
     });
 }
 
-fn spawn_center_poll_responder(listen_port: u16, endpoints: Vec<AnnounceEndpoint>) {
+fn spawn_center_poll_responder(my_gen: u64, listen_port: u16, endpoints: Vec<AnnounceEndpoint>) {
     let pairs = announce_pairs_for_reply(&endpoints);
     if pairs.is_empty() {
         return;
@@ -64,8 +79,14 @@ fn spawn_center_poll_responder(listen_port: u16, endpoints: Vec<AnnounceEndpoint
         };
         let mut buf = vec![0u8; 4096];
         loop {
+            if ANNOUNCE_SIDECAR_GEN.load(Ordering::SeqCst) != my_gen {
+                break;
+            }
             match sock.recv_from(&mut buf) {
                 Ok((n, peer)) => center_poll_try_reply(&buf, n, peer, &pairs),
+                Err(e)
+                    if e.kind() == std::io::ErrorKind::WouldBlock
+                        || e.kind() == std::io::ErrorKind::TimedOut => {}
                 Err(e) => tracing::debug!(error = %e, "host announce: poll recv"),
             }
         }
@@ -86,6 +107,9 @@ fn build_poll_listen_socket(listen_port: u16) -> Option<UdpSocket> {
     };
     if let Err(e) = sock.set_broadcast(true) {
         tracing::warn!(error = %e, "host announce: poll set_broadcast failed");
+    }
+    if let Err(e) = sock.set_read_timeout(Some(POLL_RECV_TIMEOUT)) {
+        tracing::warn!(error = %e, "host announce: poll set_read_timeout failed");
     }
     tracing::info!(
         port = listen_port,

@@ -12,7 +12,7 @@ mod telemetry;
 mod telemetry_loops;
 mod vm_window_remote;
 
-pub use announce::HostAnnounceConfig;
+pub use announce::{HostAnnounceConfig, LanIpv4Row, list_physical_lan_ipv4_rows};
 pub use errors::ServeError;
 pub use run::{ServeSecurity, ServeUiChannels, handle_connection, run_serve};
 pub use state::{ServeState, VmWindowReloadMsg};

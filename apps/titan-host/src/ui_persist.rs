@@ -21,6 +21,8 @@ pub struct HostUiPersist {
     pub announce_periodic_secs: Option<u64>,
     pub center_register_udp_port: u16,
     pub center_poll_listen_port: u16,
+    #[serde(default)]
+    pub lan_bind_ipv4: String,
     pub public_addr_override: String,
     pub label_override: String,
     /// Root directory for VM data; each window uses `join(vm_id)` under this path (see settings UI).
@@ -39,6 +41,7 @@ impl Default for HostUiPersist {
             announce_periodic_secs: Some(1),
             center_register_udp_port: DEFAULT_CENTER_REGISTER_UDP_PORT,
             center_poll_listen_port: DEFAULT_CENTER_POLL_UDP_PORT,
+            lan_bind_ipv4: String::new(),
             public_addr_override: String::new(),
             label_override: String::new(),
             vm_root_directory: String::new(),

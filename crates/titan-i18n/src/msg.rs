@@ -130,6 +130,8 @@ pub enum Msg {
     HpAnnounce,
     HpPollPort,
     HpRegPort,
+    HpLanBindIface,
+    HpLanBindIfaceAuto,
     HpPeriodic,
     HpPublicAddr,
     HpLabelOverride,
