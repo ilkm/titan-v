@@ -165,11 +165,7 @@ impl CenterApp {
             self.list_vms_poll_accum = 0.0;
             return;
         }
-        if self.list_vms_auto_refresh
-            && !self.net_busy
-            && !self.fleet_busy
-            && !self.control_addr.trim().is_empty()
-        {
+        if self.list_vms_auto_refresh && !self.net_busy && !self.control_addr.trim().is_empty() {
             self.list_vms_poll_accum += ctx.input(|i| i.unstable_dt);
             if self.list_vms_poll_accum >= self.list_vms_poll_secs.max(5) as f32 {
                 self.list_vms_poll_accum = 0.0;

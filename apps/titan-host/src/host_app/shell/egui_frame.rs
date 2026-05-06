@@ -96,7 +96,8 @@ impl eframe::App for HostApp {
     }
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        while let Ok(next) = self.persist_apply_rx.try_recv() {
+        while let Ok(mut next) = self.persist_apply_rx.try_recv() {
+            next.normalize_lan_bind_ipv4();
             self.persist = next;
             self.start_serve();
         }

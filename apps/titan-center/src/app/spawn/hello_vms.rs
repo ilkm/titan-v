@@ -10,7 +10,7 @@ use super::common::run_blocking_net;
 impl CenterApp {
     /// Sends `Hello` on the control TCP (periodic auto-connect from the app update loop).
     pub(crate) fn spawn_hello_session(&mut self) {
-        if self.net_busy || self.fleet_busy || self.is_control_connected() {
+        if self.net_busy || self.is_control_connected() {
             return;
         }
         self.net_busy = true;
@@ -27,7 +27,7 @@ impl CenterApp {
     }
 
     pub(crate) fn spawn_list_vms(&mut self) {
-        if self.net_busy || self.fleet_busy || self.control_addr.trim().is_empty() {
+        if self.net_busy || self.control_addr.trim().is_empty() {
             return;
         }
         self.net_busy = true;

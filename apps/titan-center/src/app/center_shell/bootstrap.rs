@@ -162,7 +162,7 @@ impl CenterApp {
             add_host_dialog_open: false, add_host_dialog_ip: String::new(), add_host_dialog_port: "7788".into(), add_host_dialog_err: String::new(), add_host_verify_busy: false, add_host_verify_session: 0, add_host_verify_deadline: None, ui_toast_until: None, ui_toast_text: String::new(), active_nav,
             really_quitting: false, hidden_to_tray: false, _tray: None, tray_icon_init_attempted: false, device_remark_edit_index: None, device_remark_edit_focus_next: false, vm_window_remark_edit_record_id: None, vm_window_remark_edit_focus_next: false, device_masonry_heights: HashMap::new(), vm_window_masonry_heights: HashMap::new(),
             vm_window_create: crate::app::vm_window_create_dialog::CenterVmWindowCreateForm::with_defaults(), vm_window_create_id_nonce: 0, pending_remove_endpoint: None, pending_delete_vm_window_row_ix: None, host_config_window_open: false, host_managed_draft_json: String::new(), host_managed_last_msg: String::new(),
-            fleet_by_endpoint: HashMap::new(), fleet_busy: false, vm_inventory: Vec::new(), vm_window_records: v.vm_window_records, last_action: String::new(), control_addr: net.control_addr, net_tx: net.net_tx, net_rx: net.net_rx,
+            fleet_by_endpoint: HashMap::new(), vm_inventory: Vec::new(), vm_window_records: v.vm_window_records, last_action: String::new(), control_addr: net.control_addr, net_tx: net.net_tx, net_rx: net.net_rx,
             net_busy: false, host_sessions: HashMap::new(), reachability_wall_anchor: Instant::now(), telemetry_links: HashMap::new(), host_disk_volumes: Vec::new(),
             last_capabilities: String::new(), last_net_error: String::new(), sqlite_snapshot_last_time: -1.0e9_f64, sqlite_snapshot_busy: false,
         }

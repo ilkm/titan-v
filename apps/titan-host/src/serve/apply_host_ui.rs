@@ -23,10 +23,11 @@ fn reject_oversized_json(json: &str) -> Option<ControlResponse> {
 }
 
 fn parse_and_validate_persist(json: &str) -> Result<HostUiPersist, ControlResponse> {
-    let p: HostUiPersist = match serde_json::from_str(json) {
+    let mut p: HostUiPersist = match serde_json::from_str(json) {
         Ok(v) => v,
         Err(e) => return Err(server_err(400, format!("invalid HostUiPersist JSON: {e}"))),
     };
+    p.normalize_lan_bind_ipv4();
     if let Err(e) = p.validate_for_remote_apply() {
         return Err(server_err(400, e));
     }

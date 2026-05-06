@@ -130,10 +130,6 @@ fn add_host_verify_and_toolbar(lang: UiLang, msg: Msg) -> Option<&'static str> {
         (UiLang::Zh, Msg::AddHostOfflineToast) => Some("设备不在线～"),
         (UiLang::En, Msg::AddHostSavedLog) => Some("Host added (online check OK)."),
         (UiLang::Zh, Msg::AddHostSavedLog) => Some("已添加主机（在线检测通过）。"),
-        (UiLang::En, Msg::BtnHostHello) => Some("Hello"),
-        (UiLang::Zh, Msg::BtnHostHello) => Some("Hello"),
-        (UiLang::En, Msg::BtnHostTelemetry) => Some("Telemetry"),
-        (UiLang::Zh, Msg::BtnHostTelemetry) => Some("遥测"),
         _ => None,
     }
 }

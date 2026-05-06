@@ -82,4 +82,18 @@ impl HostUiPersist {
         self.parse_listen()?;
         Ok(())
     }
+
+    /// Picks the first physical LAN IPv4 when unset or stale (no “all NICs” mode).
+    pub fn normalize_lan_bind_ipv4(&mut self) {
+        let rows = crate::serve::list_physical_lan_ipv4_rows();
+        if rows.is_empty() {
+            self.lan_bind_ipv4.clear();
+            return;
+        }
+        let cur = self.lan_bind_ipv4.trim();
+        let valid = rows.iter().any(|r| r.ip.to_string() == cur);
+        if cur.is_empty() || !valid {
+            self.lan_bind_ipv4 = rows[0].ip.to_string();
+        }
+    }
 }

@@ -63,7 +63,6 @@ impl CenterApp {
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = 8.0;
             self.panel_window_mgmt_toolbar_left(ui, lang);
-            self.panel_device_mgmt_toolbar_right(ui, lang);
         });
     }
 

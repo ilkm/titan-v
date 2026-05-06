@@ -125,15 +125,13 @@ fn build_bind_scoped_payloads(
 fn resolve_bind_ipv4s(selected: Option<Ipv4Addr>) -> Vec<Ipv4Addr> {
     let all = resolve_physical_ipv4s();
     if let Some(ip) = selected {
-        if all.iter().any(|x| *x == ip) {
-            vec![ip]
-        } else {
-            tracing::warn!(%ip, "host announce: selected LAN bind IPv4 not available");
-            Vec::new()
+        if all.contains(&ip) {
+            return vec![ip];
         }
-    } else {
-        all
+        tracing::warn!(%ip, "host announce: selected LAN bind IPv4 not available");
+        return Vec::new();
     }
+    all.first().copied().map(|ip| vec![ip]).unwrap_or_default()
 }
 
 pub fn list_physical_lan_ipv4_rows() -> Vec<LanIpv4Row> {

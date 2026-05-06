@@ -68,14 +68,6 @@ pub enum NetUiMsg {
         host_key: String,
         session_gen: u64,
     },
-    /// One host result from a fleet fan-out operation (`spawn_fleet_exchange`).
-    FleetOpResult {
-        host_key: String,
-        ok: bool,
-        detail: String,
-    },
-    /// Fleet fan-out worker finished (clears [`CenterApp::fleet_busy`]).
-    FleetOpDone,
     /// Background `ApplyHostUiPersistJson` push to one host finished.
     HostUiPushDone {
         ok: bool,

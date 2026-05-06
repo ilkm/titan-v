@@ -195,12 +195,6 @@ impl CenterApp {
                 host_key,
                 session_gen,
             } => self.net_dispatch_telemetry_link_lost(host_key, session_gen),
-            NetUiMsg::FleetOpResult {
-                host_key,
-                ok,
-                detail,
-            } => self.net_dispatch_fleet_op_result(host_key, ok, detail),
-            NetUiMsg::FleetOpDone => self.net_dispatch_fleet_op_done(),
             NetUiMsg::Error(e) => self.net_dispatch_net_error(e),
             _ => false,
         }
@@ -211,38 +205,9 @@ impl CenterApp {
         false
     }
 
-    fn net_dispatch_fleet_op_result(&mut self, host_key: String, ok: bool, detail: String) -> bool {
-        self.on_net_fleet_op_result(host_key, ok, detail);
-        false
-    }
-
-    fn net_dispatch_fleet_op_done(&mut self) -> bool {
-        self.fleet_busy = false;
-        self.ctx.request_repaint();
-        false
-    }
-
     fn net_dispatch_net_error(&mut self, e: String) -> bool {
         self.on_net_error(e);
         false
-    }
-
-    fn on_net_fleet_op_result(&mut self, host_key: String, ok: bool, detail: String) {
-        if !host_key.is_empty() {
-            self.last_action = if ok {
-                format!("{host_key}: OK")
-            } else {
-                format!("{host_key}: {detail}")
-            };
-            if !ok {
-                if !self.last_net_error.is_empty() {
-                    self.last_net_error.push_str("; ");
-                }
-                self.last_net_error
-                    .push_str(&format!("{host_key}: {detail}"));
-            }
-        }
-        self.ctx.request_repaint();
     }
 
     fn on_net_error(&mut self, e: String) {

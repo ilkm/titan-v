@@ -75,7 +75,6 @@ pub struct CenterApp {
     pub(crate) proxy_labels: Vec<String>,
     /// Per-endpoint inventory / telemetry (fleet console).
     pub(crate) fleet_by_endpoint: HashMap<String, HostLiveState>,
-    pub(crate) fleet_busy: bool,
     pub(crate) vm_inventory: Vec<titan_common::VmBrief>,
     /// Host-reported planned VM windows (SQLite + LAN UDP).
     pub(crate) vm_window_records: Vec<VmWindowRecord>,

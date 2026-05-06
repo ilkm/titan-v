@@ -142,19 +142,18 @@ impl HostApp {
 
     fn panel_service_lan_bind_iface_row(&mut self, ui: &mut egui::Ui, lang: UiLang) {
         let rows = crate::serve::list_physical_lan_ipv4_rows();
-        self.sanitize_lan_bind_selection(&rows);
+        self.persist.normalize_lan_bind_ipv4();
         form_field_row(
             ui,
             RichText::new(i18n::t(lang, Msg::HpLanBindIface)).small(),
             |ui| {
+                if rows.is_empty() {
+                    ui.label(RichText::new(i18n::t(lang, Msg::HpLanBindIfaceNone)).weak());
+                    return;
+                }
                 egui::ComboBox::from_id_salt("hp_lan_bind_iface")
                     .selected_text(self.lan_bind_selected_text(lang, &rows))
                     .show_ui(ui, |ui| {
-                        ui.selectable_value(
-                            &mut self.persist.lan_bind_ipv4,
-                            String::new(),
-                            i18n::t(lang, Msg::HpLanBindIfaceAuto),
-                        );
                         for row in &rows {
                             let ip = row.ip.to_string();
                             let label = format!("{} ({})", row.iface, ip);
@@ -165,21 +164,9 @@ impl HostApp {
         );
     }
 
-    fn sanitize_lan_bind_selection(&mut self, rows: &[crate::serve::LanIpv4Row]) {
-        if self.persist.lan_bind_ipv4.trim().is_empty() {
-            return;
-        }
-        let valid = rows
-            .iter()
-            .any(|row| row.ip.to_string() == self.persist.lan_bind_ipv4);
-        if !valid {
-            self.persist.lan_bind_ipv4.clear();
-        }
-    }
-
     fn lan_bind_selected_text(&self, lang: UiLang, rows: &[crate::serve::LanIpv4Row]) -> String {
-        if self.persist.lan_bind_ipv4.trim().is_empty() {
-            return i18n::t(lang, Msg::HpLanBindIfaceAuto).to_string();
+        if rows.is_empty() || self.persist.lan_bind_ipv4.trim().is_empty() {
+            return i18n::t(lang, Msg::HpLanBindIfaceNone).to_string();
         }
         rows.iter()
             .find(|row| row.ip.to_string() == self.persist.lan_bind_ipv4)

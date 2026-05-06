@@ -132,7 +132,7 @@ impl CenterApp {
             return;
         }
         let (command_ready, telemetry_live, _) = self.current_control_session_flags();
-        if (command_ready && telemetry_live) || self.net_busy || self.fleet_busy {
+        if (command_ready && telemetry_live) || self.net_busy {
             return;
         }
         if command_ready && !telemetry_live {

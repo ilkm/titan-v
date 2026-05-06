@@ -38,7 +38,6 @@ impl CenterApp {
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = 8.0;
             self.panel_device_mgmt_toolbar_left(ui, lang);
-            self.panel_device_mgmt_toolbar_right(ui, lang);
         });
     }
 
@@ -84,31 +83,6 @@ impl CenterApp {
             self.selected_host -= 1;
         } else if idx == self.selected_host {
             self.selected_host = self.selected_host.min(new_len - 1);
-        }
-    }
-
-    pub(crate) fn panel_device_mgmt_toolbar_right(
-        &mut self,
-        ui: &mut egui::Ui,
-        lang: crate::app::i18n::UiLang,
-    ) {
-        if subtle_button_toolbar(
-            ui,
-            t(lang, Msg::BtnHostHello),
-            !self.fleet_busy && !self.endpoints.is_empty(),
-        )
-        .clicked()
-        {
-            self.spawn_fleet_hello_selected();
-        }
-        if subtle_button_toolbar(
-            ui,
-            t(lang, Msg::BtnHostTelemetry),
-            !self.endpoints.is_empty(),
-        )
-        .clicked()
-        {
-            self.spawn_fleet_telemetry_selected();
         }
     }
 

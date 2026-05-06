@@ -78,11 +78,6 @@ pub enum Msg {
     AddHostOfflineToast,
     /// Status log after manual add-host succeeds.
     AddHostSavedLog,
-    /// Device toolbar: send Hello to the currently selected host.
-    BtnHostHello,
-    /// Device toolbar: open telemetry stream for the selected host.
-    BtnHostTelemetry,
-
     /// Window management: reload VM window rows from local SQLite.
     WinMgmtReloadDb,
     /// Window management: empty list headline (same placement as device management).
@@ -131,7 +126,8 @@ pub enum Msg {
     HpPollPort,
     HpRegPort,
     HpLanBindIface,
-    HpLanBindIfaceAuto,
+    /// Host settings: no non-virtual IPv4 found for LAN announce bind.
+    HpLanBindIfaceNone,
     HpPeriodic,
     HpPublicAddr,
     HpLabelOverride,

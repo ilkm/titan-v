@@ -128,6 +128,7 @@ impl HostApp {
             .as_deref()
             .and_then(|j| serde_json::from_str(j).ok())
             .unwrap_or_default();
+        persist.normalize_lan_bind_ipv4();
         let mut env_listen_hint = None;
         if let Ok(s) = std::env::var("TITAN_HOST_LISTEN")
             && s.parse::<SocketAddr>().is_ok()
