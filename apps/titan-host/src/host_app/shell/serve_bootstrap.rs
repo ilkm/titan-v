@@ -157,7 +157,6 @@ impl HostApp {
             vm_windows_reload_tx: Some(vm_windows_reload_tx), vm_windows_reload_rx,
             persist, active_tab: 0, status_line: String::new(), env_listen_hint,
             initial_serve_attempted: false, boot_window_focus_once: false,
-            settings_open: false, settings_lang_btn_rect: None,
             vm_window_records: Vec::new(), vm_window_masonry_heights: HashMap::new(),
             host_desktop_textures: HashMap::new(), host_resource_stats: HashMap::new(),
             pending_remove_endpoint: None,

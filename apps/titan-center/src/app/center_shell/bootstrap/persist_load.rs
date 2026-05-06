@@ -50,7 +50,7 @@ fn default_center_persist() -> CenterPersist {
         last_script_version: String::new(),
         list_vms_auto_refresh: false,
         list_vms_poll_secs: default_list_vms_poll_secs(),
-        discovery_broadcast: false,
+        discovery_broadcast: true,
         discovery_interval_secs: default_discovery_interval_secs(),
         discovery_udp_port: default_discovery_udp_port(),
         discovery_bind_ipv4s: Vec::new(),

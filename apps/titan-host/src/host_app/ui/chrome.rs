@@ -1,4 +1,4 @@
-//! Top bar, left nav, central stack, and language popup (layout aligned with Titan Center).
+//! Top bar, left nav, and central stack (layout aligned with Titan Center).
 
 use eframe::egui::{
     self, Align, Frame, Layout, Margin, RichText, ScrollArea, Sense, Stroke, TextStyle,
@@ -6,10 +6,6 @@ use eframe::egui::{
 };
 
 use titan_common::UiLang;
-
-use crate::titan_egui_widgets::{
-    InsetDropdownLayout, inset_single_select_dropdown, show_settings_tool_window, subtle_button,
-};
 
 use crate::titan_i18n::{self as i18n, Msg};
 
@@ -21,34 +17,6 @@ use crate::host_app::model::HostApp;
 fn effective_content_width(full_w: f32) -> f32 {
     let scalable = (CONTENT_MAX_WIDTH * 1.15).max(full_w * 0.92);
     full_w.min(scalable).max(280.0)
-}
-
-fn settings_popup_right_top_under_btn(btn: egui::Rect) -> egui::Pos2 {
-    const GAP_Y: f32 = 6.0;
-    btn.right_bottom() + egui::vec2(0.0, GAP_Y)
-}
-
-fn lang_label_for_combo_choice(ui_lang: UiLang, lang: UiLang) -> &'static str {
-    match ui_lang {
-        UiLang::En => i18n::t(lang, Msg::LangRadioEn),
-        UiLang::Zh => i18n::t(lang, Msg::LangRadioZh),
-    }
-}
-
-fn host_lang_settings_body(ui: &mut egui::Ui, ui_lang: &mut UiLang, lang: UiLang) {
-    let full_w = ui.available_width();
-    inset_single_select_dropdown(
-        ui,
-        "titan_host_ui_lang",
-        full_w,
-        lang_label_for_combo_choice(*ui_lang, lang),
-        72.0,
-        InsetDropdownLayout::compact(),
-        |ui| {
-            ui.selectable_value(ui_lang, UiLang::En, i18n::t(lang, Msg::LangRadioEn));
-            ui.selectable_value(ui_lang, UiLang::Zh, i18n::t(lang, Msg::LangRadioZh));
-        },
-    );
 }
 
 impl HostApp {
@@ -86,12 +54,6 @@ impl HostApp {
             let spare = (ui.available_width() - 40.0).max(0.0);
             if spare > 0.0 {
                 ui.add_space(spare);
-            }
-            let lang_btn = subtle_button(ui, "🌐", true);
-            let lang_btn = lang_btn.on_hover_text(i18n::t(lang, Msg::SettingsTooltip));
-            self.settings_lang_btn_rect = Some(lang_btn.rect);
-            if lang_btn.clicked() {
-                self.settings_open = !self.settings_open;
             }
         });
     }
@@ -183,23 +145,5 @@ impl HostApp {
                         self.host_central_padded(ui);
                     });
             });
-    }
-
-    pub(crate) fn render_host_lang_settings_window(&mut self, ctx: &egui::Context) {
-        let lang = self.persist.ui_lang;
-        let anchor = self
-            .settings_lang_btn_rect
-            .map(settings_popup_right_top_under_btn);
-        show_settings_tool_window(
-            ctx,
-            &mut self.settings_open,
-            i18n::t(lang, Msg::SettingsLangWindowTitle),
-            anchor,
-            egui::vec2(-256.0, 48.0),
-            egui::vec2(208.0, 84.0),
-            |ui| {
-                host_lang_settings_body(ui, &mut self.persist.ui_lang, lang);
-            },
-        );
     }
 }

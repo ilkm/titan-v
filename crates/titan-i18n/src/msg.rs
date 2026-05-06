@@ -22,6 +22,7 @@ pub enum Msg {
     DiscoveryBindScrollHint,
     DiscoveryRefreshIfaces,
     DiscoveryClearBindIps,
+    DiscoverySelectAllBindIps,
     DiscoveryNoIpv4Ifaces,
     IntervalLabel,
     UdpPortLabel,

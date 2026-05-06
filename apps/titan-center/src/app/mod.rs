@@ -56,6 +56,13 @@ pub(crate) struct TelemetryLink {
     pub(crate) running: Arc<AtomicBool>,
 }
 
+#[derive(Clone, Debug, Default)]
+pub(crate) struct HostControlSession {
+    pub(crate) command_ready: bool,
+    pub(crate) telemetry_live: bool,
+    pub(crate) last_telemetry_at: Option<Instant>,
+}
+
 pub struct CenterApp {
     pub(crate) center_security: CenterSecurity,
     /// Pending TOFU dialog data (`Some` when a manually-added host's fingerprint is unknown);
@@ -77,13 +84,8 @@ pub struct CenterApp {
     pub(crate) net_tx: SyncSender<NetUiMsg>,
     pub(crate) net_rx: Receiver<NetUiMsg>,
     pub(crate) net_busy: bool,
-    pub(crate) host_connected: bool,
-    /// Command plane (Hello/Ping) has received a capability-bearing response.
-    pub(crate) command_ready: bool,
-    /// Telemetry plane has delivered at least one push in this session.
-    pub(crate) telemetry_live: bool,
-    /// Wall clock when a matching-gen [`NetUiMsg::HostTelemetry`] last arrived (not egui paint time).
-    pub(crate) last_host_telemetry_at: Option<Instant>,
+    /// Per-host control/telemetry session flags, keyed by [`Self::endpoint_addr_key`].
+    pub(crate) host_sessions: HashMap<String, HostControlSession>,
     /// Wall clock anchor for [`Self::tick_reachability_probes`] (UI may not repaint when backgrounded).
     pub(crate) reachability_wall_anchor: Instant,
     /// Per-host telemetry TCP readers (bounded by [`constants::TELEMETRY_MAX_CONCURRENT`]).
@@ -207,6 +209,7 @@ impl eframe::App for CenterApp {
     }
 
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+        self.stop_dual_channels();
         self.flush_center_settings_to_sqlite();
     }
 

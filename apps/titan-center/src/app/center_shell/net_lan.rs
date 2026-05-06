@@ -3,17 +3,24 @@
 use crate::app::CenterApp;
 use crate::app::i18n;
 use crate::app::persist_data::HostEndpoint;
+use if_addrs::IfAddr;
+use std::collections::HashSet;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
 impl CenterApp {
     pub(crate) fn apply_net_host_announced(
         &mut self,
         quic_addr: String,
         label: String,
+        source_ip: String,
         device_id: String,
         fingerprint: String,
     ) {
         let addr = Self::endpoint_addr_key(&quic_addr);
         if addr.is_empty() {
+            return;
+        }
+        if !self.allow_announced_source_and_addr(&source_ip, &quic_addr) {
             return;
         }
         let id_from_host = device_id.trim().to_string();
@@ -32,7 +39,7 @@ impl CenterApp {
     /// within a single LAN RTT of the host coming back up.
     fn maybe_event_reconnect_on_announce(&mut self, announced_key: &str) {
         let control_key = Self::endpoint_addr_key(&self.control_addr);
-        if self.host_connected {
+        if self.is_control_connected() {
             return;
         }
         if announced_key != control_key {
@@ -209,8 +216,8 @@ impl CenterApp {
             self.remap_host_caches_addr_key(&old_key, new_key);
             if old_key == Self::endpoint_addr_key(&self.control_addr) {
                 self.control_addr = new_addr.to_string();
-                self.command_ready = false;
-                self.host_connected = false;
+                let control_addr = self.control_addr.clone();
+                self.mark_command_ready_for_addr(&control_addr, false);
                 self.auto_hello_accum = Self::AUTO_HELLO_RETRY_SECS;
             }
         }
@@ -219,6 +226,34 @@ impl CenterApp {
         if ep.label != resolved_label {
             ep.label = resolved_label.to_string();
         }
+    }
+
+    fn allow_announced_source_and_addr(&self, source_ip: &str, quic_addr: &str) -> bool {
+        if self.discovery_bind_ipv4s.is_empty() {
+            return true;
+        }
+        let Some(source_v4) = parse_ipv4(source_ip) else {
+            tracing::warn!(%source_ip, "lan announce rejected: source IP is not IPv4");
+            return false;
+        };
+        let selected = selected_bind_networks(&self.discovery_bind_ipv4s);
+        if selected.is_empty() {
+            tracing::warn!(
+                "lan announce rejected: no selected bind interfaces are currently active"
+            );
+            return false;
+        }
+        if !is_ipv4_in_any_selected_subnet(source_v4, &selected) {
+            tracing::debug!(%source_ip, "lan announce rejected: source not in selected bind subnets");
+            return false;
+        }
+        if let Some(announced) = parse_quic_addr_ipv4(quic_addr)
+            && !is_ipv4_in_any_selected_subnet(announced, &selected)
+        {
+            tracing::debug!(%quic_addr, %source_ip, "lan announce rejected: announced addr not in selected bind subnets");
+            return false;
+        }
+        true
     }
 }
 
@@ -241,4 +276,53 @@ fn build_lan_trust_entry(fingerprint: &str, label: &str) -> titan_quic::TrustEnt
             .map(|d| d.as_secs())
             .unwrap_or_default(),
     }
+}
+
+fn parse_ipv4(s: &str) -> Option<Ipv4Addr> {
+    s.parse::<IpAddr>().ok().and_then(|ip| match ip {
+        IpAddr::V4(v4) => Some(v4),
+        IpAddr::V6(_) => None,
+    })
+}
+
+fn parse_quic_addr_ipv4(s: &str) -> Option<Ipv4Addr> {
+    s.parse::<SocketAddr>()
+        .ok()
+        .and_then(|addr| match addr.ip() {
+            IpAddr::V4(v4) => Some(v4),
+            IpAddr::V6(_) => None,
+        })
+}
+
+fn selected_bind_networks(selected_bind_ips: &[String]) -> Vec<(Ipv4Addr, Ipv4Addr)> {
+    let Ok(ifaces) = if_addrs::get_if_addrs() else {
+        return Vec::new();
+    };
+    let selected: HashSet<Ipv4Addr> = selected_bind_ips
+        .iter()
+        .filter_map(|s| s.parse::<Ipv4Addr>().ok())
+        .collect();
+    let mut nets = Vec::new();
+    for iface in ifaces {
+        let IfAddr::V4(v4) = iface.addr else {
+            continue;
+        };
+        if !selected.contains(&v4.ip) {
+            continue;
+        }
+        nets.push((v4.ip, v4.netmask));
+    }
+    nets
+}
+
+fn is_ipv4_in_any_selected_subnet(target: Ipv4Addr, nets: &[(Ipv4Addr, Ipv4Addr)]) -> bool {
+    nets.iter()
+        .any(|(ip, mask)| ipv4_in_subnet(target, *ip, *mask))
+}
+
+fn ipv4_in_subnet(target: Ipv4Addr, iface_ip: Ipv4Addr, netmask: Ipv4Addr) -> bool {
+    let t = u32::from_be_bytes(target.octets());
+    let i = u32::from_be_bytes(iface_ip.octets());
+    let m = u32::from_be_bytes(netmask.octets());
+    (t & m) == (i & m)
 }

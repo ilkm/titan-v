@@ -249,7 +249,7 @@ impl CenterApp {
         self.net_busy = false;
         self.last_net_error = e;
         self.last_action = i18n::log_request_failed(self.ui_lang);
-        if !self.telemetry_live {
+        if !self.is_control_telemetry_live() {
             self.mark_control_endpoint_offline();
         }
         self.ctx.request_repaint();

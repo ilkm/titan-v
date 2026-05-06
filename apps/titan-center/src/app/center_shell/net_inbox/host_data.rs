@@ -38,12 +38,14 @@ impl CenterApp {
             NetUiMsg::HostAnnounced {
                 quic_addr,
                 label,
+                source_ip,
                 device_id,
                 fingerprint,
             } => {
                 self.apply_net_host_announced(
                     quic_addr.clone(),
                     label.clone(),
+                    source_ip.clone(),
                     device_id.clone(),
                     fingerprint.clone(),
                 );
@@ -124,7 +126,9 @@ impl CenterApp {
 
     pub(super) fn on_net_host_reachability(&mut self, control_addr: String, online: bool) {
         let key = Self::endpoint_addr_key(&control_addr);
-        let skip_offline = !online && self.should_skip_probe_offline_for_addr(&key);
+        let skip_offline = !online
+            && (self.should_skip_probe_offline_for_addr(&key)
+                || self.has_running_telemetry_link_for_addr(&key));
         if let Some(ep) = self
             .endpoints
             .iter_mut()

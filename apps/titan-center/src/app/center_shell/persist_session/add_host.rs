@@ -75,8 +75,8 @@ impl CenterApp {
             self.remap_host_caches_addr_key(&old_key, new_key);
             if old_key == Self::endpoint_addr_key(&self.control_addr) {
                 self.control_addr = addr.to_string();
-                self.command_ready = false;
-                self.host_connected = false;
+                let control_addr = self.control_addr.clone();
+                self.mark_command_ready_for_addr(&control_addr, false);
                 self.auto_hello_accum = Self::AUTO_HELLO_RETRY_SECS;
             }
         }

@@ -12,6 +12,15 @@ use crate::app::discovery;
 use crate::app::persist_data::NavTab;
 
 impl CenterApp {
+    pub(crate) fn prune_discovery_bind_ipv4s_to_scanned_ifaces(&mut self) {
+        let valid: HashSet<String> = self
+            .discovery_if_rows
+            .iter()
+            .map(|r| r.ip.to_string())
+            .collect();
+        self.discovery_bind_ipv4s.retain(|ip| valid.contains(ip));
+    }
+
     pub(crate) fn prune_host_desktop_textures(&mut self) {
         let valid: HashSet<_> = self
             .endpoints
@@ -53,6 +62,7 @@ impl CenterApp {
         if initial_scan || now - self.discovery_if_scan_secs >= 3.0 {
             self.discovery_if_scan_secs = now;
             self.discovery_if_rows = discovery::list_lan_ipv4_rows();
+            self.prune_discovery_bind_ipv4s_to_scanned_ifaces();
         }
     }
 
@@ -147,11 +157,11 @@ impl CenterApp {
     }
 
     pub(crate) fn tick_list_vms_auto_refresh(&mut self, ctx: &egui::Context) {
-        if !self.host_connected {
+        if !self.is_control_connected() {
             self.list_vms_poll_accum = 0.0;
             return;
         }
-        if self.telemetry_live {
+        if self.is_control_telemetry_live() {
             self.list_vms_poll_accum = 0.0;
             return;
         }
@@ -166,12 +176,6 @@ impl CenterApp {
                 self.spawn_list_vms();
             }
         }
-    }
-
-    pub(crate) fn recompute_host_connected(&mut self) {
-        let prev = self.host_connected;
-        self.host_connected = self.command_ready && self.telemetry_live;
-        if prev != self.host_connected {}
     }
 
     pub(crate) fn tick_reachability_probes(&mut self, _ctx: &egui::Context) {
@@ -191,36 +195,29 @@ impl CenterApp {
         self.reachability_poll_accum += dt;
         if self.reachability_poll_accum >= REACHABILITY_PROBE_SECS {
             self.reachability_poll_accum = 0.0;
+            self.maintain_fleet_telemetry_readers();
             self.spawn_reachability_probe_cycle();
         }
     }
 
     pub(crate) fn tick_telemetry_staleness(&mut self) {
-        if !self.telemetry_live {
+        let (command_ready, telemetry_live, last_telemetry_at) =
+            self.current_control_session_flags();
+        if !telemetry_live {
             return;
         }
-        let Some(t) = self.last_host_telemetry_at else {
+        let Some(t) = last_telemetry_at else {
             return;
         };
         if t.elapsed() <= Duration::from_secs_f64(TELEMETRY_STALE_AFTER_SECS) {
             return;
         }
-        self.telemetry_live = false;
-        self.last_host_telemetry_at = None;
-        self.force_reconnect_to_control_host();
-        self.recompute_host_connected();
+        let key = Self::endpoint_addr_key(&self.control_addr);
+        self.mark_telemetry_live_for_key(&key, false);
+        if command_ready {
+            self.force_reconnect_to_control_host();
+        }
         self.ctx.request_repaint();
-    }
-
-    /// Changing the control address invalidates both TCP planes (command + paired telemetry port).
-    pub(crate) fn on_control_addr_changed(&mut self) {
-        self.stop_dual_channels();
-        self.vm_inventory.clear();
-        self.host_disk_volumes.clear();
-        self.fleet_by_endpoint.clear();
-        self.list_vms_poll_accum = 0.0;
-        self.last_capabilities.clear();
-        self.auto_hello_accum = Self::AUTO_HELLO_RETRY_SECS;
     }
 
     pub(crate) fn select_endpoint_host(&mut self, index: usize) {
@@ -228,10 +225,19 @@ impl CenterApp {
             return;
         }
         let new = self.endpoints[index].addr.clone();
-        if Self::endpoint_addr_key(&new) != Self::endpoint_addr_key(&self.control_addr) {
-            self.on_control_addr_changed();
-        }
+        let new_key = Self::endpoint_addr_key(&new);
+        let old_key = Self::endpoint_addr_key(&self.control_addr);
+        let changed = new_key != old_key;
+        let has_live_telemetry = self.has_running_telemetry_link_for_addr(&new_key);
         self.selected_host = index;
         self.control_addr = new;
+        if changed {
+            self.list_vms_poll_accum = 0.0;
+            self.last_capabilities.clear();
+            self.auto_hello_accum = Self::AUTO_HELLO_RETRY_SECS;
+        }
+        if !has_live_telemetry {
+            self.spawn_fleet_telemetry_selected();
+        }
     }
 }

@@ -3,7 +3,7 @@
 //! v3 of [`HostAnnounceBeacon`] carries the host's mTLS SPKI fingerprint (`host_spki_sha256_hex`)
 //! so Center can auto-trust it without a TOFU prompt for LAN-discovered devices.
 
-use std::net::SocketAddr;
+use std::net::{Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -28,6 +28,12 @@ pub struct HostAnnounceConfig {
     pub label_override: Option<String>,
 }
 
+#[derive(Clone, Debug)]
+pub(super) struct AnnounceEndpoint {
+    pub bind_ip: Ipv4Addr,
+    pub payload: Vec<u8>,
+}
+
 impl Default for HostAnnounceConfig {
     fn default() -> Self {
         Self {
@@ -41,31 +47,13 @@ impl Default for HostAnnounceConfig {
     }
 }
 
-pub fn resolve_public_quic_addr(
-    _bind_request: SocketAddr,
-    local: SocketAddr,
-    override_addr: Option<&str>,
-) -> String {
-    if let Some(o) = override_addr {
-        let s = o.trim();
-        if !s.is_empty() {
-            return s.to_string();
-        }
+fn resolve_public_override(override_addr: Option<&str>) -> Option<String> {
+    let s = override_addr?.trim();
+    if s.is_empty() {
+        None
+    } else {
+        Some(s.to_string())
     }
-    let port = local.port();
-    if let Ok(ifaces) = if_addrs::get_if_addrs() {
-        for i in ifaces {
-            if i.is_loopback() {
-                continue;
-            }
-            if let if_addrs::IfAddr::V4(v4) = i.addr
-                && !v4.ip.is_unspecified()
-            {
-                return format!("{}:{}", v4.ip, port);
-            }
-        }
-    }
-    format!("127.0.0.1:{port}")
 }
 
 fn build_announce_payload(
@@ -78,34 +66,118 @@ fn build_announce_payload(
     to_vec(&beacon).ok()
 }
 
-fn host_announce_payload(
+fn host_announce_payloads(
     cfg: &HostAnnounceConfig,
-    bind_request: SocketAddr,
     local: SocketAddr,
     identity: &Identity,
-) -> Option<(String, String, String, Vec<u8>)> {
-    let public = resolve_public_quic_addr(bind_request, local, cfg.public_addr_override.as_deref());
+) -> Option<(String, String, String, Vec<AnnounceEndpoint>)> {
     let label = cfg.label_override.clone().unwrap_or_else(|| {
         whoami::fallible::hostname().unwrap_or_else(|_| "unknown-host".to_string())
     });
     let device_id = crate::host_device_id::host_device_id_string();
-    let payload = build_announce_payload(&public, &label, &device_id, &identity.spki_sha256_hex)?;
-    Some((public, label, device_id, payload))
+    if let Some(public) = resolve_public_override(cfg.public_addr_override.as_deref()) {
+        let payload =
+            build_announce_payload(&public, &label, &device_id, &identity.spki_sha256_hex)?;
+        return Some((
+            public,
+            label,
+            device_id,
+            vec![AnnounceEndpoint {
+                bind_ip: Ipv4Addr::UNSPECIFIED,
+                payload,
+            }],
+        ));
+    }
+    build_multi_nic_announce_payloads(local, &label, &device_id, &identity.spki_sha256_hex)
+        .map(|endpoints| ("multi-nic".to_string(), label, device_id, endpoints))
+}
+
+fn build_multi_nic_announce_payloads(
+    local: SocketAddr,
+    label: &str,
+    device_id: &str,
+    fingerprint: &str,
+) -> Option<Vec<AnnounceEndpoint>> {
+    let port = local.port();
+    let mut endpoints = Vec::new();
+    for ip in resolve_physical_ipv4s() {
+        let public = format!("{ip}:{port}");
+        let payload = build_announce_payload(&public, label, device_id, fingerprint)?;
+        endpoints.push(AnnounceEndpoint {
+            bind_ip: ip,
+            payload,
+        });
+    }
+    if endpoints.is_empty() {
+        None
+    } else {
+        Some(endpoints)
+    }
+}
+
+fn resolve_physical_ipv4s() -> Vec<Ipv4Addr> {
+    let mut out = Vec::new();
+    let Ok(ifaces) = if_addrs::get_if_addrs() else {
+        return out;
+    };
+    for iface in ifaces {
+        if iface.is_loopback() || is_virtual_iface_name(&iface.name) {
+            continue;
+        }
+        let if_addrs::IfAddr::V4(v4) = iface.addr else {
+            continue;
+        };
+        if v4.ip.is_unspecified() {
+            continue;
+        }
+        out.push(v4.ip);
+    }
+    out.sort();
+    out.dedup();
+    out
+}
+
+fn is_virtual_iface_name(name: &str) -> bool {
+    let n = name.to_ascii_lowercase();
+    [
+        "virtual",
+        "vmware",
+        "vbox",
+        "hyper-v",
+        "hyperv",
+        "vethernet",
+        "docker",
+        "wsl",
+        "npcap",
+        "loopback",
+        "tunnel",
+        "bridge",
+        "br-",
+        "tap",
+        "tun",
+        "utun",
+        "tailscale",
+        "zerotier",
+        "wireguard",
+        "hamachi",
+        "vpn",
+    ]
+    .iter()
+    .any(|needle| n.contains(needle))
 }
 
 pub fn spawn_host_announce_background(
     cfg: HostAnnounceConfig,
-    bind_request: SocketAddr,
+    _bind_request: SocketAddr,
     local: SocketAddr,
     identity: &Arc<Identity>,
 ) {
     if !cfg.enabled {
         return;
     }
-    let Some((public, label, device_id, payload)) =
-        host_announce_payload(&cfg, bind_request, local, identity)
+    let Some((public, label, device_id, endpoints)) = host_announce_payloads(&cfg, local, identity)
     else {
-        tracing::warn!("host announce: JSON encode failed");
+        tracing::warn!("host announce: no usable physical IPv4 address for LAN registration");
         return;
     };
 
@@ -116,8 +188,9 @@ pub fn spawn_host_announce_background(
         fingerprint = %identity.spki_sha256_hex,
         poll_listen_port = cfg.center_poll_listen_port,
         register_port = cfg.center_register_udp_port,
+        endpoint_count = endpoints.len(),
         periodic = ?cfg.periodic_interval,
         "host announce: LAN registration (center poll + optional periodic)"
     );
-    sidecars::start_announce_sidecars(&cfg, payload);
+    sidecars::start_announce_sidecars(&cfg, endpoints);
 }

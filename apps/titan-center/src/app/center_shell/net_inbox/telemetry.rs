@@ -35,26 +35,19 @@ impl CenterApp {
         let is_heartbeat = matches!(push, titan_common::ControlPush::HostHeartbeat { .. });
         let host_key_for_ctl = host_key.clone();
         self.apply_control_push_for_telemetry(host_key, push);
-        if host_key_for_ctl == Self::endpoint_addr_key(&self.control_addr) {
-            self.telemetry_live = true;
-            self.last_host_telemetry_at = Some(Instant::now());
-            if !is_heartbeat {}
-        }
+        self.mark_telemetry_timestamp_for_key(&host_key_for_ctl, Instant::now());
         self.last_net_error.clear();
-        self.recompute_host_connected();
         if !is_heartbeat {
             self.ctx.request_repaint();
         }
     }
 
     fn handle_host_bye_now(&mut self, host_key: &str) {
+        self.mark_telemetry_live_for_key(host_key, false);
         if host_key != Self::endpoint_addr_key(&self.control_addr) {
             return;
         }
-        self.telemetry_live = false;
-        self.last_host_telemetry_at = None;
         self.force_reconnect_to_control_host();
-        self.recompute_host_connected();
         self.mark_control_endpoint_offline();
         self.ctx.request_repaint();
     }
@@ -71,12 +64,11 @@ impl CenterApp {
             s.clear_telemetry();
         }
         self.host_resource_stats.remove(&host_key);
-        self.host_desktop_textures.remove(&host_key);
+        // Keep the last decoded preview frame to avoid a visible blank/flicker while telemetry
+        // reconnects after short network hiccups or endpoint switching.
+        self.mark_telemetry_live_for_key(&host_key, false);
         if host_key == Self::endpoint_addr_key(&self.control_addr) {
-            self.telemetry_live = false;
-            self.last_host_telemetry_at = None;
             self.force_reconnect_to_control_host();
-            self.recompute_host_connected();
             self.mark_control_endpoint_offline();
         }
         self.ctx.request_repaint();

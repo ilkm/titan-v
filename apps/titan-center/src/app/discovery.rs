@@ -68,6 +68,40 @@ pub struct LanIpv4Row {
     pub iface: String,
 }
 
+fn contains_any(haystack: &str, needles: &[&str]) -> bool {
+    needles.iter().any(|n| haystack.contains(n))
+}
+
+fn is_virtual_iface_name(name: &str) -> bool {
+    let n = name.to_ascii_lowercase();
+    contains_any(
+        &n,
+        &[
+            "virtual",
+            "vmware",
+            "vbox",
+            "hyper-v",
+            "hyperv",
+            "vethernet",
+            "docker",
+            "wsl",
+            "npcap",
+            "loopback",
+            "tunnel",
+            "bridge",
+            "br-",
+            "tap",
+            "tun",
+            "utun",
+            "tailscale",
+            "zerotier",
+            "wireguard",
+            "hamachi",
+            "vpn",
+        ],
+    )
+}
+
 /// Non-loopback IPv4 rows for UI (loopback excluded for typical LAN discovery).
 pub fn list_lan_ipv4_rows() -> Vec<LanIpv4Row> {
     let mut out = Vec::new();
@@ -76,6 +110,9 @@ pub fn list_lan_ipv4_rows() -> Vec<LanIpv4Row> {
     };
     for i in ifaces {
         if i.is_loopback() {
+            continue;
+        }
+        if is_virtual_iface_name(&i.name) {
             continue;
         }
         let IfAddr::V4(v4) = i.addr else {

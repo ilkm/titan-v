@@ -163,7 +163,7 @@ impl CenterApp {
             really_quitting: false, hidden_to_tray: false, _tray: None, tray_icon_init_attempted: false, device_remark_edit_index: None, device_remark_edit_focus_next: false, vm_window_remark_edit_record_id: None, vm_window_remark_edit_focus_next: false, device_masonry_heights: HashMap::new(), vm_window_masonry_heights: HashMap::new(),
             vm_window_create: crate::app::vm_window_create_dialog::CenterVmWindowCreateForm::with_defaults(), vm_window_create_id_nonce: 0, pending_remove_endpoint: None, pending_delete_vm_window_row_ix: None, host_config_window_open: false, host_managed_draft_json: String::new(), host_managed_last_msg: String::new(),
             fleet_by_endpoint: HashMap::new(), fleet_busy: false, vm_inventory: Vec::new(), vm_window_records: v.vm_window_records, last_action: String::new(), control_addr: net.control_addr, net_tx: net.net_tx, net_rx: net.net_rx,
-            net_busy: false, host_connected: false, command_ready: false, telemetry_live: false, last_host_telemetry_at: None, reachability_wall_anchor: Instant::now(), telemetry_links: HashMap::new(), host_disk_volumes: Vec::new(),
+            net_busy: false, host_sessions: HashMap::new(), reachability_wall_anchor: Instant::now(), telemetry_links: HashMap::new(), host_disk_volumes: Vec::new(),
             last_capabilities: String::new(), last_net_error: String::new(), sqlite_snapshot_last_time: -1.0e9_f64, sqlite_snapshot_busy: false,
         }
     }

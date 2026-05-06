@@ -34,7 +34,6 @@ impl HostApp {
         self.render_host_top_panel(ctx);
         self.render_host_side_nav(ctx);
         self.render_host_central_panel(ctx);
-        self.render_host_lang_settings_window(ctx);
     }
 
     fn replace_vm_window_rows(&mut self, records: Vec<VmWindowRecord>) {

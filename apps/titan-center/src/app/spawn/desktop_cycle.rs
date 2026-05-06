@@ -54,7 +54,7 @@ fn telemetry_keys_for_cycle(app: &CenterApp) -> HashSet<String> {
         .map(|(k, _)| k.clone())
         .collect();
     let primary_key = CenterApp::endpoint_addr_key(&app.control_addr);
-    if app.telemetry_live && !primary_key.is_empty() {
+    if app.is_control_telemetry_live() && !primary_key.is_empty() {
         keys.insert(primary_key);
     }
     keys

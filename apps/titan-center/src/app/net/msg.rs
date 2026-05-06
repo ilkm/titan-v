@@ -22,6 +22,8 @@ pub enum NetUiMsg {
     HostAnnounced {
         quic_addr: String,
         label: String,
+        /// UDP source IP observed by center register listener.
+        source_ip: String,
         /// OS machine id from host (`machine-uid`); never empty in v3 beacons.
         device_id: String,
         /// SHA-256(SPKI) hex (lowercase, 64 chars). Center auto-trusts on first sight.

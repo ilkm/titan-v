@@ -99,9 +99,6 @@ pub struct HostApp {
     pub(crate) initial_serve_attempted: bool,
     /// One-shot: bring the native window to front after eframe's initial `with_visible(false)` bootstrap.
     pub(crate) boot_window_focus_once: bool,
-    pub(crate) settings_open: bool,
-    /// Last frame's 🌐 button rect (screen space); anchors the language popup like Titan Center.
-    pub(crate) settings_lang_btn_rect: Option<egui::Rect>,
     /// VM-window rows owned by this host (host SQLite is the single source of truth).
     pub(crate) vm_window_records: Vec<VmWindowRecord>,
     /// Window management masonry: last painted height per `VmWindowRecord::record_id`.

@@ -51,14 +51,21 @@ fn lan_register_parse_announced(slice: &[u8]) -> Option<(String, String, String,
     Some((addr, label, device_id, fingerprint))
 }
 
-fn lan_register_try_dispatch(slice: &[u8], tx: &SyncSender<NetUiMsg>, ctx: &Context) -> bool {
+fn lan_register_try_dispatch(
+    slice: &[u8],
+    from: std::net::SocketAddr,
+    tx: &SyncSender<NetUiMsg>,
+    ctx: &Context,
+) -> bool {
     let Some((addr, label, device_id, fingerprint)) = lan_register_parse_announced(slice) else {
         return true;
     };
+    let source_ip = from.ip().to_string();
     if tx
         .send(NetUiMsg::HostAnnounced {
             quic_addr: addr,
             label,
+            source_ip,
             device_id,
             fingerprint,
         })
@@ -79,8 +86,8 @@ fn center_lan_register_loop(tx: SyncSender<NetUiMsg>, ctx: Context, listen_port:
     let mut buf = vec![0u8; 4096];
     loop {
         match sock.recv_from(&mut buf) {
-            Ok((n, _from)) => {
-                if !lan_register_try_dispatch(&buf[..n], &tx, &ctx) {
+            Ok((n, from)) => {
+                if !lan_register_try_dispatch(&buf[..n], from, &tx, &ctx) {
                     break;
                 }
             }

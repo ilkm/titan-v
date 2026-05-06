@@ -50,6 +50,39 @@ impl CenterApp {
         );
     }
 
+    /// Reliability: keep telemetry readers alive independently of which card is selected.
+    /// This follows the "per-peer long-lived transport" pattern (selection is view state only).
+    pub(crate) fn maintain_fleet_telemetry_readers(&mut self) {
+        let active = self
+            .telemetry_links
+            .values()
+            .filter(|l| l.running.load(Ordering::SeqCst))
+            .count();
+        if active >= TELEMETRY_MAX_CONCURRENT {
+            return;
+        }
+        let mut budget = TELEMETRY_MAX_CONCURRENT - active;
+        let targets: Vec<(String, String)> = self
+            .endpoints
+            .iter()
+            .map(|ep| (CenterApp::endpoint_addr_key(&ep.addr), ep.addr.clone()))
+            .collect();
+        for (host_key, addr) in targets {
+            if budget == 0 {
+                break;
+            }
+            if self
+                .telemetry_links
+                .get(&host_key)
+                .is_some_and(|l| l.running.load(Ordering::SeqCst))
+            {
+                continue;
+            }
+            self.spawn_telemetry_reader_for(host_key, addr);
+            budget -= 1;
+        }
+    }
+
     fn telemetry_fleet_cap_blocks(&mut self, host_key: &str) -> bool {
         let active = self
             .telemetry_links

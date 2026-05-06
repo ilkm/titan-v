@@ -81,7 +81,7 @@ pub struct CenterPersist {
     pub list_vms_auto_refresh: bool,
     #[serde(default = "default_list_vms_poll_secs")]
     pub list_vms_poll_secs: u32,
-    #[serde(default)]
+    #[serde(default = "default_discovery_broadcast")]
     pub discovery_broadcast: bool,
     #[serde(default = "default_discovery_interval_secs")]
     pub discovery_interval_secs: u32,
@@ -107,6 +107,10 @@ pub struct CenterPersist {
 
 pub fn default_list_vms_poll_secs() -> u32 {
     30
+}
+
+pub fn default_discovery_broadcast() -> bool {
+    true
 }
 
 pub fn default_discovery_interval_secs() -> u32 {

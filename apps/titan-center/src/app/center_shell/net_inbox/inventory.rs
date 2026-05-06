@@ -24,11 +24,11 @@ impl CenterApp {
     fn on_net_caps(&mut self, summary: String) {
         self.net_busy = false;
         self.upsert_endpoint_after_caps(summary);
-        self.command_ready = true;
+        let control_addr = self.control_addr.clone();
+        self.mark_command_ready_for_addr(&control_addr, true);
         self.last_net_error.clear();
         self.last_action = i18n::log_host_responded(self.ui_lang);
         self.spawn_telemetry_reader();
-        self.recompute_host_connected();
         self.spawn_ui_lang_push_to_host_control_addr(&self.control_addr);
         self.ctx.request_repaint();
     }

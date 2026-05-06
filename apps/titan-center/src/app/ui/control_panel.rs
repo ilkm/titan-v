@@ -5,9 +5,7 @@ use egui::{RichText, ScrollArea};
 use crate::app::CenterApp;
 use crate::app::constants::ACCENT;
 use crate::app::i18n::{Msg, t};
-use crate::app::ui::widgets::{
-    InsetDropdownLayout, form_field_row, inset_single_select_dropdown, section_card, subtle_button,
-};
+use crate::app::ui::widgets::{form_field_row, section_card, subtle_button};
 
 impl CenterApp {
     pub(crate) fn top_status_bar(&mut self, ui: &mut egui::Ui) {
@@ -50,12 +48,6 @@ impl CenterApp {
         ui: &mut egui::Ui,
         lang: crate::app::i18n::UiLang,
     ) {
-        ui.label(
-            RichText::new(t(lang, Msg::DiscoveryUdpBlurb))
-                .small()
-                .color(ui.visuals().widgets.inactive.text_color()),
-        );
-        ui.add_space(6.0);
         ui.checkbox(
             &mut self.discovery_broadcast,
             t(lang, Msg::DiscoveryCheckbox),
@@ -84,8 +76,6 @@ impl CenterApp {
         );
         ui.add_space(6.0);
         self.settings_discovery_bind_toolbar(ui, lang);
-        ui.add_space(4.0);
-        self.settings_discovery_quick_add_combo(ui, lang);
         ui.add_space(6.0);
         ui.label(
             RichText::new(t(lang, Msg::DiscoveryBindScrollHint))
@@ -100,10 +90,12 @@ impl CenterApp {
         ui: &mut egui::Ui,
         lang: crate::app::i18n::UiLang,
     ) {
+        let total = self.discovery_if_rows.len();
+        let selected = self.discovery_bind_ipv4s.len();
+        let can_select_all = total > 0 && selected < total;
         ui.horizontal(|ui| {
             if subtle_button(ui, t(lang, Msg::DiscoveryRefreshIfaces), true).clicked() {
-                self.discovery_if_rows = crate::app::discovery::list_lan_ipv4_rows();
-                self.discovery_if_scan_secs = ui.ctx().input(|i| i.time);
+                self.settings_refresh_discovery_ifaces(ui);
             }
             if subtle_button(
                 ui,
@@ -114,48 +106,25 @@ impl CenterApp {
             {
                 self.discovery_bind_ipv4s.clear();
             }
+            if subtle_button(ui, t(lang, Msg::DiscoverySelectAllBindIps), can_select_all).clicked()
+            {
+                self.settings_select_all_discovery_bind_ips();
+            }
         });
     }
 
-    fn discovery_quick_add_menu_rows(&mut self, ui: &mut egui::Ui, lang: crate::app::i18n::UiLang) {
-        if self.discovery_if_rows.is_empty() {
-            ui.weak(t(lang, Msg::DiscoveryNoIpv4Ifaces));
-        }
-        for row in &self.discovery_if_rows {
-            let ip_s = row.ip.to_string();
-            let label = format!(
-                "{} — {}{}",
-                row.ip,
-                row.iface,
-                if self.discovery_bind_ipv4s.contains(&ip_s) {
-                    "  ✓"
-                } else {
-                    ""
-                }
-            );
-            if subtle_button(ui, label.as_str(), true).clicked()
-                && !self.discovery_bind_ipv4s.contains(&ip_s)
-            {
-                self.discovery_bind_ipv4s.push(ip_s);
-            }
-        }
+    fn settings_refresh_discovery_ifaces(&mut self, ui: &egui::Ui) {
+        self.discovery_if_rows = crate::app::discovery::list_lan_ipv4_rows();
+        self.prune_discovery_bind_ipv4s_to_scanned_ifaces();
+        self.discovery_if_scan_secs = ui.ctx().input(|i| i.time);
     }
 
-    fn settings_discovery_quick_add_combo(
-        &mut self,
-        ui: &mut egui::Ui,
-        lang: crate::app::i18n::UiLang,
-    ) {
-        let w = ui.available_width();
-        inset_single_select_dropdown(
-            ui,
-            "discovery_ipv4_quick_add",
-            w,
-            t(lang, Msg::DiscoveryBindQuickAdd),
-            220.0,
-            InsetDropdownLayout::default(),
-            |ui| self.discovery_quick_add_menu_rows(ui, lang),
-        );
+    fn settings_select_all_discovery_bind_ips(&mut self) {
+        self.discovery_bind_ipv4s = self
+            .discovery_if_rows
+            .iter()
+            .map(|row| row.ip.to_string())
+            .collect();
     }
 
     fn settings_discovery_bind_list(&mut self, ui: &mut egui::Ui, lang: crate::app::i18n::UiLang) {

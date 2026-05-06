@@ -40,8 +40,8 @@ fn nav_all(lang: UiLang, msg: Msg) -> Option<&'static str> {
 
 fn discovery_top(lang: UiLang, msg: Msg) -> Option<&'static str> {
     match (lang, msg) {
-        (UiLang::En, Msg::DiscoveryTitle) => Some("LAN discovery (optional)"),
-        (UiLang::Zh, Msg::DiscoveryTitle) => Some("局域网发现（可选）"),
+        (UiLang::En, Msg::DiscoveryTitle) => Some("LAN discovery"),
+        (UiLang::Zh, Msg::DiscoveryTitle) => Some("局域网发现"),
         (UiLang::En, Msg::DiscoveryUdpBlurb) => Some(
             "UDP broadcast of `DiscoveryBeacon` so in-guest automation can learn this control address.",
         ),
@@ -70,6 +70,8 @@ fn discovery_bind_ports(lang: UiLang, msg: Msg) -> Option<&'static str> {
         (UiLang::Zh, Msg::DiscoveryRefreshIfaces) => Some("刷新网卡列表"),
         (UiLang::En, Msg::DiscoveryClearBindIps) => Some("Clear selection"),
         (UiLang::Zh, Msg::DiscoveryClearBindIps) => Some("清空已选"),
+        (UiLang::En, Msg::DiscoverySelectAllBindIps) => Some("Select all"),
+        (UiLang::Zh, Msg::DiscoverySelectAllBindIps) => Some("全选"),
         (UiLang::En, Msg::DiscoveryNoIpv4Ifaces) => Some("No non-loopback IPv4 interfaces found."),
         (UiLang::Zh, Msg::DiscoveryNoIpv4Ifaces) => Some("未发现可用的非回环 IPv4 网卡。"),
         (UiLang::En, Msg::IntervalLabel) => Some("Interval (s):"),
