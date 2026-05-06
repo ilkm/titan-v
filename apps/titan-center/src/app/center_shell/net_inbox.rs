@@ -11,11 +11,16 @@ use crate::app::net::NetUiMsg;
 
 impl CenterApp {
     pub(crate) fn drain_net_inbox(&mut self) {
-        while let Ok(msg) = self.net_rx.try_recv() {
+        const MAX_MSGS_PER_FRAME: usize = 128;
+        for _ in 0..MAX_MSGS_PER_FRAME {
+            let Ok(msg) = self.net_rx.try_recv() else {
+                return;
+            };
             if self.dispatch_net_ui_msg(msg) {
                 continue;
             }
         }
+        self.ctx.request_repaint();
     }
 
     /// Returns `true` when the outer `while` should `continue` (stale / ignored message).

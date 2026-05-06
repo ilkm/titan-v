@@ -51,8 +51,10 @@ pub fn publish_telemetry_after_dispatch(
     }
     let tx = state.telemetry_tx.clone();
     tokio::spawn(async move {
-        if let Some(push) = build_telemetry_push(reuse_vms).await {
-            let _ = tx.send(push);
+        if let Some(push) = build_telemetry_push(reuse_vms).await
+            && let Err(e) = tx.send(push)
+        {
+            tracing::debug!(error = %e, "telemetry publish broadcast failed");
         }
     });
 }

@@ -43,7 +43,7 @@ flowchart TB
 
 要点：
 
-- **`titan-host`**：TCP 控制面、provision / 电源编排、每 VM **有界** Lua（`titan-host::runtime`）；对 VM 的创建 / 列表 / 电源等 **委托 OpenVMM**（或侧车进程），本仓库保留 **适配层 + `Capabilities` 诚实位**。
+- **`titan-host`**：QUIC + mTLS 控制面、provision / 电源编排、每 VM **有界** Lua（`titan-host::runtime`）；对 VM 的创建 / 列表 / 电源等 **委托 OpenVMM**（或侧车进程），本仓库保留 **适配层 + `Capabilities` 诚实位**。
 - **`titan-scripts`**：`mlua`（`lua54`、vendored），脚本语义由宿主暴露的 API 与 **`Capabilities`** 共同约束。
 - **OpenVMM**：跨平台 VMM 实现来源；Windows 上可组合 WHP / MSHV 等后端（以上游 feature 矩阵为准）。**单一 owner**：同一 VM 实例不得被 Titan 适配层与另一套管理 API 同时驱动。
 

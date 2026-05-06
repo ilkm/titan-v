@@ -1,6 +1,6 @@
 //! Manual add-host Hello verification (multi-thread Tokio).
 
-use std::sync::mpsc::Sender;
+use std::sync::mpsc::SyncSender;
 use std::time::Duration;
 
 use titan_common::ControlResponse;
@@ -16,7 +16,7 @@ use super::super::persist_data::HostEndpoint;
 pub(super) fn run_add_host_verify_worker(
     addr: String,
     sid: u64,
-    tx: Sender<NetUiMsg>,
+    tx: SyncSender<NetUiMsg>,
     ctx: egui::Context,
 ) {
     let rt = match tokio::runtime::Builder::new_multi_thread()

@@ -20,7 +20,7 @@ mod center_shell;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64};
-use std::sync::mpsc::{Receiver, Sender};
+use std::sync::mpsc::{Receiver, SyncSender};
 use std::time::Instant;
 
 use titan_common::{HostResourceStats, VmWindowRecord};
@@ -74,7 +74,7 @@ pub struct CenterApp {
     pub(crate) vm_window_records: Vec<VmWindowRecord>,
     pub(crate) last_action: String,
     pub(crate) control_addr: String,
-    pub(crate) net_tx: Sender<NetUiMsg>,
+    pub(crate) net_tx: SyncSender<NetUiMsg>,
     pub(crate) net_rx: Receiver<NetUiMsg>,
     pub(crate) net_busy: bool,
     pub(crate) host_connected: bool,
@@ -178,6 +178,8 @@ pub struct CenterApp {
     pub(crate) host_managed_last_msg: String,
     /// Last egui time ([`egui::InputState::time`]) we flushed settings to SQLite (eframe persistence off).
     pub(crate) sqlite_snapshot_last_time: f64,
+    /// One periodic snapshot worker is in flight; avoids overlapping SQLite writes from UI tick.
+    pub(crate) sqlite_snapshot_busy: bool,
 }
 
 impl eframe::App for CenterApp {

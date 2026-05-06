@@ -15,8 +15,8 @@ use super::widgets::subtle_button_toolbar;
 use crate::app::CenterApp;
 use crate::app::constants::DEVICE_CARD_GAP;
 use crate::app::i18n::{Msg, UiLang, t};
+use crate::app::net::NetUiMsg;
 use crate::app::vm_window_db;
-use crate::app::vm_window_push_to_hosts;
 
 impl CenterApp {
     pub(crate) fn panel_window_management(&mut self, ui: &mut egui::Ui) {
@@ -39,22 +39,7 @@ impl CenterApp {
         let Some(row) = self.vm_window_records.get(idx).cloned() else {
             return;
         };
-        let path = vm_window_db::center_vm_window_db_path();
-        if let Err(e) = vm_window_db::delete_by_record_id(&path, &row.record_id) {
-            tracing::warn!(error = %e, record_id = %row.record_id, "vm_window_db: delete");
-            return;
-        }
-        self.vm_window_records
-            .retain(|r| r.record_id != row.record_id);
-        if self.vm_window_remark_edit_record_id.as_deref() == Some(row.record_id.as_str()) {
-            self.vm_window_remark_edit_record_id = None;
-            self.vm_window_remark_edit_focus_next = false;
-        }
-        vm_window_push_to_hosts::push_snapshot_for_device(
-            &self.endpoints,
-            &self.vm_window_records,
-            &row.device_id,
-        );
+        spawn_vm_window_delete_task(self.net_tx.clone(), row.record_id, row.device_id);
     }
 
     /// Persist the in-memory remark edit for `record_id` to SQLite, then push the refreshed
@@ -71,16 +56,7 @@ impl CenterApp {
         else {
             return;
         };
-        let path = vm_window_db::center_vm_window_db_path();
-        if let Err(e) = vm_window_db::upsert(&path, &row) {
-            tracing::warn!(error = %e, record_id = %row.record_id, "vm_window_db: remark upsert");
-            return;
-        }
-        vm_window_push_to_hosts::push_snapshot_for_device(
-            &self.endpoints,
-            &self.vm_window_records,
-            &row.device_id,
-        );
+        spawn_vm_window_remark_save_task(self.net_tx.clone(), row);
     }
 
     fn panel_window_mgmt_toolbar(&mut self, ui: &mut egui::Ui, lang: UiLang) {
@@ -101,17 +77,7 @@ impl CenterApp {
     }
 
     fn refetch_vm_windows_from_all_hosts(&mut self) {
-        let path = vm_window_db::center_vm_window_db_path();
-        match vm_window_db::list_all(&path) {
-            Ok(rows) => {
-                self.vm_window_records = rows;
-            }
-            Err(e) => {
-                tracing::warn!(error = %e, "vm_window_db: list_all (reload)");
-                return;
-            }
-        }
-        vm_window_push_to_hosts::push_snapshot_to_all(&self.endpoints, &self.vm_window_records);
+        spawn_vm_window_reload_task(self.net_tx.clone());
     }
 
     fn panel_window_mgmt_empty_state(&self, ui: &mut egui::Ui, lang: UiLang) {
@@ -291,4 +257,64 @@ impl CenterApp {
         self.vm_window_masonry_heights.insert(key, used);
         used
     }
+}
+
+fn spawn_vm_window_reload_task(tx: std::sync::mpsc::SyncSender<NetUiMsg>) {
+    let _ = std::thread::Builder::new()
+        .name("titan-center-vm-window-reload".into())
+        .spawn(move || {
+            let path = vm_window_db::center_vm_window_db_path();
+            let msg = match vm_window_db::list_all(&path) {
+                Ok(rows) => NetUiMsg::VmWindowReloadDone {
+                    rows: Some(rows),
+                    detail: String::new(),
+                },
+                Err(e) => NetUiMsg::VmWindowReloadDone {
+                    rows: None,
+                    detail: format!("vm_window_db: list_all (reload): {e}"),
+                },
+            };
+            let _ = tx.send(msg);
+        });
+}
+
+fn spawn_vm_window_delete_task(
+    tx: std::sync::mpsc::SyncSender<NetUiMsg>,
+    record_id: String,
+    device_id: String,
+) {
+    let _ = std::thread::Builder::new()
+        .name("titan-center-vm-window-delete".into())
+        .spawn(move || {
+            let path = vm_window_db::center_vm_window_db_path();
+            let detail = match vm_window_db::delete_by_record_id(&path, &record_id) {
+                Ok(_) => String::new(),
+                Err(e) => format!("vm_window_db: delete {record_id}: {e}"),
+            };
+            let _ = tx.send(NetUiMsg::VmWindowDeleteDone {
+                record_id,
+                device_id,
+                detail,
+            });
+        });
+}
+
+fn spawn_vm_window_remark_save_task(
+    tx: std::sync::mpsc::SyncSender<NetUiMsg>,
+    row: VmWindowRecord,
+) {
+    let _ = std::thread::Builder::new()
+        .name("titan-center-vm-window-remark-save".into())
+        .spawn(move || {
+            let path = vm_window_db::center_vm_window_db_path();
+            let detail = match vm_window_db::upsert(&path, &row) {
+                Ok(()) => String::new(),
+                Err(e) => format!("vm_window_db: remark upsert {}: {e}", row.record_id),
+            };
+            let _ = tx.send(NetUiMsg::VmWindowRemarkSaveDone {
+                record_id: row.record_id,
+                device_id: row.device_id,
+                detail,
+            });
+        });
 }

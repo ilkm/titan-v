@@ -60,8 +60,14 @@ pub(crate) struct ServeRun {
 
 impl ServeRun {
     pub(crate) fn stop(self) {
-        let _ = self.shutdown_tx.send(true);
-        let _ = self.join.join();
+        if let Err(e) = self.shutdown_tx.send(true) {
+            tracing::debug!(error = %e, "host serve shutdown signal failed");
+        }
+        let _ = std::thread::Builder::new()
+            .name("titan-host-serve-join".into())
+            .spawn(move || {
+                let _ = self.join.join();
+            });
     }
 }
 

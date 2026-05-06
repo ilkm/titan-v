@@ -41,7 +41,7 @@ impl CenterApp {
 
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         apply_center_theme(&cc.egui_ctx);
-        let (net_tx, net_rx) = mpsc::channel();
+        let (net_tx, net_rx) = mpsc::sync_channel(512);
         let db_path = device_store::registration_db_path();
         let (persist, legacy_eps) = load_center_bootstrap(&db_path);
         lan_host_register::spawn_center_lan_host_register_listener(
@@ -64,14 +64,35 @@ impl CenterApp {
             control_addr,
             center_security,
         );
+        app.spawn_bootstrap_vm_window_reload();
         app.flush_center_settings_to_sqlite();
         tracing::info!(db = %db_path.display(), "center sqlite snapshot after startup");
         app
     }
 
+    fn spawn_bootstrap_vm_window_reload(&self) {
+        let tx = self.net_tx.clone();
+        let _ = std::thread::Builder::new()
+            .name("titan-center-bootstrap-vm-window-reload".into())
+            .spawn(move || {
+                let path = crate::app::vm_window_db::center_vm_window_db_path();
+                let msg = match crate::app::vm_window_db::list_all(&path) {
+                    Ok(rows) => crate::app::net::NetUiMsg::VmWindowReloadDone {
+                        rows: Some(rows),
+                        detail: String::new(),
+                    },
+                    Err(e) => crate::app::net::NetUiMsg::VmWindowReloadDone {
+                        rows: None,
+                        detail: format!("vm_window_db: bootstrap list_all: {e}"),
+                    },
+                };
+                let _ = tx.send(msg);
+            });
+    }
+
     fn assemble_center_app(
         cc: &eframe::CreationContext<'_>,
-        net_tx: mpsc::Sender<crate::app::net::NetUiMsg>,
+        net_tx: mpsc::SyncSender<crate::app::net::NetUiMsg>,
         net_rx: mpsc::Receiver<crate::app::net::NetUiMsg>,
         persist: CenterPersist,
         endpoints: Vec<crate::app::HostEndpoint>,
@@ -143,7 +164,7 @@ impl CenterApp {
             vm_window_create: crate::app::vm_window_create_dialog::CenterVmWindowCreateForm::with_defaults(), vm_window_create_id_nonce: 0, pending_remove_endpoint: None, pending_delete_vm_window_row_ix: None, host_config_window_open: false, host_managed_draft_json: String::new(), host_managed_last_msg: String::new(),
             fleet_by_endpoint: HashMap::new(), fleet_busy: false, vm_inventory: Vec::new(), vm_window_records: v.vm_window_records, last_action: String::new(), control_addr: net.control_addr, net_tx: net.net_tx, net_rx: net.net_rx,
             net_busy: false, host_connected: false, command_ready: false, telemetry_live: false, last_host_telemetry_at: None, reachability_wall_anchor: Instant::now(), telemetry_links: HashMap::new(), host_disk_volumes: Vec::new(),
-            last_capabilities: String::new(), last_net_error: String::new(), sqlite_snapshot_last_time: -1.0e9_f64,
+            last_capabilities: String::new(), last_net_error: String::new(), sqlite_snapshot_last_time: -1.0e9_f64, sqlite_snapshot_busy: false,
         }
     }
 }
@@ -153,7 +174,7 @@ struct ViewDefaults {
 }
 
 struct NetDefaults {
-    net_tx: mpsc::Sender<crate::app::net::NetUiMsg>,
+    net_tx: mpsc::SyncSender<crate::app::net::NetUiMsg>,
     net_rx: mpsc::Receiver<crate::app::net::NetUiMsg>,
     control_addr: String,
 }
@@ -186,15 +207,12 @@ struct StateInit {
 
 fn build_initial_view() -> ViewDefaults {
     ViewDefaults {
-        vm_window_records: crate::app::vm_window_db::list_all(
-            &crate::app::vm_window_db::center_vm_window_db_path(),
-        )
-        .unwrap_or_default(),
+        vm_window_records: Vec::new(),
     }
 }
 
 fn build_initial_net(
-    net_tx: mpsc::Sender<crate::app::net::NetUiMsg>,
+    net_tx: mpsc::SyncSender<crate::app::net::NetUiMsg>,
     net_rx: mpsc::Receiver<crate::app::net::NetUiMsg>,
     control_addr: String,
 ) -> NetDefaults {
@@ -227,7 +245,7 @@ struct BuildArgs {
     endpoints: Vec<crate::app::HostEndpoint>,
     control_addr: String,
     center_security: CenterSecurity,
-    net_tx: mpsc::Sender<crate::app::net::NetUiMsg>,
+    net_tx: mpsc::SyncSender<crate::app::net::NetUiMsg>,
     net_rx: mpsc::Receiver<crate::app::net::NetUiMsg>,
     ui_lang: UiLang,
     active_nav: NavTab,

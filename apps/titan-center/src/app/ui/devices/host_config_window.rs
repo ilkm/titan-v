@@ -123,6 +123,18 @@ fn host_config_win_body(
 }
 
 impl CenterApp {
+    pub(crate) fn current_selected_device_id(&self) -> Option<&str> {
+        self.endpoints
+            .get(self.selected_host)
+            .map(|ep| ep.device_id.as_str())
+    }
+
+    fn host_config_row_by_index(&self, idx: usize) -> Option<(String, std::path::PathBuf)> {
+        let mut endpoint = self.endpoints.get(idx)?.clone();
+        endpoint.ensure_device_id();
+        Some((endpoint.device_id, device_store::registration_db_path()))
+    }
+
     /// Online card preview → Configure: select host, open window, load SQLite draft.
     pub(crate) fn open_host_config_from_card(&mut self, card_index: usize) {
         self.selected_host = card_index;
@@ -131,40 +143,42 @@ impl CenterApp {
     }
 
     fn host_managed_load_selected(&mut self, idx: usize) {
-        let ep = match self.endpoints.get(idx) {
-            Some(e) => e.clone(),
-            None => return,
+        let Some((device_id, db)) = self.host_config_row_by_index(idx) else {
+            return;
         };
-        let db = device_store::registration_db_path();
-        let mut d = ep;
-        d.ensure_device_id();
-        self.host_managed_last_msg = match device_store::load_host_managed_config(&db, &d.device_id)
-        {
-            Ok(Some(j)) => {
-                self.host_managed_draft_json = j;
-                "Loaded draft from SQLite.".into()
-            }
-            Ok(None) => "No draft row for this device_id.".into(),
-            Err(e) => format!("SQLite: {e}"),
-        };
+        let tx = self.net_tx.clone();
+        let _ = std::thread::Builder::new()
+            .name("titan-center-host-config-load".into())
+            .spawn(move || {
+                let (json, detail) = match device_store::load_host_managed_config(&db, &device_id) {
+                    Ok(Some(j)) => (Some(j), "Loaded draft from SQLite.".to_string()),
+                    Ok(None) => (None, "No draft row for this device_id.".to_string()),
+                    Err(e) => (None, format!("SQLite: {e}")),
+                };
+                let _ = tx.send(NetUiMsg::HostConfigLoadDone {
+                    device_id,
+                    json,
+                    detail,
+                });
+            });
     }
 
     fn host_managed_save_selected(&mut self, idx: usize) {
-        let ep = match self.endpoints.get(idx) {
-            Some(e) => e.clone(),
-            None => return,
+        let Some((device_id, db)) = self.host_config_row_by_index(idx) else {
+            return;
         };
-        let db = device_store::registration_db_path();
-        let mut d = ep;
-        d.ensure_device_id();
-        self.host_managed_last_msg = match device_store::upsert_host_managed_config(
-            &db,
-            &d.device_id,
-            &self.host_managed_draft_json,
-        ) {
-            Ok(()) => "Saved draft to SQLite.".into(),
-            Err(e) => format!("SQLite: {e}"),
-        };
+        let json = self.host_managed_draft_json.clone();
+        let tx = self.net_tx.clone();
+        let _ = std::thread::Builder::new()
+            .name("titan-center-host-config-save".into())
+            .spawn(move || {
+                let detail = match device_store::upsert_host_managed_config(&db, &device_id, &json)
+                {
+                    Ok(()) => "Saved draft to SQLite.".to_string(),
+                    Err(e) => format!("SQLite: {e}"),
+                };
+                let _ = tx.send(NetUiMsg::HostConfigSaveDone { device_id, detail });
+            });
     }
 
     fn host_managed_spawn_push(&self, addr: String, json: String) {

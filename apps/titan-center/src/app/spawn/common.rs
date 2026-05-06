@@ -1,6 +1,6 @@
 //! Shared timeouts and blocking Tokio helper for background threads.
 
-use std::sync::mpsc::Sender;
+use std::sync::mpsc::SyncSender;
 use std::time::Duration;
 
 use super::super::net::NetUiMsg;
@@ -23,7 +23,7 @@ pub(super) const PER_HOST_DESKTOP_CYCLE_WALL: Duration = Duration::from_secs(55)
 
 /// Ensures [`NetUiMsg::DesktopFetchCycleDone`] is sent when the desktop snapshot worker exits for any reason
 /// (including panic inside `block_on`), so [`CenterApp::desktop_fetch_busy`] cannot stick true forever.
-pub(super) struct DesktopFetchCycleGuard(pub(super) Sender<NetUiMsg>);
+pub(super) struct DesktopFetchCycleGuard(pub(super) SyncSender<NetUiMsg>);
 
 impl Drop for DesktopFetchCycleGuard {
     fn drop(&mut self) {
@@ -32,7 +32,7 @@ impl Drop for DesktopFetchCycleGuard {
 }
 
 pub(super) fn run_blocking_net(
-    tx: &Sender<NetUiMsg>,
+    tx: &SyncSender<NetUiMsg>,
     ctx: &egui::Context,
     run: impl FnOnce(&tokio::runtime::Runtime),
 ) {

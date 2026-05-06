@@ -1,6 +1,6 @@
 //! Fleet fan-out control requests with bounded concurrency.
 
-use std::sync::mpsc::Sender;
+use std::sync::mpsc::SyncSender;
 
 use titan_common::{ControlRequest, ControlResponse};
 use tokio::sync::Semaphore;
@@ -54,7 +54,7 @@ impl CenterApp {
 }
 
 fn run_fleet_exchange_worker(
-    tx: Sender<NetUiMsg>,
+    tx: SyncSender<NetUiMsg>,
     ctx: egui::Context,
     req: ControlRequest,
     targets: Vec<(String, String)>,
@@ -75,7 +75,7 @@ fn run_fleet_exchange_worker(
     ctx.request_repaint();
 }
 
-fn fleet_runtime_error(tx: &Sender<NetUiMsg>, ctx: &egui::Context, detail: String) {
+fn fleet_runtime_error(tx: &SyncSender<NetUiMsg>, ctx: &egui::Context, detail: String) {
     let _ = tx.send(NetUiMsg::FleetOpResult {
         host_key: String::new(),
         ok: false,
@@ -86,7 +86,7 @@ fn fleet_runtime_error(tx: &Sender<NetUiMsg>, ctx: &egui::Context, detail: Strin
 }
 
 async fn run_fleet_joins(
-    tx: Sender<NetUiMsg>,
+    tx: SyncSender<NetUiMsg>,
     req: ControlRequest,
     targets: Vec<(String, String)>,
 ) {
@@ -100,7 +100,7 @@ async fn run_fleet_joins(
 
 fn spawn_one_fleet_task(
     js: &mut JoinSet<()>,
-    tx: &Sender<NetUiMsg>,
+    tx: &SyncSender<NetUiMsg>,
     sem: &std::sync::Arc<Semaphore>,
     req: &ControlRequest,
     host_key: String,

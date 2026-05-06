@@ -1,6 +1,6 @@
 //! Parallel Hello reachability probe across saved endpoints.
 
-use std::sync::mpsc::Sender;
+use std::sync::mpsc::SyncSender;
 
 use titan_common::ControlResponse;
 use tokio::task::JoinSet;
@@ -24,13 +24,13 @@ impl CenterApp {
     }
 }
 
-fn run_reachability_worker(tx: Sender<NetUiMsg>, ctx: egui::Context, addrs: Vec<String>) {
+fn run_reachability_worker(tx: SyncSender<NetUiMsg>, ctx: egui::Context, addrs: Vec<String>) {
     run_blocking_net(&tx, &ctx, |rt| {
         rt.block_on(run_reachability_async(tx.clone(), addrs));
     });
 }
 
-async fn run_reachability_async(tx: Sender<NetUiMsg>, addrs: Vec<String>) {
+async fn run_reachability_async(tx: SyncSender<NetUiMsg>, addrs: Vec<String>) {
     let mut set = JoinSet::new();
     for addr in addrs {
         set.spawn(async move { probe_one_addr(addr).await });
@@ -49,7 +49,7 @@ async fn probe_one_addr(addr: String) -> (String, bool) {
     (key, online)
 }
 
-async fn drain_reachability_joins(tx: &Sender<NetUiMsg>, set: &mut JoinSet<(String, bool)>) {
+async fn drain_reachability_joins(tx: &SyncSender<NetUiMsg>, set: &mut JoinSet<(String, bool)>) {
     while let Some(joined) = set.join_next().await {
         match joined {
             Ok((key, online)) => {

@@ -19,9 +19,7 @@ impl CenterApp {
             titan_common::ControlPush::HostResourceLive { stats } => {
                 self.apply_cp_host_resource_live(host_key, stats);
             }
-            titan_common::ControlPush::HostDesktopPreviewJpeg { jpeg_bytes, .. } => {
-                self.apply_cp_desktop_jpeg(host_key, jpeg_bytes);
-            }
+            titan_common::ControlPush::HostDesktopPreviewJpeg { .. } => {}
             // Liveness-only pushes carry no display payload; presence alone refreshes
             // `last_host_telemetry_at` in `on_net_host_telemetry`.
             titan_common::ControlPush::HostHeartbeat { .. } => {}
@@ -89,32 +87,5 @@ impl CenterApp {
         if !host_key.is_empty() {
             self.host_resource_stats.insert(host_key, stats);
         }
-    }
-
-    fn apply_cp_desktop_jpeg(&mut self, host_key: String, jpeg_bytes: Vec<u8>) {
-        if host_key.is_empty() {
-            return;
-        }
-        match image::load_from_memory(&jpeg_bytes) {
-            Ok(img) => self.insert_desktop_texture_from_rgba(host_key, img),
-            Err(e) => tracing::warn!(
-                %host_key,
-                %e,
-                len = jpeg_bytes.len(),
-                "telemetry desktop preview: JPEG decode failed"
-            ),
-        }
-    }
-
-    fn insert_desktop_texture_from_rgba(&mut self, host_key: String, img: image::DynamicImage) {
-        let rgba = img.to_rgba8();
-        let size = [rgba.width() as usize, rgba.height() as usize];
-        let color_image = egui::ColorImage::from_rgba_unmultiplied(size, rgba.as_raw());
-        let tex = self.ctx.load_texture(
-            format!("host_desktop_{host_key}"),
-            color_image,
-            egui::TextureOptions::LINEAR,
-        );
-        self.host_desktop_textures.insert(host_key, tex);
     }
 }

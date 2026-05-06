@@ -31,7 +31,9 @@ fn spawn_telemetry_resource_live_loop(tx: broadcast::Sender<ControlPush>) {
             else {
                 continue;
             };
-            let _ = tx.send(ControlPush::HostResourceLive { stats });
+            if let Err(e) = tx.send(ControlPush::HostResourceLive { stats }) {
+                tracing::debug!(error = %e, "telemetry resource broadcast failed");
+            }
         }
     });
 }
@@ -45,9 +47,11 @@ fn spawn_telemetry_heartbeat_loop(tx: broadcast::Sender<ControlPush>) {
             if tx.receiver_count() == 0 {
                 continue;
             }
-            let _ = tx.send(ControlPush::HostHeartbeat {
+            if let Err(e) = tx.send(ControlPush::HostHeartbeat {
                 ts_ms: heartbeat_now_ms(),
-            });
+            }) {
+                tracing::debug!(error = %e, "telemetry heartbeat broadcast failed");
+            }
         }
     });
 }
@@ -81,7 +85,9 @@ async fn telemetry_desktop_preview_tick(tx: &broadcast::Sender<ControlPush>) {
     if !titan_common::telemetry_push_payload_fits(&push) {
         return;
     }
-    let _ = tx.send(push);
+    if let Err(e) = tx.send(push) {
+        tracing::debug!(error = %e, "telemetry desktop preview broadcast failed");
+    }
 }
 
 fn spawn_telemetry_desktop_preview_loop(tx: broadcast::Sender<ControlPush>) {

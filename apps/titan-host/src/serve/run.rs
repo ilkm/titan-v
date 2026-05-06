@@ -163,7 +163,9 @@ async fn accept_until_shutdown(
 /// emits CONNECTION_CLOSE frames to every active peer). Center observes the byte / close at
 /// sub-RTT instead of waiting for the QUIC idle timeout.
 async fn graceful_shutdown_quic(endpoint: &Endpoint, state: &Arc<ServeState>) {
-    let _ = state.telemetry_tx.send(ControlPush::HostByeNow);
+    if let Err(e) = state.telemetry_tx.send(ControlPush::HostByeNow) {
+        tracing::debug!(error = %e, "telemetry bye broadcast failed");
+    }
     tokio::time::sleep(Duration::from_millis(30)).await;
     endpoint.close(quinn::VarInt::from_u32(0), b"bye");
     let _ = tokio::time::timeout(Duration::from_millis(50), endpoint.wait_idle()).await;

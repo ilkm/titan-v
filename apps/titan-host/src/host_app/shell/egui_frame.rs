@@ -64,8 +64,9 @@ impl eframe::App for HostApp {
     }
 
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
-        if let Ok(json) = serde_json::to_string(&self.persist) {
-            storage.set_string(PERSIST_KEY, json);
+        match serde_json::to_string(&self.persist) {
+            Ok(json) => storage.set_string(PERSIST_KEY, json),
+            Err(e) => tracing::warn!(error = %e, "host persist: serialize failed"),
         }
     }
 

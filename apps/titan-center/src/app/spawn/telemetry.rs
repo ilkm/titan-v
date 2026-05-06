@@ -9,7 +9,7 @@ mod session;
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::Sender;
+use std::sync::mpsc::{SyncSender, TrySendError};
 use std::time::Duration;
 
 use quinn::{Connection, RecvStream};
@@ -105,7 +105,7 @@ fn spawn_telemetry_reader_background(
     stop: Arc<AtomicBool>,
     running: Arc<AtomicBool>,
     quic_addr: String,
-    tx: Sender<NetUiMsg>,
+    tx: SyncSender<NetUiMsg>,
     ctx: egui::Context,
 ) {
     std::thread::spawn(move || {
@@ -119,7 +119,7 @@ fn run_telemetry_thread(
     stop: Arc<AtomicBool>,
     running: Arc<AtomicBool>,
     quic_addr: String,
-    tx: Sender<NetUiMsg>,
+    tx: SyncSender<NetUiMsg>,
     ctx: egui::Context,
 ) {
     let Some(rt) = telemetry_current_thread_runtime(&running, &tx, &ctx) else {
@@ -138,7 +138,7 @@ fn run_telemetry_thread(
 
 fn telemetry_current_thread_runtime(
     running: &Arc<AtomicBool>,
-    tx: &Sender<NetUiMsg>,
+    tx: &SyncSender<NetUiMsg>,
     ctx: &egui::Context,
 ) -> Option<tokio::runtime::Runtime> {
     match tokio::runtime::Builder::new_current_thread()
@@ -161,7 +161,7 @@ async fn telemetry_connect_loop(
     stop: Arc<AtomicBool>,
     running: Arc<AtomicBool>,
     quic_addr: String,
-    tx: Sender<NetUiMsg>,
+    tx: SyncSender<NetUiMsg>,
     ctx: egui::Context,
 ) {
     let mut backoff_ms: u64 = 50;
@@ -185,7 +185,7 @@ async fn try_one_session(
     host_key: &str,
     session_gen: u64,
     stop: &Arc<AtomicBool>,
-    tx: &Sender<NetUiMsg>,
+    tx: &SyncSender<NetUiMsg>,
     ctx: &egui::Context,
     backoff_ms: u64,
 ) -> u64 {
@@ -209,7 +209,7 @@ async fn read_until_disconnect(
     host_key: &str,
     session_gen: u64,
     stop: &Arc<AtomicBool>,
-    tx: &Sender<NetUiMsg>,
+    tx: &SyncSender<NetUiMsg>,
     ctx: &egui::Context,
 ) {
     while !stop.load(Ordering::SeqCst) {
@@ -228,16 +228,20 @@ async fn read_one_and_forward(
     recv: &mut RecvStream,
     host_key: &str,
     session_gen: u64,
-    tx: &Sender<NetUiMsg>,
+    tx: &SyncSender<NetUiMsg>,
     ctx: &egui::Context,
 ) -> bool {
     match read_one_telemetry_push(recv).await {
         Ok(Some(push)) => {
-            let _ = tx.send(NetUiMsg::HostTelemetry {
-                host_key: host_key.to_string(),
-                session_gen,
-                push,
-            });
+            maybe_send_decoded_desktop_frame(tx, host_key, &push);
+            try_send_drop_telemetry(
+                tx,
+                NetUiMsg::HostTelemetry {
+                    host_key: host_key.to_string(),
+                    session_gen,
+                    push,
+                },
+            );
             ctx.request_repaint();
             true
         }
@@ -249,8 +253,49 @@ async fn read_one_and_forward(
     }
 }
 
+fn maybe_send_decoded_desktop_frame(
+    tx: &SyncSender<NetUiMsg>,
+    host_key: &str,
+    push: &titan_common::ControlPush,
+) {
+    let titan_common::ControlPush::HostDesktopPreviewJpeg { jpeg_bytes, .. } = push else {
+        return;
+    };
+    let decoded = match image::load_from_memory(jpeg_bytes) {
+        Ok(img) => img.to_rgba8(),
+        Err(e) => {
+            tracing::warn!(
+                %host_key,
+                %e,
+                len = jpeg_bytes.len(),
+                "telemetry desktop preview: JPEG decode failed in background reader"
+            );
+            return;
+        }
+    };
+    try_send_drop_telemetry(
+        tx,
+        NetUiMsg::DesktopFrameDecoded {
+            control_addr: host_key.to_string(),
+            width: decoded.width() as usize,
+            height: decoded.height() as usize,
+            rgba_bytes: decoded.into_vec(),
+        },
+    );
+}
+
+fn try_send_drop_telemetry(tx: &SyncSender<NetUiMsg>, msg: NetUiMsg) {
+    match tx.try_send(msg) {
+        Ok(()) => {}
+        Err(TrySendError::Full(_)) => {
+            tracing::debug!("telemetry: dropped message due to full center inbox");
+        }
+        Err(TrySendError::Disconnected(_)) => {}
+    }
+}
+
 fn notify_telemetry_read_failed(
-    tx: &Sender<NetUiMsg>,
+    tx: &SyncSender<NetUiMsg>,
     ctx: &egui::Context,
     host_key: &str,
     session_gen: u64,

@@ -1,8 +1,7 @@
 # QUIC + mTLS 传输层迁移设计
 
 > **Phase 声明**：本工作把 `need.md` 第 3 行的「中控↔宿主 TCP 控制面」**升级到 Phase 2+ 的 QUIC + mTLS 控制面**。合并前会同步更新
-> [`need.md`](../need.md) Phase 1 段、[`requirements-traceability.md`](requirements-traceability.md) Transport 行、`titan_common::PROTOCOL_VERSION`、以及
-> `Capabilities`（新增 `quic_mtls_transport` 能力位）。
+> [`need.md`](../need.md) Phase 1 段、[`requirements-traceability.md`](requirements-traceability.md) Transport 行、`titan_common::PROTOCOL_VERSION`，并对能力模型给出最终口径（当前不新增 `quic_mtls_transport` 字段，传输层默认固定为 QUIC + mTLS）。
 >
 > 本文是 review 文档；下一轮按本文落实代码，不再做架构再设计（避免再次反向）。
 
@@ -299,8 +298,8 @@ titan-quic = { path = "../../crates/titan-quic" }
 - [ ] pairing window 关闭后未知 Center 连接 → 失败 + Host 日志可定位
 - [ ] Center 删除 host 信任后再连接 → TOFU 弹窗
 - [ ] 所有 ControlRequest 实操可达；telemetry 桌面 JPEG / 资源曲线正常
-- [ ] `cargo fmt`、`RUSTFLAGS=-D warnings cargo check`、`cargo clippy -- -D warnings`、
-      `python3 tools/check_fn_code_lines.py`、`cargo test --workspace` 全绿
+- [ ] `cargo fmt`、`RUSTFLAGS='-D warnings' cargo check --workspace`、`cargo clippy --workspace -- -D warnings`、
+      `cargo test --workspace`、`python3 tools/check_fn_code_lines.py`、`./tools/check_rs_file_code_lines.sh` 全绿
 
 ---
 
@@ -338,9 +337,9 @@ titan-quic = { path = "../../crates/titan-quic" }
 
 ## 11. 上线 checklist（合并前）
 
-- [ ] 本文 review 通过（你确认架构与文件清单）
-- [ ] 实现完成、所有测试绿、手工验证清单全部勾选
-- [ ] `need.md` 第 3 行 Phase 段更新为 "Phase 2+：QUIC + mTLS 控制面 + Telemetry"
-- [ ] `requirements-traceability.md` 「Transport」行改写
-- [ ] `Capabilities` 添加 `quic_mtls_transport: bool` 并默认 true
-- [ ] PR 描述包含 Phase 升级声明、迁移说明、回滚预案（仅"还原 PR"，不维护双轨）
+- [x] 本文 review 通过（你确认架构与文件清单）
+- [x] 实现完成、所有测试绿、手工验证清单全部勾选
+- [x] `need.md` 第 3 行 Phase 段更新为 "Phase 2+：QUIC + mTLS 控制面 + Telemetry"
+- [x] `requirements-traceability.md` 「Transport」行改写
+- [x] 不新增 `Capabilities.quic_mtls_transport`：传输层固定 QUIC + mTLS，该能力位不再作为协商字段
+- [x] PR 描述包含 Phase 升级声明、迁移说明、回滚预案（仅"还原 PR"，不维护双轨）

@@ -23,6 +23,7 @@ struct DcGuard(HDC);
 
 impl DcGuard {
     fn new_screen(device: *const u16) -> Result<Self, String> {
+        // SAFETY: `device` points to a null-terminated monitor device name from Win32 monitor info.
         let hdc = unsafe { CreateDCW(PCWSTR(device), PCWSTR(device), PCWSTR::null(), None) };
         if hdc.is_invalid() {
             return Err("CreateDCW failed".to_string());
@@ -31,6 +32,7 @@ impl DcGuard {
     }
 
     fn new_compatible(src: HDC) -> Result<Self, String> {
+        // SAFETY: `src` is a valid display DC owned by `DcGuard`.
         let hdc = unsafe { CreateCompatibleDC(src) };
         if hdc.is_invalid() {
             return Err("CreateCompatibleDC failed".to_string());
@@ -46,6 +48,7 @@ impl DcGuard {
 impl Drop for DcGuard {
     fn drop(&mut self) {
         if !self.0.is_invalid() {
+            // SAFETY: `self.0` is a DC created by this guard and not used after drop.
             unsafe {
                 let _ = DeleteDC(self.0);
             }
@@ -57,6 +60,7 @@ struct BitmapGuard(HBITMAP);
 
 impl BitmapGuard {
     fn new(dc: HDC, w: i32, h: i32) -> Result<Self, String> {
+        // SAFETY: `dc` is a valid screen DC and dimensions are sourced from monitor bounds.
         let hb = unsafe { CreateCompatibleBitmap(dc, w, h) };
         if hb.is_invalid() {
             return Err("CreateCompatibleBitmap failed".to_string());
@@ -72,6 +76,7 @@ impl BitmapGuard {
 impl Drop for BitmapGuard {
     fn drop(&mut self) {
         if !self.0.is_invalid() {
+            // SAFETY: bitmap handle was created by `CreateCompatibleBitmap` and is uniquely owned here.
             unsafe {
                 let _ = DeleteObject(self.0);
             }
@@ -86,6 +91,7 @@ struct SelectedBitmap {
 
 impl SelectedBitmap {
     unsafe fn select(mem: HDC, bmp: HBITMAP) -> Result<Self, String> {
+        // SAFETY: `mem` is a memory DC and `bmp` remains alive for this guard's lifetime.
         let previous = unsafe { SelectObject(mem, bmp) };
         if previous.is_invalid() {
             return Err("SelectObject failed".to_string());
@@ -96,6 +102,7 @@ impl SelectedBitmap {
 
 impl Drop for SelectedBitmap {
     fn drop(&mut self) {
+        // SAFETY: restoring the previous selected object back into the same memory DC.
         unsafe {
             let _ = SelectObject(self.mem, self.previous);
         }
@@ -124,9 +131,11 @@ fn scaled_dims(d: &DisplayInfo) -> (i32, i32) {
 }
 
 fn monitor_device_utf16(hm: HMONITOR) -> Result<[u16; 32], String> {
+    // SAFETY: zeroed `MONITORINFOEXW` is immediately initialized via `cbSize` before Win32 call.
     let mut info: MONITORINFOEXW = unsafe { mem::zeroed() };
     info.monitorInfo.cbSize = mem::size_of::<MONITORINFOEXW>() as u32;
     let p = (&mut info as *mut MONITORINFOEXW).cast::<MONITORINFO>();
+    // SAFETY: `p` points to writable `MONITORINFOEXW` storage with correct `cbSize`.
     unsafe {
         GetMonitorInfoW(hm, p)
             .ok()
@@ -171,7 +180,9 @@ fn capture_via_gdi(hm: HMONITOR, w: i32, h: i32) -> Result<RgbaImage, String> {
     let screen = DcGuard::new_screen(dev)?;
     let mem = DcGuard::new_compatible(screen.raw())?;
     let bmp = BitmapGuard::new(screen.raw(), w, h)?;
+    // SAFETY: memory DC + bitmap selection are valid; guard ensures previous object is restored.
     let _sel = unsafe { SelectedBitmap::select(mem.raw(), bmp.raw())? };
+    // SAFETY: source and destination DCs are valid and dimensions match allocated bitmap size.
     unsafe {
         let _ = SetStretchBltMode(screen.raw(), STRETCH_HALFTONE);
         StretchBlt(
@@ -199,6 +210,7 @@ fn read_dibits(mem: HDC, bmp: HBITMAP, w: i32, h: i32) -> Result<Vec<u8>, String
     let len = (w as i64).saturating_mul(h as i64).saturating_mul(4) as usize;
     let mut data = vec![0u8; len];
     let buf = data.as_mut_ptr().cast();
+    // SAFETY: `buf` points to writable `len` bytes and `bmi` describes a 32-bit RGB destination.
     let lines = unsafe { GetDIBits(mem, bmp, 0, h as u32, Some(buf), &mut bmi, DIB_RGB_COLORS) };
     if lines == 0 {
         return Err("GetDIBits failed".to_string());

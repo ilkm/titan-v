@@ -85,6 +85,23 @@ fn serve_thread_main(
 }
 
 impl HostApp {
+    fn start_serve_ui_channels(&self) -> ServeUiChannels {
+        ServeUiChannels {
+            persist_apply_tx: self.persist_apply_tx.clone(),
+            lang_apply_tx: self.lang_apply_tx.clone(),
+            vm_windows_reload_tx: self.vm_windows_reload_tx.clone(),
+        }
+    }
+
+    fn update_start_serve_status_line(&mut self) {
+        if self.serve_run.is_some() {
+            self.status_line =
+                crate::titan_i18n::hp_control_listening(self.persist.ui_lang, &self.persist.listen);
+        } else {
+            self.status_line = "Failed to spawn host control thread.".to_string();
+        }
+    }
+
     /// `initial_tray`: build with [`titan_tray::build_host_tray_icon`] and the persisted [`UiLang`](titan_common::UiLang) in the `eframe::run_native` closure
     /// **before** constructing the app (matches tray-icon's egui example; avoids macOS first-frame ordering issues).
     pub fn new(
@@ -173,9 +190,9 @@ impl HostApp {
         announce: HostAnnounceConfig,
         security: ServeSecurity,
         ui_channels: ServeUiChannels,
-    ) -> ServeRun {
+    ) -> Option<ServeRun> {
         let (shutdown_tx, shutdown_rx) = watch::channel(false);
-        let join = std::thread::Builder::new()
+        let join = match std::thread::Builder::new()
             .name("titan-host-serve".into())
             .spawn(move || {
                 serve_thread_main(
@@ -187,9 +204,14 @@ impl HostApp {
                     shutdown_rx,
                     ui_channels,
                 )
-            })
-            .expect("spawn serve thread");
-        ServeRun { shutdown_tx, join }
+            }) {
+            Ok(join) => join,
+            Err(e) => {
+                tracing::error!(error = %e, "spawn serve thread failed");
+                return None;
+            }
+        };
+        Some(ServeRun { shutdown_tx, join })
     }
 
     pub(crate) fn start_serve(&mut self) {
@@ -203,21 +225,16 @@ impl HostApp {
             Some(s) => s,
             None => return,
         };
-        let ui_channels = ServeUiChannels {
-            persist_apply_tx: self.persist_apply_tx.clone(),
-            lang_apply_tx: self.lang_apply_tx.clone(),
-            vm_windows_reload_tx: self.vm_windows_reload_tx.clone(),
-        };
-        self.serve_run = Some(Self::start_serve_spawn_join(
+        let ui_channels = self.start_serve_ui_channels();
+        self.serve_run = Self::start_serve_spawn_join(
             listen,
             agents,
             agent_notice,
             announce,
             security,
             ui_channels,
-        ));
-        self.status_line =
-            crate::titan_i18n::hp_control_listening(self.persist.ui_lang, &self.persist.listen);
+        );
+        self.update_start_serve_status_line();
     }
 
     fn build_serve_security(&mut self) -> Option<ServeSecurity> {

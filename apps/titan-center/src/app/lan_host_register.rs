@@ -1,7 +1,7 @@
 //! UDP listener: `titan-host serve` announces its control-plane TCP address so the center can add it to the device list.
 
 use std::net::UdpSocket;
-use std::sync::mpsc::Sender;
+use std::sync::mpsc::SyncSender;
 
 use egui::Context;
 use titan_common::HostAnnounceBeacon;
@@ -9,7 +9,7 @@ use titan_common::HostAnnounceBeacon;
 use super::net::NetUiMsg;
 
 pub fn spawn_center_lan_host_register_listener(
-    tx: Sender<NetUiMsg>,
+    tx: SyncSender<NetUiMsg>,
     ctx: Context,
     listen_port: u16,
 ) {
@@ -51,7 +51,7 @@ fn lan_register_parse_announced(slice: &[u8]) -> Option<(String, String, String,
     Some((addr, label, device_id, fingerprint))
 }
 
-fn lan_register_try_dispatch(slice: &[u8], tx: &Sender<NetUiMsg>, ctx: &Context) -> bool {
+fn lan_register_try_dispatch(slice: &[u8], tx: &SyncSender<NetUiMsg>, ctx: &Context) -> bool {
     let Some((addr, label, device_id, fingerprint)) = lan_register_parse_announced(slice) else {
         return true;
     };
@@ -70,7 +70,7 @@ fn lan_register_try_dispatch(slice: &[u8], tx: &Sender<NetUiMsg>, ctx: &Context)
     true
 }
 
-fn center_lan_register_loop(tx: Sender<NetUiMsg>, ctx: Context, listen_port: u16) {
+fn center_lan_register_loop(tx: SyncSender<NetUiMsg>, ctx: Context, listen_port: u16) {
     let port = listen_port.max(1);
     let Some(sock) = lan_register_bind(port) else {
         return;

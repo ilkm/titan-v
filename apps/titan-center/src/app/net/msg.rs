@@ -1,5 +1,6 @@
 //! Messages from the background network thread to the UI thread.
 
+use titan_common::VmWindowRecord;
 use titan_common::{ControlPush, HostResourceStats, VmBrief};
 
 pub enum NetUiMsg {
@@ -30,6 +31,13 @@ pub enum NetUiMsg {
     DesktopSnapshot {
         control_addr: String,
         jpeg_bytes: Vec<u8>,
+    },
+    /// Decoded desktop RGBA frame; heavy JPEG decode is done off the UI thread.
+    DesktopFrameDecoded {
+        control_addr: String,
+        width: usize,
+        height: usize,
+        rgba_bytes: Vec<u8>,
     },
     /// Host CPU / memory / NIC rates from [`ControlRequest::HostResourceSnapshot`] (same poll as desktop preview).
     HostResources {
@@ -70,6 +78,44 @@ pub enum NetUiMsg {
     HostUiPushDone {
         ok: bool,
         detail: String,
+    },
+    /// Host config window: background SQLite load finished for one device id.
+    HostConfigLoadDone {
+        device_id: String,
+        json: Option<String>,
+        detail: String,
+    },
+    /// Host config window: background SQLite save finished for one device id.
+    HostConfigSaveDone {
+        device_id: String,
+        detail: String,
+    },
+    /// Periodic center snapshot flush worker finished (clears in-flight flag).
+    CenterPersistFlushDone {
+        ok: bool,
+        detail: String,
+    },
+    /// Window management DB reload finished.
+    VmWindowReloadDone {
+        rows: Option<Vec<VmWindowRecord>>,
+        detail: String,
+    },
+    /// Window management delete-by-record-id finished.
+    VmWindowDeleteDone {
+        record_id: String,
+        device_id: String,
+        detail: String,
+    },
+    /// Window management remark upsert finished.
+    VmWindowRemarkSaveDone {
+        record_id: String,
+        device_id: String,
+        detail: String,
+    },
+    /// Create-window DB persist finished.
+    VmWindowCreatePersistDone {
+        row: Option<VmWindowRecord>,
+        error: String,
     },
     Error(String),
 }

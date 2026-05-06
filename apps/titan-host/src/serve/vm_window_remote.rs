@@ -61,8 +61,10 @@ pub async fn handle_apply_vm_window_snapshot(
         Err(r) => return Ok(r),
     };
     let applied = rows.len() as u32;
-    if let Some(tx) = state.vm_windows_reload_tx.as_ref() {
-        let _ = tx.send(VmWindowReloadMsg::Replace { records: rows });
+    if let Some(tx) = state.vm_windows_reload_tx.as_ref()
+        && let Err(e) = tx.send(VmWindowReloadMsg::Replace { records: rows })
+    {
+        tracing::warn!(error = %e, "vm window reload send failed");
     }
     Ok(ack(true, applied, String::new()))
 }

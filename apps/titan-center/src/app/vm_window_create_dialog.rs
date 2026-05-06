@@ -7,12 +7,12 @@ mod draft;
 mod panel;
 
 use egui::{Id, Vec2};
-use titan_common::{VM_WINDOW_FOLDER_ID_MIN, next_unused_vm_folder_id};
+use titan_common::next_unused_vm_folder_id;
 
 use crate::app::CenterApp;
 use crate::app::i18n::{Msg, t};
+use crate::app::net::NetUiMsg;
 use crate::app::ui::widgets::{OpaqueFrameSource, show_opaque_modal};
-use crate::app::vm_window_push_to_hosts;
 
 pub(crate) use draft::CenterVmWindowCreateForm;
 use draft::{clamp_device_ix, vm_window_create_prepare_row, vm_window_local_persist_create};
@@ -77,31 +77,29 @@ impl CenterApp {
                 return;
             }
         };
-        if let Err(msg) = vm_window_local_persist_create(&row, lang) {
-            self.vm_window_create.inline_err = msg;
-            return;
-        }
-        let did = row.device_id.clone();
-        self.vm_window_records.push(row);
-        vm_window_push_to_hosts::push_snapshot_for_device(
-            &self.endpoints,
-            &self.vm_window_records,
-            &did,
-        );
-        self.vm_window_create_apply_success(lang);
-    }
-
-    fn vm_window_create_apply_success(&mut self, lang: crate::app::i18n::UiLang) {
-        self.vm_window_create.dialog_open = false;
-        self.vm_window_create.device_ix = None;
-        self.vm_window_create.vm_id = VM_WINDOW_FOLDER_ID_MIN;
-        self.vm_window_create.inline_err.clear();
-        let now = self.ctx.input(|i| i.time);
-        self.ui_toast_text = t(lang, Msg::CenterWinMgmtToastCreated).to_string();
-        self.ui_toast_until = Some(now + 4.0);
+        spawn_vm_window_create_persist_task(self.net_tx.clone(), row, lang);
     }
 
     pub(crate) fn vm_window_create_clamp_device_ix(&mut self) {
         clamp_device_ix(&mut self.vm_window_create, self.endpoints.len());
     }
+}
+
+fn spawn_vm_window_create_persist_task(
+    tx: std::sync::mpsc::SyncSender<NetUiMsg>,
+    row: titan_common::VmWindowRecord,
+    lang: crate::app::i18n::UiLang,
+) {
+    let _ = std::thread::Builder::new()
+        .name("titan-center-vm-window-create".into())
+        .spawn(move || {
+            let msg = match vm_window_local_persist_create(&row, lang) {
+                Ok(()) => NetUiMsg::VmWindowCreatePersistDone {
+                    row: Some(row),
+                    error: String::new(),
+                },
+                Err(error) => NetUiMsg::VmWindowCreatePersistDone { row: None, error },
+            };
+            let _ = tx.send(msg);
+        });
 }

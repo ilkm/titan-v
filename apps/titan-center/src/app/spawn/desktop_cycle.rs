@@ -1,7 +1,7 @@
 //! Background desktop JPEG + host resource snapshot polling per endpoint.
 
 use std::collections::HashSet;
-use std::sync::mpsc::Sender;
+use std::sync::mpsc::{SyncSender, TrySendError};
 
 use anyhow::Error;
 use titan_common::ControlResponse;
@@ -61,7 +61,7 @@ fn telemetry_keys_for_cycle(app: &CenterApp) -> HashSet<String> {
 }
 
 fn run_desktop_cycle_thread(
-    tx: Sender<NetUiMsg>,
+    tx: SyncSender<NetUiMsg>,
     ctx: egui::Context,
     addrs: Vec<(String, bool, bool)>,
     telemetry_live_keys: HashSet<String>,
@@ -86,7 +86,7 @@ fn run_desktop_cycle_thread(
 }
 
 async fn poll_all_desktops(
-    tx: Sender<NetUiMsg>,
+    tx: SyncSender<NetUiMsg>,
     addrs: Vec<(String, bool, bool)>,
     telemetry_live_keys: HashSet<String>,
 ) {
@@ -104,7 +104,7 @@ async fn poll_all_desktops(
 }
 
 async fn poll_one_desktop_slot(
-    tx: &Sender<NetUiMsg>,
+    tx: &SyncSender<NetUiMsg>,
     idx: usize,
     addr: String,
     last_known_online: bool,
@@ -157,7 +157,7 @@ fn pick_timeout(
 }
 
 async fn pull_duplex_snapshots(
-    tx: &Sender<NetUiMsg>,
+    tx: &SyncSender<NetUiMsg>,
     skip_duplex_pulls: bool,
     addr: &str,
     key: &str,
@@ -172,17 +172,14 @@ async fn pull_duplex_snapshots(
 }
 
 fn handle_desktop_control_response(
-    tx: &Sender<NetUiMsg>,
+    tx: &SyncSender<NetUiMsg>,
     addr: &str,
     key: &str,
     inner: Result<ControlResponse, Error>,
 ) {
     match inner {
         Ok(ControlResponse::DesktopSnapshotJpeg { jpeg_bytes, .. }) => {
-            let _ = tx.send(NetUiMsg::DesktopSnapshot {
-                control_addr: key.to_string(),
-                jpeg_bytes,
-            });
+            send_decoded_desktop_frame(tx, key, jpeg_bytes);
         }
         Ok(ControlResponse::ServerError { code, message }) => {
             tracing::warn!(%addr, code, %message, "desktop snapshot rejected by host");
@@ -196,8 +193,41 @@ fn handle_desktop_control_response(
     }
 }
 
+fn send_decoded_desktop_frame(tx: &SyncSender<NetUiMsg>, key: &str, jpeg_bytes: Vec<u8>) {
+    let msg = match image::load_from_memory(&jpeg_bytes) {
+        Ok(img) => {
+            let rgba = img.to_rgba8();
+            NetUiMsg::DesktopFrameDecoded {
+                control_addr: key.to_string(),
+                width: rgba.width() as usize,
+                height: rgba.height() as usize,
+                rgba_bytes: rgba.into_vec(),
+            }
+        }
+        Err(e) => {
+            tracing::warn!(
+                %e,
+                len = jpeg_bytes.len(),
+                "desktop snapshot decode failed in background worker"
+            );
+            return;
+        }
+    };
+    try_send_drop_desktop(tx, msg);
+}
+
+fn try_send_drop_desktop(tx: &SyncSender<NetUiMsg>, msg: NetUiMsg) {
+    match tx.try_send(msg) {
+        Ok(()) => {}
+        Err(TrySendError::Full(_)) => {
+            tracing::debug!("desktop snapshot decode: dropped frame due to full inbox");
+        }
+        Err(TrySendError::Disconnected(_)) => {}
+    }
+}
+
 fn handle_desktop_fetch_outcome(
-    tx: &Sender<NetUiMsg>,
+    tx: &SyncSender<NetUiMsg>,
     addr: &str,
     key: &str,
     desktop_to: std::time::Duration,
@@ -216,7 +246,7 @@ fn handle_desktop_fetch_outcome(
 }
 
 async fn fetch_desktop_into_channel(
-    tx: &Sender<NetUiMsg>,
+    tx: &SyncSender<NetUiMsg>,
     addr: &str,
     key: &str,
     desktop_to: std::time::Duration,
@@ -226,7 +256,7 @@ async fn fetch_desktop_into_channel(
 }
 
 fn handle_resource_control_response(
-    tx: &Sender<NetUiMsg>,
+    tx: &SyncSender<NetUiMsg>,
     addr: &str,
     key: &str,
     inner: Result<ControlResponse, Error>,
@@ -251,7 +281,7 @@ fn handle_resource_control_response(
 }
 
 fn handle_resource_fetch_outcome(
-    tx: &Sender<NetUiMsg>,
+    tx: &SyncSender<NetUiMsg>,
     addr: &str,
     key: &str,
     resource_to: std::time::Duration,
@@ -270,7 +300,7 @@ fn handle_resource_fetch_outcome(
 }
 
 async fn fetch_resources_into_channel(
-    tx: &Sender<NetUiMsg>,
+    tx: &SyncSender<NetUiMsg>,
     addr: &str,
     key: &str,
     resource_to: std::time::Duration,
