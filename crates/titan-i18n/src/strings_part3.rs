@@ -152,6 +152,8 @@ fn monitor_counts(lang: UiLang, msg: Msg) -> Option<&'static str> {
         (UiLang::Zh, Msg::MonitorStatTotal) => Some("总数"),
         (UiLang::En, Msg::MonitorStatOnline) => Some("Online"),
         (UiLang::Zh, Msg::MonitorStatOnline) => Some("在线"),
+        (UiLang::En, Msg::MonitorStatNotBooted) => Some("Not booted"),
+        (UiLang::Zh, Msg::MonitorStatNotBooted) => Some("未开机"),
         (UiLang::En, Msg::MonitorStatOffline) => Some("Offline"),
         (UiLang::Zh, Msg::MonitorStatOffline) => Some("离线"),
         _ => None,

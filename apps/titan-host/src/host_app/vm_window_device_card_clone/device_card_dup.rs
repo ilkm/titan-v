@@ -75,7 +75,7 @@ pub fn paint_vm_window_device_card_clone(
                 &prep.label_s,
                 &prep.addr_s,
                 prep.win_n,
-                false,
+                true,
                 &prep.preview_key,
                 record_id,
                 prep.remark.as_str(),

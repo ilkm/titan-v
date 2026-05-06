@@ -58,6 +58,8 @@ fn host_config_window_i18n(lang: UiLang, msg: Msg) -> Option<&'static str> {
     match (lang, msg) {
         (UiLang::En, Msg::DeviceMgmtPreviewConfigure) => Some("Configure"),
         (UiLang::Zh, Msg::DeviceMgmtPreviewConfigure) => Some("配置"),
+        (UiLang::En, Msg::DeviceMgmtPreviewPowerOn) => Some("Power on"),
+        (UiLang::Zh, Msg::DeviceMgmtPreviewPowerOn) => Some("开机"),
         (UiLang::En, Msg::DeviceMgmtPreviewDelete) => Some("Delete"),
         (UiLang::Zh, Msg::DeviceMgmtPreviewDelete) => Some("删除"),
         (UiLang::En, Msg::HostConfigWinTitle) => Some("Host config (SQLite → push)"),

@@ -63,6 +63,7 @@ pub fn paint_vm_window_device_card_clone(
     lang: UiLang,
 ) -> egui::Response {
     let prep = VmWindowCardPaintPrep::from_row(row, row_ix);
+    let online = vm_window_clone_host_online(app, &prep.addr_s);
     vm_window_clone_card_shell(ui)
         .show(ui, |ui| {
             paint_device_masonry_frame_inner(
@@ -76,11 +77,20 @@ pub fn paint_vm_window_device_card_clone(
                 &prep.label_s,
                 &prep.addr_s,
                 prep.win_n,
-                false,
+                online,
                 &prep.preview_key,
             )
         })
         .inner
+}
+
+fn vm_window_clone_host_online(app: &CenterApp, host_control_addr: &str) -> bool {
+    let key = CenterApp::endpoint_addr_key(host_control_addr);
+    app.endpoints
+        .iter()
+        .find(|e| CenterApp::endpoint_addr_key(&e.addr) == key)
+        .map(|e| e.last_known_online)
+        .unwrap_or(false)
 }
 
 fn vm_directory_leaf_title(vm_directory: &str) -> Option<String> {

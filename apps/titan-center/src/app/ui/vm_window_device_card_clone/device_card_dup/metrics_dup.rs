@@ -5,8 +5,10 @@ use super::super::helpers_dup::{
 };
 use super::{CARD_BODY_GRID_PX, METRIC_BODY_ROW_GAP};
 use crate::app::CenterApp;
-use crate::app::constants::{ACCENT, OK_GREEN};
+use crate::app::constants::ACCENT;
 use crate::app::i18n::{Msg, UiLang, host_running_windows_line, t};
+
+const WARN_YELLOW: Color32 = Color32::from_rgb(245, 158, 11);
 
 pub(super) fn paint_device_status_and_metrics(
     ui: &mut egui::Ui,
@@ -59,9 +61,9 @@ fn paint_device_status_row(
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 6.0;
         if online {
-            ui.label(RichText::new("●").size(px).color(OK_GREEN));
+            ui.label(RichText::new("●").size(px).color(WARN_YELLOW));
             ui.label(
-                RichText::new(t(lang, Msg::MonitorStatOnline))
+                RichText::new(t(lang, Msg::MonitorStatNotBooted))
                     .size(px)
                     .color(weak),
             );

@@ -7,7 +7,7 @@ use crate::app::CenterApp;
 use crate::app::constants::CARD_CORNER_RADIUS;
 use crate::app::i18n::{Msg, UiLang, t};
 use crate::app::ui::widgets::{danger_preview_delete_button, preview_overlay_configure_button};
-use titan_egui_widgets::preview_overlay_action_bar_rects;
+use titan_egui_widgets::preview_overlay_action_bar_rects_three;
 
 const PREVIEW_HOVER_MASK_A: u8 = 100;
 const PREVIEW_CFG_BTN_PAD: f32 = 8.0;
@@ -48,17 +48,18 @@ fn paint_preview_hover_actions(
     lang: UiLang,
     online: bool,
 ) {
-    let show_chrome = online && ui.rect_contains_pointer(preview_rect);
+    let show_chrome = ui.rect_contains_pointer(preview_rect);
     if !show_chrome {
         return;
     }
     paint_preview_hover_mask(ui, preview_rect, corners);
-    let (cfg_rect, del_rect) = preview_overlay_action_bar_rects(
+    let (pow_rect, cfg_rect, del_rect) = preview_overlay_action_bar_rects_three(
         preview_rect,
         PREVIEW_CFG_BTN_PAD,
         PREVIEW_OVERLAY_BTN_GAP,
         PREVIEW_OVERLAY_BTN_H,
     );
+    paint_preview_power_on_btn(ui, pow_rect, lang, online);
     paint_preview_configure_btn(ui, cfg_rect, lang, app, card_index);
     paint_preview_delete_btn(ui, del_rect, lang, app, card_index);
     ui.ctx().request_repaint();
@@ -129,6 +130,15 @@ fn paint_preview_configure_btn(
         .clicked()
     {
         app.open_host_config_from_card(card_index);
+    }
+}
+
+fn paint_preview_power_on_btn(ui: &mut egui::Ui, btn_rect: Rect, lang: UiLang, online: bool) {
+    if preview_overlay_configure_button(ui, btn_rect, t(lang, Msg::DeviceMgmtPreviewPowerOn))
+        .clicked()
+    {
+        tracing::info!(online, "window preview: power-on placeholder clicked");
+        ui.ctx().request_repaint();
     }
 }
 

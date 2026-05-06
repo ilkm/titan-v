@@ -44,6 +44,8 @@ pub enum Msg {
     DeviceMgmtDesktopPreviewNote,
     /// Online device card: hover overlay action on desktop preview.
     DeviceMgmtPreviewConfigure,
+    /// Window/device preview hover overlay: placeholder power-on action.
+    DeviceMgmtPreviewPowerOn,
     /// Online device card: hover overlay — remove this host from the list (red label in UI).
     DeviceMgmtPreviewDelete,
     /// Floating host JSON draft editor (from preview Configure).
@@ -108,6 +110,8 @@ pub enum Msg {
     MonitorCardWindows,
     MonitorStatTotal,
     MonitorStatOnline,
+    /// Host reachable but target VM not started yet.
+    MonitorStatNotBooted,
     MonitorStatOffline,
     MonitorDevicesScopeHint,
     MonitorWindowsScopeHint,

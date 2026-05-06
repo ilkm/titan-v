@@ -14,9 +14,6 @@ pub const DEVICE_CARD_MAX_WIDTH: f32 = 480.0;
 /// Soft cap for main content column (same as center).
 pub const CONTENT_MAX_WIDTH: f32 = 960.0;
 
-/// Online indicator dot on device-style cards (matches center).
-pub const OK_GREEN: Color32 = Color32::from_rgb(22, 163, 74);
-
 /// Fixed left nav width (matches center).
 pub const SIDEBAR_DEFAULT_WIDTH: f32 = 158.0;
 
