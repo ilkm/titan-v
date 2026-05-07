@@ -9,6 +9,7 @@ use std::time::Duration;
 
 use anyhow::{Context, Result};
 use quinn::{Connection, Endpoint, Incoming};
+use serde_json::json;
 use titan_common::{
     ControlHostFrame, ControlPush, ControlRequest, ControlResponse, HostRuntimeProbes, UiLang,
 };
@@ -19,6 +20,7 @@ use tokio::sync::watch;
 use tokio::time::timeout;
 
 use crate::agent_binding_table::AgentBindingTable;
+use crate::debug_agent_log::agent_debug_log;
 use crate::ui_persist::HostUiPersist;
 
 use super::announce::{HostAnnounceConfig, spawn_host_announce_background};
@@ -179,10 +181,12 @@ fn spawn_connection(inc: Incoming, state: Arc<ServeState>) {
         let connection = match inc.await {
             Ok(c) => c,
             Err(e) => {
+                log_host_handshake_failed(&e);
                 tracing::warn!(error = %e, "quic handshake failed");
                 return;
             }
         };
+        log_host_connection_accepted(&connection);
         tracing::info!(remote = %connection.remote_address(), "quic connection accepted");
         if let Err(e) = handle_connection(connection, conn_id, state).await {
             tracing::warn!(error = %e, "quic connection ended with error");
@@ -234,10 +238,12 @@ async fn serve_one_rpc(
     let Some(req) = read_one_request_with_idle(recv).await? else {
         return Ok(());
     };
+    let is_hello = matches!(req.body, ControlRequest::Hello);
     let request_id = format!("{conn_id}-{seq}");
     tracing::info!(%request_id, body = ?req.body, id = req.id, "control request");
     let want_telemetry = matches!(req.body, ControlRequest::SubscribeTelemetry);
     let res = dispatch_request(req.body.clone(), &request_id, state).await?;
+    maybe_log_hello_response(is_hello, &request_id, &res);
     write_response_and_finish(send, req.id, &res).await?;
     let reuse_vms = if let ControlResponse::VmList { vms } = &res {
         Some(vms.clone())
@@ -249,6 +255,42 @@ async fn serve_one_rpc(
         telemetry_loops::spawn_telemetry_uni_pump(connection, state.clone());
     }
     Ok(())
+}
+
+fn log_host_handshake_failed(err: &quinn::ConnectionError) {
+    // #region agent log
+    agent_debug_log(
+        "H7",
+        "serve/run.rs:spawn_connection",
+        "quic handshake failed on host",
+        json!({"error":err.to_string()}),
+    );
+    // #endregion
+}
+
+fn log_host_connection_accepted(connection: &Connection) {
+    // #region agent log
+    agent_debug_log(
+        "H7",
+        "serve/run.rs:spawn_connection",
+        "quic connection accepted on host",
+        json!({"remote":connection.remote_address().to_string()}),
+    );
+    // #endregion
+}
+
+fn maybe_log_hello_response(is_hello: bool, request_id: &str, res: &ControlResponse) {
+    if !is_hello {
+        return;
+    }
+    // #region agent log
+    agent_debug_log(
+        "H8",
+        "serve/run.rs:serve_one_rpc",
+        "host received hello and produced response",
+        json!({"request_id":request_id,"response":format!("{res:?}")}),
+    );
+    // #endregion
 }
 
 async fn read_one_request_with_idle(

@@ -5,9 +5,11 @@ use std::time::Duration;
 
 use if_addrs::IfAddr;
 use serde_json::from_slice;
+use serde_json::json;
 use titan_common::CenterPollBeacon;
 
 use super::{AnnounceEndpoint, HostAnnounceConfig};
+use crate::debug_agent_log::agent_debug_log;
 
 const INITIAL_BURST_INTERVAL: Duration = Duration::from_millis(50);
 const INITIAL_BURST_COUNT: u32 = 10;
@@ -127,7 +129,21 @@ fn center_poll_try_reply(buf: &[u8], n: usize, peer: SocketAddr, pairs: &[Announ
         return;
     }
     let dest = SocketAddr::new(peer.ip(), poll.register_udp_port);
-    for pair in choose_reply_pairs(peer, pairs) {
+    let chosen = choose_reply_pairs(peer, pairs);
+    // #region agent log
+    agent_debug_log(
+        "H10",
+        "serve/announce/sidecars.rs:center_poll_try_reply",
+        "center poll received and replying",
+        json!({
+            "peer":peer.to_string(),
+            "dest":dest.to_string(),
+            "chosen_pairs":chosen.len(),
+            "register_udp_port":poll.register_udp_port,
+        }),
+    );
+    // #endregion
+    for pair in chosen {
         if let Err(e) = pair.sock.send_to(&pair.payload, dest) {
             tracing::debug!(error = %e, %dest, "host announce: poll reply send_to failed");
         }

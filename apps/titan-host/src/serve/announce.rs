@@ -9,6 +9,8 @@ use std::time::Duration;
 
 mod sidecars;
 
+use crate::debug_agent_log::agent_debug_log;
+use serde_json::json;
 use serde_json::to_vec;
 use titan_common::{
     DEFAULT_CENTER_POLL_UDP_PORT, DEFAULT_CENTER_REGISTER_UDP_PORT, HostAnnounceBeacon,
@@ -224,5 +226,32 @@ pub fn spawn_host_announce_background(
         periodic = ?cfg.periodic_interval,
         "host announce: LAN registration (center poll + optional periodic)"
     );
+    log_announce_start(&cfg, &public, &device_id, &label, endpoints.len());
     sidecars::start_announce_sidecars(&cfg, endpoints);
+}
+
+fn log_announce_start(
+    cfg: &HostAnnounceConfig,
+    public: &str,
+    device_id: &str,
+    label: &str,
+    endpoint_count: usize,
+) {
+    // #region agent log
+    agent_debug_log(
+        "H9",
+        "serve/announce.rs:spawn_host_announce_background",
+        "host announce sidecars started",
+        json!({
+            "enabled":cfg.enabled,
+            "public":public,
+            "device_id":device_id,
+            "label":label,
+            "poll_listen_port":cfg.center_poll_listen_port,
+            "register_port":cfg.center_register_udp_port,
+            "endpoint_count":endpoint_count,
+            "periodic":cfg.periodic_interval.map(|d| d.as_secs_f32()),
+        }),
+    );
+    // #endregion
 }
