@@ -6,12 +6,10 @@ use std::time::Duration;
 
 use if_addrs::IfAddr;
 use serde_json::from_slice;
-use serde_json::json;
 use titan_common::CenterPollBeacon;
 use titan_quic::{TrustEntry, TrustStore};
 
 use super::{AnnounceEndpoint, HostAnnounceConfig};
-use crate::debug_agent_log::agent_debug_log;
 
 const INITIAL_BURST_INTERVAL: Duration = Duration::from_millis(50);
 const INITIAL_BURST_COUNT: u32 = 10;
@@ -149,7 +147,6 @@ fn center_poll_try_reply(
     auto_trust_center_from_poll(trust, &poll, peer);
     let dest = SocketAddr::new(peer.ip(), poll.register_udp_port);
     let chosen = choose_reply_pairs(peer, pairs);
-    log_poll_reply(peer, dest, chosen.len(), poll.register_udp_port);
     for pair in chosen {
         if let Err(e) = pair.sock.send_to(&pair.payload, dest) {
             tracing::debug!(error = %e, %dest, "host announce: poll reply send_to failed");
@@ -161,22 +158,6 @@ fn parse_valid_center_poll(buf: &[u8], n: usize) -> Option<CenterPollBeacon> {
     let poll: CenterPollBeacon = from_slice(&buf[..n]).ok()?;
     poll.validate().ok()?;
     Some(poll)
-}
-
-fn log_poll_reply(peer: SocketAddr, dest: SocketAddr, chosen_pairs: usize, register_udp_port: u16) {
-    // #region agent log
-    agent_debug_log(
-        "H10",
-        "serve/announce/sidecars.rs:center_poll_try_reply",
-        "center poll received and replying",
-        json!({
-            "peer":peer.to_string(),
-            "dest":dest.to_string(),
-            "chosen_pairs":chosen_pairs,
-            "register_udp_port":register_udp_port,
-        }),
-    );
-    // #endregion
 }
 
 fn auto_trust_center_from_poll(trust: &Arc<TrustStore>, poll: &CenterPollBeacon, peer: SocketAddr) {
@@ -197,14 +178,7 @@ fn auto_trust_center_from_poll(trust: &Arc<TrustStore>, poll: &CenterPollBeacon,
     if !added {
         return;
     }
-    // #region agent log
-    agent_debug_log(
-        "H11",
-        "serve/announce/sidecars.rs:auto_trust_center_from_poll",
-        "host auto-trusted center from poll",
-        json!({"peer":peer.to_string(),"fingerprint":fp}),
-    );
-    // #endregion
+    tracing::info!(peer = %peer, fingerprint = %fp, "host auto-trusted center from LAN poll");
 }
 
 fn now_epoch_seconds() -> u64 {

@@ -2,9 +2,7 @@
 
 use std::sync::mpsc::SyncSender;
 use std::time::Duration;
-use std::{fs::OpenOptions, io::Write};
 
-use serde_json::json;
 use titan_common::ControlResponse;
 use tokio::time::timeout;
 
@@ -52,45 +50,24 @@ fn map_hello_to_verify_msg(addr: &str, sid: u64, rt: &tokio::runtime::Runtime) -
         Duration::from_secs(ADD_HOST_VERIFY_HELLO_TIMEOUT_SECS),
         hello_host(addr),
     ));
-    let (msg, outcome, error) = classify_verify_inner(addr, sid, inner);
-    // #region agent log
-    agent_debug_log(
-        "H1",
-        "spawn/add_host_verify.rs:map_hello_to_verify_msg",
-        "manual add-host hello verify result",
-        json!({"runId":"run1","sid":sid,"addr":addr,"outcome":outcome,"error":error}),
-    );
-    // #endregion
-    msg
+    classify_verify_inner(addr, sid, inner)
 }
 
-// Keep signature compact to satisfy the 30-line checker for this branch-only classifier.
-#[rustfmt::skip]
-fn classify_verify_inner(addr: &str, sid: u64, inner: HelloVerifyInner) -> (NetUiMsg, &'static str, String) {
+fn classify_verify_inner(addr: &str, sid: u64, inner: HelloVerifyInner) -> NetUiMsg {
     match inner {
-        Ok(Ok(ControlResponse::HelloAck { capabilities })) => (
-            verify_done_ok(addr, sid, &capabilities),
-            "hello_ack",
-            String::new(),
-        ),
+        Ok(Ok(ControlResponse::HelloAck { capabilities })) => {
+            verify_done_ok(addr, sid, &capabilities)
+        }
         Ok(Ok(ControlResponse::ServerError { code, message })) => {
             let err = format!("host error {code}: {message}");
-            (verify_done_err(addr, sid, err.clone()), "server_error", err)
+            verify_done_err(addr, sid, err)
         }
-        Ok(Ok(_)) => (
-            verify_done_err(addr, sid, "unexpected control response".into()),
-            "unexpected_response",
-            String::new(),
-        ),
+        Ok(Ok(_)) => verify_done_err(addr, sid, "unexpected control response".into()),
         Ok(Err(e)) => {
             let err = e.to_string();
-            (verify_done_err(addr, sid, err.clone()), "hello_err", err)
+            verify_done_err(addr, sid, err)
         }
-        Err(_) => (
-            verify_done_err(addr, sid, "timeout".into()),
-            "timeout",
-            String::new(),
-        ),
+        Err(_) => verify_done_err(addr, sid, "timeout".into()),
     }
 }
 
@@ -138,28 +115,5 @@ impl CenterApp {
         let tx = self.net_tx.clone();
         let ctx = self.ctx.clone();
         std::thread::spawn(move || run_add_host_verify_worker(addr, sid, tx, ctx));
-    }
-}
-
-fn agent_debug_log(hypothesis_id: &str, location: &str, message: &str, data: serde_json::Value) {
-    let timestamp = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis() as u64)
-        .unwrap_or_default();
-    let payload = json!({
-        "sessionId":"1f0423",
-        "runId":"run1",
-        "hypothesisId":hypothesis_id,
-        "location":location,
-        "message":message,
-        "data":data,
-        "timestamp":timestamp,
-    });
-    if let Ok(mut f) = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open("debug-1f0423.log")
-    {
-        let _ = writeln!(f, "{}", payload);
     }
 }

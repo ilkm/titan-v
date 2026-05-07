@@ -4,7 +4,6 @@
 #![deny(unsafe_code)]
 
 pub mod agent_binding_table;
-pub(crate) mod debug_agent_log;
 pub mod desktop_snapshot;
 pub mod host_app;
 pub mod host_device_id;

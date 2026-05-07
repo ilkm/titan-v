@@ -1,8 +1,6 @@
 use crate::app::CenterApp;
 use crate::app::i18n::{self, Msg};
 use crate::app::net::NetUiMsg;
-use serde_json::json;
-use std::{fs::OpenOptions, io::Write};
 
 impl CenterApp {
     pub(super) fn try_net_add_host_verify_only(&mut self, msg: &NetUiMsg) -> Option<bool> {
@@ -61,44 +59,12 @@ impl CenterApp {
     }
 
     fn add_host_verify_failed(&mut self, addr: &str, error: &str) {
-        let raised_tofu = self.maybe_raise_tofu_for_verify_error(addr, error);
-        // #region agent log
-        agent_debug_log(
-            "H1",
-            "center_shell/net_inbox/add_host.rs:add_host_verify_failed",
-            "add-host verify failed path",
-            json!({"runId":"run1","addr":addr,"raised_tofu":raised_tofu,"error":error}),
-        );
-        // #endregion
-        if raised_tofu {
+        if self.maybe_raise_tofu_for_verify_error(addr, error) {
             tracing::debug!(%addr, %error, "add host: untrusted fingerprint → TOFU prompt");
             return;
         }
         tracing::debug!(%addr, %error, "add host: Hello verify failed");
         self.ui_toast_text = i18n::t(self.ui_lang, Msg::AddHostOfflineToast).to_string();
         self.ui_toast_until = Some(self.ctx.input(|i| i.time) + 3.8);
-    }
-}
-
-fn agent_debug_log(hypothesis_id: &str, location: &str, message: &str, data: serde_json::Value) {
-    let timestamp = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis() as u64)
-        .unwrap_or_default();
-    let payload = json!({
-        "sessionId":"1f0423",
-        "runId":"run1",
-        "hypothesisId":hypothesis_id,
-        "location":location,
-        "message":message,
-        "data":data,
-        "timestamp":timestamp,
-    });
-    if let Ok(mut f) = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open("debug-1f0423.log")
-    {
-        let _ = writeln!(f, "{}", payload);
     }
 }
