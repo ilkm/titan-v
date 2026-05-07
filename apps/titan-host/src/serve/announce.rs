@@ -15,7 +15,7 @@ use serde_json::to_vec;
 use titan_common::{
     DEFAULT_CENTER_POLL_UDP_PORT, DEFAULT_CENTER_REGISTER_UDP_PORT, HostAnnounceBeacon,
 };
-use titan_quic::Identity;
+use titan_quic::{Identity, TrustStore};
 
 /// CLI / launch-time options; [`run_serve`](super::run::run_serve) fills public control addr / label before spawning.
 #[derive(Clone, Debug)]
@@ -205,6 +205,7 @@ pub fn spawn_host_announce_background(
     _bind_request: SocketAddr,
     local: SocketAddr,
     identity: &Arc<Identity>,
+    trust: Arc<TrustStore>,
 ) {
     if !cfg.enabled {
         return;
@@ -227,7 +228,7 @@ pub fn spawn_host_announce_background(
         "host announce: LAN registration (center poll + optional periodic)"
     );
     log_announce_start(&cfg, &public, &device_id, &label, endpoints.len());
-    sidecars::start_announce_sidecars(&cfg, endpoints);
+    sidecars::start_announce_sidecars(&cfg, endpoints, trust);
 }
 
 fn log_announce_start(

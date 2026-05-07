@@ -289,8 +289,8 @@ pub fn discovery_udp_loop(
     }
 }
 
-fn host_collect_poll_payload(register_port: u16) -> Option<Vec<u8>> {
-    let beacon = CenterPollBeacon::new(register_port);
+fn host_collect_poll_payload(register_port: u16, center_fp: &str) -> Option<Vec<u8>> {
+    let beacon = CenterPollBeacon::new(register_port, center_fp);
     match serde_json::to_vec(&beacon) {
         Ok(p) => Some(p),
         Err(e) => {
@@ -316,6 +316,7 @@ pub fn center_host_collect_udp_loop(
     interval: Duration,
     poll_port: u16,
     register_port: u16,
+    center_fp: String,
     bind_ipv4s: Vec<String>,
 ) {
     use std::thread;
@@ -323,7 +324,7 @@ pub fn center_host_collect_udp_loop(
     let Some(sockets) = open_udp_broadcast_pairs(&bind_ipv4s, poll_port, "host_collect") else {
         return;
     };
-    let Some(payload) = host_collect_poll_payload(register_port) else {
+    let Some(payload) = host_collect_poll_payload(register_port, &center_fp) else {
         return;
     };
     host_collect_log_startup(poll_port, register_port, interval);

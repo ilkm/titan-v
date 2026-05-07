@@ -101,7 +101,13 @@ pub async fn run_serve(
     let state = build_serve_state(agent_bindings, agent_bindings_notice, ui_channels).await?;
     let endpoint = build_endpoint(&security, bind).map_err(serve_io_err)?;
     let local = endpoint.local_addr().map_err(ServeError::Io)?;
-    spawn_host_announce_background(announce, bind, local, &security.identity);
+    spawn_host_announce_background(
+        announce,
+        bind,
+        local,
+        &security.identity,
+        security.trust.clone(),
+    );
     tracing::info!(%bind, fingerprint = %security.identity.spki_sha256_hex, "QUIC control + telemetry plane listening");
     telemetry_loops::start_background_loops(state.telemetry_tx.clone());
 

@@ -134,15 +134,19 @@ pub struct CenterPollBeacon {
     pub schema: u32,
     /// Send [`HostAnnounceBeacon`] to `(source_ip_of_this_packet, register_udp_port)`.
     pub register_udp_port: u16,
+    /// Optional SHA-256(SPKI(center cert)) hex so hosts can auto-trust Center on LAN poll.
+    #[serde(default)]
+    pub center_spki_sha256_hex: String,
 }
 
 impl CenterPollBeacon {
     #[must_use]
-    pub fn new(register_udp_port: u16) -> Self {
+    pub fn new(register_udp_port: u16, center_spki_sha256_hex: impl Into<String>) -> Self {
         Self {
             kind: CENTER_POLL_BEACON_KIND.to_string(),
             schema: CENTER_POLL_SCHEMA_VERSION,
             register_udp_port,
+            center_spki_sha256_hex: center_spki_sha256_hex.into(),
         }
     }
 
@@ -155,6 +159,11 @@ impl CenterPollBeacon {
         }
         if self.register_udp_port == 0 {
             return Err("register_udp_port must be non-zero");
+        }
+        if !self.center_spki_sha256_hex.is_empty()
+            && !is_lowercase_hex_64(&self.center_spki_sha256_hex)
+        {
+            return Err("center_spki_sha256_hex must be empty or 64 lowercase hex chars");
         }
         Ok(())
     }
@@ -192,7 +201,7 @@ mod announce_tests {
 
     #[test]
     fn center_poll_roundtrip() {
-        let b = CenterPollBeacon::new(7791);
+        let b = CenterPollBeacon::new(7791, "");
         let v = serde_json::to_vec(&b).unwrap();
         let d: CenterPollBeacon = serde_json::from_slice(&v).unwrap();
         assert_eq!(d, b);

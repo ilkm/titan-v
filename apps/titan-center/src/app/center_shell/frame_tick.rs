@@ -169,6 +169,7 @@ impl CenterApp {
         let interval = Duration::from_secs(u64::from(sig.interval_secs));
         let poll_port = sig.poll_port;
         let register_port = sig.register_port;
+        let center_fp = self.center_security.identity.spki_sha256_hex.clone();
         let bind = sig.bind_ipv4s.clone();
         std::thread::spawn(move || {
             discovery::center_host_collect_udp_loop(
@@ -177,6 +178,7 @@ impl CenterApp {
                 interval,
                 poll_port,
                 register_port,
+                center_fp,
                 bind,
             );
         });

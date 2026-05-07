@@ -1,4 +1,5 @@
 use std::net::{Ipv4Addr, SocketAddr, UdpSocket};
+use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::thread;
 use std::time::Duration;
@@ -7,6 +8,7 @@ use if_addrs::IfAddr;
 use serde_json::from_slice;
 use serde_json::json;
 use titan_common::CenterPollBeacon;
+use titan_quic::{TrustEntry, TrustStore};
 
 use super::{AnnounceEndpoint, HostAnnounceConfig};
 use crate::debug_agent_log::agent_debug_log;
@@ -16,10 +18,19 @@ const INITIAL_BURST_COUNT: u32 = 10;
 const POLL_RECV_TIMEOUT: Duration = Duration::from_millis(300);
 static ANNOUNCE_SIDECAR_GEN: AtomicU64 = AtomicU64::new(0);
 
-pub(super) fn start_announce_sidecars(cfg: &HostAnnounceConfig, endpoints: Vec<AnnounceEndpoint>) {
+pub(super) fn start_announce_sidecars(
+    cfg: &HostAnnounceConfig,
+    endpoints: Vec<AnnounceEndpoint>,
+    trust: Arc<TrustStore>,
+) {
     let my_gen = ANNOUNCE_SIDECAR_GEN.fetch_add(1, Ordering::SeqCst) + 1;
     if cfg.center_poll_listen_port > 0 {
-        spawn_center_poll_responder(my_gen, cfg.center_poll_listen_port, endpoints.clone());
+        spawn_center_poll_responder(
+            my_gen,
+            cfg.center_poll_listen_port,
+            endpoints.clone(),
+            trust,
+        );
     }
     spawn_initial_burst_announce(my_gen, cfg.center_register_udp_port, endpoints.clone());
     if let Some(iv) = cfg.periodic_interval
@@ -70,7 +81,12 @@ fn spawn_initial_burst_announce(
     });
 }
 
-fn spawn_center_poll_responder(my_gen: u64, listen_port: u16, endpoints: Vec<AnnounceEndpoint>) {
+fn spawn_center_poll_responder(
+    my_gen: u64,
+    listen_port: u16,
+    endpoints: Vec<AnnounceEndpoint>,
+    trust: Arc<TrustStore>,
+) {
     let pairs = announce_pairs_for_reply(&endpoints);
     if pairs.is_empty() {
         return;
@@ -85,7 +101,7 @@ fn spawn_center_poll_responder(my_gen: u64, listen_port: u16, endpoints: Vec<Ann
                 break;
             }
             match sock.recv_from(&mut buf) {
-                Ok((n, peer)) => center_poll_try_reply(&buf, n, peer, &pairs),
+                Ok((n, peer)) => center_poll_try_reply(&buf, n, peer, &pairs, &trust),
                 Err(e)
                     if e.kind() == std::io::ErrorKind::WouldBlock
                         || e.kind() == std::io::ErrorKind::TimedOut => {}
@@ -120,16 +136,34 @@ fn build_poll_listen_socket(listen_port: u16) -> Option<UdpSocket> {
     Some(sock)
 }
 
-fn center_poll_try_reply(buf: &[u8], n: usize, peer: SocketAddr, pairs: &[AnnouncePair]) {
-    let poll: CenterPollBeacon = match from_slice(&buf[..n]) {
-        Ok(b) => b,
-        Err(_) => return,
-    };
-    if poll.validate().is_err() {
+fn center_poll_try_reply(
+    buf: &[u8],
+    n: usize,
+    peer: SocketAddr,
+    pairs: &[AnnouncePair],
+    trust: &Arc<TrustStore>,
+) {
+    let Some(poll) = parse_valid_center_poll(buf, n) else {
         return;
-    }
+    };
+    auto_trust_center_from_poll(trust, &poll, peer);
     let dest = SocketAddr::new(peer.ip(), poll.register_udp_port);
     let chosen = choose_reply_pairs(peer, pairs);
+    log_poll_reply(peer, dest, chosen.len(), poll.register_udp_port);
+    for pair in chosen {
+        if let Err(e) = pair.sock.send_to(&pair.payload, dest) {
+            tracing::debug!(error = %e, %dest, "host announce: poll reply send_to failed");
+        }
+    }
+}
+
+fn parse_valid_center_poll(buf: &[u8], n: usize) -> Option<CenterPollBeacon> {
+    let poll: CenterPollBeacon = from_slice(&buf[..n]).ok()?;
+    poll.validate().ok()?;
+    Some(poll)
+}
+
+fn log_poll_reply(peer: SocketAddr, dest: SocketAddr, chosen_pairs: usize, register_udp_port: u16) {
     // #region agent log
     agent_debug_log(
         "H10",
@@ -138,16 +172,46 @@ fn center_poll_try_reply(buf: &[u8], n: usize, peer: SocketAddr, pairs: &[Announ
         json!({
             "peer":peer.to_string(),
             "dest":dest.to_string(),
-            "chosen_pairs":chosen.len(),
-            "register_udp_port":poll.register_udp_port,
+            "chosen_pairs":chosen_pairs,
+            "register_udp_port":register_udp_port,
         }),
     );
     // #endregion
-    for pair in chosen {
-        if let Err(e) = pair.sock.send_to(&pair.payload, dest) {
-            tracing::debug!(error = %e, %dest, "host announce: poll reply send_to failed");
-        }
+}
+
+fn auto_trust_center_from_poll(trust: &Arc<TrustStore>, poll: &CenterPollBeacon, peer: SocketAddr) {
+    let fp = poll.center_spki_sha256_hex.trim();
+    if fp.len() != 64 {
+        return;
     }
+    let entry = TrustEntry {
+        fingerprint: fp.to_string(),
+        label: peer.ip().to_string(),
+        role: "center".to_string(),
+        source: "lan-center-poll".to_string(),
+        added_at_epoch_s: now_epoch_seconds(),
+    };
+    let Ok(added) = trust.upsert(entry) else {
+        return;
+    };
+    if !added {
+        return;
+    }
+    // #region agent log
+    agent_debug_log(
+        "H11",
+        "serve/announce/sidecars.rs:auto_trust_center_from_poll",
+        "host auto-trusted center from poll",
+        json!({"peer":peer.to_string(),"fingerprint":fp}),
+    );
+    // #endregion
+}
+
+fn now_epoch_seconds() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or_default()
 }
 
 struct AnnouncePair {
