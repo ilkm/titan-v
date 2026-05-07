@@ -1,7 +1,9 @@
 //! Parallel Hello reachability probe across saved endpoints.
 
 use std::sync::mpsc::SyncSender;
+use std::{fs::OpenOptions, io::Write};
 
+use serde_json::json;
 use titan_common::ControlResponse;
 use tokio::task::JoinSet;
 use tokio::time::timeout;
@@ -41,11 +43,21 @@ async fn run_reachability_async(tx: SyncSender<NetUiMsg>, addrs: Vec<String>) {
 
 async fn probe_one_addr(addr: String) -> (String, bool) {
     let key = CenterApp::endpoint_addr_key(&addr);
-    let online = match timeout(HELLO_REACHABILITY_TIMEOUT, hello_host(&addr)).await {
-        Ok(Ok(ControlResponse::HelloAck { .. })) => true,
-        Ok(Ok(_)) => true,
-        Ok(Err(_)) | Err(_) => false,
+    let result = timeout(HELLO_REACHABILITY_TIMEOUT, hello_host(&addr)).await;
+    let (online, outcome, error) = match result {
+        Ok(Ok(ControlResponse::HelloAck { .. })) => (true, "hello_ack", String::new()),
+        Ok(Ok(_)) => (true, "non_hello_ack", String::new()),
+        Ok(Err(e)) => (false, "hello_err", e.to_string()),
+        Err(_) => (false, "hello_timeout", String::new()),
     };
+    // #region agent log
+    agent_debug_log(
+        "H4",
+        "spawn/reachability.rs:probe_one_addr",
+        "reachability hello result",
+        json!({"runId":"run1","addr":addr,"key":key,"online":online,"outcome":outcome,"error":error}),
+    );
+    // #endregion
     (key, online)
 }
 
@@ -60,5 +72,28 @@ async fn drain_reachability_joins(tx: &SyncSender<NetUiMsg>, set: &mut JoinSet<(
             }
             Err(e) => tracing::warn!(error = %e, "reachability probe task failed"),
         }
+    }
+}
+
+fn agent_debug_log(hypothesis_id: &str, location: &str, message: &str, data: serde_json::Value) {
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or_default();
+    let payload = json!({
+        "sessionId":"1f0423",
+        "runId":"run1",
+        "hypothesisId":hypothesis_id,
+        "location":location,
+        "message":message,
+        "data":data,
+        "timestamp":timestamp,
+    });
+    if let Ok(mut f) = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open("debug-1f0423.log")
+    {
+        let _ = writeln!(f, "{}", payload);
     }
 }

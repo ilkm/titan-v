@@ -11,6 +11,8 @@
 //! their own retry cadence.
 
 use std::collections::HashMap;
+use std::fs::OpenOptions;
+use std::io::Write;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::sync::OnceLock;
@@ -19,6 +21,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use anyhow::{Context, Result, anyhow};
 use parking_lot::Mutex;
 use quinn::{Connection, Endpoint, RecvStream, SendStream};
+use serde_json::json;
 use titan_common::{
     ControlHostFrame, ControlPush, ControlRequest, ControlRequestFrame, ControlResponse,
 };
@@ -88,9 +91,30 @@ async fn ensure_connection_dial(endpoint: &Endpoint, addr: &str) -> Result<Conne
     let connecting = endpoint
         .connect(socket, &sni)
         .with_context(|| format!("quinn connect {addr}"))?;
-    connecting
-        .await
-        .map_err(|e| anyhow::Error::from(e).context(format!("quinn handshake {addr}")))
+    match connecting.await {
+        Ok(connection) => {
+            // #region agent log
+            agent_debug_log(
+                "H2",
+                "net/quic_client.rs:ensure_connection_dial",
+                "quic handshake success",
+                json!({"runId":"run1","addr":addr,"sni":sni}),
+            );
+            // #endregion
+            Ok(connection)
+        }
+        Err(e) => {
+            // #region agent log
+            agent_debug_log(
+                "H2",
+                "net/quic_client.rs:ensure_connection_dial",
+                "quic handshake failed",
+                json!({"runId":"run1","addr":addr,"sni":sni,"error":e.to_string()}),
+            );
+            // #endregion
+            Err(anyhow::Error::from(e).context(format!("quinn handshake {addr}")))
+        }
+    }
 }
 
 pub fn init_global(identity: Arc<Identity>, trust: Arc<TrustStore>) -> Result<Arc<ControlClient>> {
@@ -186,4 +210,27 @@ pub async fn ensure_connection_for_telemetry(addr: &str) -> Result<Connection> {
 /// then passing the `RecvStream` here repeatedly.
 pub async fn read_one_telemetry_push(recv: &mut RecvStream) -> Result<Option<ControlPush>> {
     frame_io::read_one_telemetry_push(recv).await
+}
+
+fn agent_debug_log(hypothesis_id: &str, location: &str, message: &str, data: serde_json::Value) {
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or_default();
+    let payload = json!({
+        "sessionId":"1f0423",
+        "runId":"run1",
+        "hypothesisId":hypothesis_id,
+        "location":location,
+        "message":message,
+        "data":data,
+        "timestamp":timestamp,
+    });
+    if let Ok(mut f) = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open("debug-1f0423.log")
+    {
+        let _ = writeln!(f, "{}", payload);
+    }
 }

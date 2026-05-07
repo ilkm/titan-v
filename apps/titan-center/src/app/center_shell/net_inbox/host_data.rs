@@ -1,5 +1,7 @@
 use crate::app::CenterApp;
 use crate::app::net::NetUiMsg;
+use serde_json::json;
+use std::{fs::OpenOptions, io::Write};
 
 impl CenterApp {
     fn try_net_desktop_frame_payload(&mut self, msg: &NetUiMsg) -> Option<bool> {
@@ -129,17 +131,54 @@ impl CenterApp {
         let skip_offline = !online
             && (self.should_skip_probe_offline_for_addr(&key)
                 || self.has_running_telemetry_link_for_addr(&key));
+        let mut matched = false;
+        let mut before_online = None;
+        let mut after_online = None;
         if let Some(ep) = self
             .endpoints
             .iter_mut()
             .find(|e| Self::endpoint_addr_key(&e.addr) == key)
         {
+            matched = true;
+            before_online = Some(ep.last_known_online);
             if online {
                 ep.last_known_online = true;
             } else if !skip_offline {
                 ep.last_known_online = false;
             }
+            after_online = Some(ep.last_known_online);
         }
+        // #region agent log
+        agent_debug_log(
+            "H3",
+            "center_shell/net_inbox/host_data.rs:on_net_host_reachability",
+            "reachability merged into endpoint",
+            json!({"runId":"run1","control_addr":control_addr,"key":key,"online":online,"skip_offline":skip_offline,"matched":matched,"before_online":before_online,"after_online":after_online}),
+        );
+        // #endregion
         self.ctx.request_repaint();
+    }
+}
+
+fn agent_debug_log(hypothesis_id: &str, location: &str, message: &str, data: serde_json::Value) {
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or_default();
+    let payload = json!({
+        "sessionId":"1f0423",
+        "runId":"run1",
+        "hypothesisId":hypothesis_id,
+        "location":location,
+        "message":message,
+        "data":data,
+        "timestamp":timestamp,
+    });
+    if let Ok(mut f) = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open("debug-1f0423.log")
+    {
+        let _ = writeln!(f, "{}", payload);
     }
 }
