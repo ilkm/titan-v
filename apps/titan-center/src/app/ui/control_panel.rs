@@ -95,7 +95,7 @@ impl CenterApp {
         let can_select_all = total > 0 && selected < total;
         ui.horizontal(|ui| {
             if subtle_button(ui, t(lang, Msg::DiscoveryRefreshIfaces), true).clicked() {
-                self.settings_refresh_discovery_ifaces(ui);
+                self.settings_refresh_discovery_ifaces();
             }
             if subtle_button(
                 ui,
@@ -113,10 +113,8 @@ impl CenterApp {
         });
     }
 
-    fn settings_refresh_discovery_ifaces(&mut self, ui: &egui::Ui) {
-        self.discovery_if_rows = crate::app::discovery::list_lan_ipv4_rows();
-        self.prune_discovery_bind_ipv4s_to_scanned_ifaces();
-        self.discovery_if_scan_secs = ui.ctx().input(|i| i.time);
+    fn settings_refresh_discovery_ifaces(&mut self) {
+        self.refresh_discovery_ifaces_now();
     }
 
     fn settings_select_all_discovery_bind_ips(&mut self) {

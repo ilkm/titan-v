@@ -12,6 +12,36 @@ use crate::app::discovery;
 use crate::app::persist_data::NavTab;
 
 impl CenterApp {
+    fn select_all_discovery_bind_ipv4s_from_rows(&mut self) {
+        self.discovery_bind_ipv4s = self
+            .discovery_if_rows
+            .iter()
+            .map(|row| row.ip.to_string())
+            .collect();
+    }
+
+    fn refresh_discovery_ifaces_impl(&mut self, now: f64, force: bool) {
+        let initial_scan = self.discovery_if_scan_secs < -100_000.0;
+        let due = force || initial_scan || now - self.discovery_if_scan_secs >= 3.0;
+        if !due {
+            return;
+        }
+        let had_bind_selection = !self.discovery_bind_ipv4s.is_empty();
+        let prev_total = self.discovery_if_rows.len();
+        let prev_all_selected = prev_total > 0 && self.discovery_bind_ipv4s.len() == prev_total;
+        self.discovery_if_scan_secs = now;
+        self.discovery_if_rows = discovery::list_lan_ipv4_rows();
+        self.prune_discovery_bind_ipv4s_to_scanned_ifaces();
+        if prev_all_selected || (initial_scan && !had_bind_selection) {
+            self.select_all_discovery_bind_ipv4s_from_rows();
+        }
+    }
+
+    pub(crate) fn refresh_discovery_ifaces_now(&mut self) {
+        let now = self.ctx.input(|i| i.time);
+        self.refresh_discovery_ifaces_impl(now, true);
+    }
+
     pub(crate) fn prune_discovery_bind_ipv4s_to_scanned_ifaces(&mut self) {
         let valid: HashSet<String> = self
             .discovery_if_rows
@@ -58,15 +88,12 @@ impl CenterApp {
 
     pub(crate) fn refresh_discovery_iface_rows(&mut self, ui: &egui::Ui) {
         let now = ui.ctx().input(|i| i.time);
-        let initial_scan = self.discovery_if_scan_secs < -100_000.0;
-        if initial_scan || now - self.discovery_if_scan_secs >= 3.0 {
-            self.discovery_if_scan_secs = now;
-            self.discovery_if_rows = discovery::list_lan_ipv4_rows();
-            self.prune_discovery_bind_ipv4s_to_scanned_ifaces();
-        }
+        self.refresh_discovery_ifaces_impl(now, false);
     }
 
     pub(crate) fn tick_discovery_thread(&mut self) {
+        let now = self.ctx.input(|i| i.time);
+        self.refresh_discovery_ifaces_impl(now, false);
         let want = self.discovery_broadcast;
         let sig = self.discovery_udp_spawn_sig();
         if want {
