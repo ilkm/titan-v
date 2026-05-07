@@ -162,9 +162,6 @@ fn parse_valid_center_poll(buf: &[u8], n: usize) -> Option<CenterPollBeacon> {
 
 fn auto_trust_center_from_poll(trust: &Arc<TrustStore>, poll: &CenterPollBeacon, peer: SocketAddr) {
     let fp = poll.center_spki_sha256_hex.trim();
-    if fp.len() != 64 {
-        return;
-    }
     let entry = TrustEntry {
         fingerprint: fp.to_string(),
         label: peer.ip().to_string(),
