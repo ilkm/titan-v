@@ -1,6 +1,7 @@
 //! Window management tab: same shell as Connect device management (toolbar, empty state, masonry).
 #![allow(clippy::too_many_arguments)]
 
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use egui::{
@@ -24,19 +25,25 @@ impl CenterApp {
         ui.spacing_mut().item_spacing.y = 10.0;
         self.panel_window_mgmt_toolbar(ui, lang);
         ui.add_space(12.0);
-        if self.vm_window_records.is_empty() {
+        let rows = self.window_mgmt_rows_filtered();
+        if rows.is_empty() {
             self.panel_window_mgmt_empty_state(ui, lang);
         } else {
-            self.panel_window_mgmt_masonry(ui, lang);
+            self.panel_window_mgmt_masonry(ui, lang, &rows);
         }
         self.apply_pending_vm_window_delete();
     }
 
     fn apply_pending_vm_window_delete(&mut self) {
-        let Some(idx) = self.pending_delete_vm_window_row_ix.take() else {
+        let Some(record_id) = self.pending_delete_vm_window_record_id.take() else {
             return;
         };
-        let Some(row) = self.vm_window_records.get(idx).cloned() else {
+        let Some(row) = self
+            .vm_window_records
+            .iter()
+            .find(|r| r.record_id == record_id)
+            .cloned()
+        else {
             return;
         };
         spawn_vm_window_delete_task(self.net_tx.clone(), row.record_id, row.device_id);
@@ -73,10 +80,87 @@ impl CenterApp {
         if subtle_button_toolbar(ui, t(lang, Msg::HpWinMgmtCreateBtn), true).clicked() {
             self.open_vm_window_create_dialog();
         }
+        self.panel_window_mgmt_filter_dropdown(ui, lang);
     }
 
     fn refetch_vm_windows_from_all_hosts(&mut self) {
         spawn_vm_window_reload_task(self.net_tx.clone());
+    }
+
+    fn panel_window_mgmt_filter_dropdown(&mut self, ui: &mut egui::Ui, lang: UiLang) {
+        let rows = self.window_mgmt_filter_device_rows();
+        let trigger = self.window_mgmt_filter_trigger_label(lang, &rows);
+        egui::ComboBox::from_id_salt("center_vm_window_filter_device")
+            .selected_text(trigger)
+            .width(260.0)
+            .show_ui(ui, |ui| {
+                self.window_mgmt_filter_combo_rows(ui, lang, rows);
+            });
+    }
+
+    fn window_mgmt_filter_combo_rows(
+        &mut self,
+        ui: &mut egui::Ui,
+        lang: UiLang,
+        rows: Vec<(String, String)>,
+    ) {
+        if ui
+            .selectable_label(
+                self.vm_window_filter_device_id.is_none(),
+                t(lang, Msg::CenterWinMgmtAllDevices),
+            )
+            .clicked()
+        {
+            self.vm_window_filter_device_id = None;
+        }
+        for (did, label) in rows {
+            let selected = self.vm_window_filter_device_id.as_deref() == Some(did.as_str());
+            if ui.selectable_label(selected, label).clicked() {
+                self.vm_window_filter_device_id = Some(did);
+            }
+        }
+    }
+
+    fn window_mgmt_filter_trigger_label(&self, lang: UiLang, rows: &[(String, String)]) -> String {
+        let Some(selected) = self.vm_window_filter_device_id.as_deref() else {
+            return t(lang, Msg::CenterWinMgmtAllDevices).to_string();
+        };
+        rows.iter()
+            .find(|(did, _)| did == selected)
+            .map(|(_, label)| label.clone())
+            .unwrap_or_else(|| selected.to_string())
+    }
+
+    fn window_mgmt_filter_device_rows(&self) -> Vec<(String, String)> {
+        let mut seen = HashSet::new();
+        let mut rows = Vec::new();
+        for ep in &self.endpoints {
+            let did = Self::window_mgmt_filter_device_id(ep);
+            if !seen.insert(did.clone()) {
+                continue;
+            }
+            rows.push((did, format!("{} — {}", ep.label, ep.addr)));
+        }
+        rows
+    }
+
+    fn window_mgmt_filter_device_id(ep: &crate::app::HostEndpoint) -> String {
+        match ep.device_id.trim() {
+            "" => crate::app::HostEndpoint::legacy_device_id_for_addr(&ep.addr),
+            v => v.to_string(),
+        }
+    }
+
+    fn window_mgmt_rows_filtered(&self) -> Vec<VmWindowRecord> {
+        match self.vm_window_filter_device_id.as_deref() {
+            None => self.vm_window_records.clone(),
+            Some(did) => self
+                .vm_window_records
+                .iter()
+                .filter(|r| r.device_id.trim() == did)
+                .cloned()
+                .collect(),
+        }
     }
 
     fn panel_window_mgmt_empty_state(&self, ui: &mut egui::Ui, lang: UiLang) {
@@ -148,20 +232,24 @@ impl CenterApp {
             .collect()
     }
 
-    fn panel_window_mgmt_masonry(&mut self, ui: &mut egui::Ui, lang: UiLang) {
-        let rows: Vec<VmWindowRecord> = self.vm_window_records.clone();
+    fn panel_window_mgmt_masonry(
+        &mut self,
+        ui: &mut egui::Ui,
+        lang: UiLang,
+        rows: &[VmWindowRecord],
+    ) {
         let inner = ui.available_width();
         let (cols, card_w, gap, _row_w, lead) = Self::window_masonry_outer_metrics(inner);
         const STACK: f32 = 14.0;
-        self.window_masonry_prune_heights(&rows);
-        let columns = self.window_masonry_build_columns(&rows, cols, card_w, STACK);
+        self.window_masonry_prune_heights(rows);
+        let columns = self.window_masonry_build_columns(rows, cols, card_w, STACK);
         let grid_tl = ui.cursor().min;
         let start_x = grid_tl.x + lead;
         let y0 = grid_tl.y;
         let mut col_y = vec![y0; cols];
         let col_x = Self::window_masonry_col_x_starts(cols, start_x, card_w, gap);
         self.window_masonry_paint_columns(
-            ui, lang, &rows, &columns, &col_x, &mut col_y, card_w, STACK,
+            ui, lang, rows, &columns, &col_x, &mut col_y, card_w, STACK,
         );
     }
 

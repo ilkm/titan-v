@@ -88,6 +88,8 @@ pub enum Msg {
     WinMgmtEmptyHint,
     /// Center create-window dialog: device selector label.
     CenterWinMgmtDevice,
+    /// Center window-management toolbar: first filter option showing all rows.
+    CenterWinMgmtAllDevices,
     /// Center: device combo placeholder until user picks a host.
     CenterWinMgmtDevicePlaceholder,
     CenterWinMgmtErrNoDevice,

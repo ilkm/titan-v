@@ -18,6 +18,7 @@ pub(super) fn paint_device_preview_slot(
     app: &mut CenterApp,
     ui: &mut egui::Ui,
     card_index: usize,
+    record_id: &str,
     preview_key: &str,
     card_w: f32,
     lang: UiLang,
@@ -27,7 +28,16 @@ pub(super) fn paint_device_preview_slot(
     let (preview_rect, _) = ui.allocate_exact_size(Vec2::new(card_w, preview_h), Sense::empty());
     let corners = preview_slot_top_corners();
     paint_device_preview_fill(app, ui, preview_key, preview_rect, corners, lang);
-    paint_preview_hover_actions(app, ui, card_index, preview_rect, corners, lang, online);
+    paint_preview_hover_actions(
+        app,
+        ui,
+        card_index,
+        record_id,
+        preview_rect,
+        corners,
+        lang,
+        online,
+    );
 }
 
 fn preview_slot_top_corners() -> CornerRadius {
@@ -43,6 +53,7 @@ fn paint_preview_hover_actions(
     app: &mut CenterApp,
     ui: &mut egui::Ui,
     card_index: usize,
+    record_id: &str,
     preview_rect: Rect,
     corners: CornerRadius,
     lang: UiLang,
@@ -60,8 +71,8 @@ fn paint_preview_hover_actions(
         PREVIEW_OVERLAY_BTN_H,
     );
     paint_preview_power_on_btn(ui, pow_rect, lang, online);
-    paint_preview_configure_btn(ui, cfg_rect, lang, app, card_index);
-    paint_preview_delete_btn(ui, del_rect, lang, app, card_index);
+    paint_preview_configure_btn(ui, cfg_rect, lang, app, card_index, online);
+    paint_preview_delete_btn(ui, del_rect, lang, app, record_id, online);
     ui.ctx().request_repaint();
 }
 
@@ -125,19 +136,28 @@ fn paint_preview_configure_btn(
     lang: UiLang,
     app: &mut CenterApp,
     card_index: usize,
+    enabled: bool,
 ) {
-    if preview_overlay_configure_button(ui, btn_rect, t(lang, Msg::DeviceMgmtPreviewConfigure))
-        .clicked()
-    {
+    let clicked = ui
+        .add_enabled_ui(enabled, |ui| {
+            preview_overlay_configure_button(ui, btn_rect, t(lang, Msg::DeviceMgmtPreviewConfigure))
+        })
+        .inner
+        .clicked();
+    if clicked {
         app.open_host_config_from_card(card_index);
     }
 }
 
-fn paint_preview_power_on_btn(ui: &mut egui::Ui, btn_rect: Rect, lang: UiLang, online: bool) {
-    if preview_overlay_configure_button(ui, btn_rect, t(lang, Msg::DeviceMgmtPreviewPowerOn))
-        .clicked()
-    {
-        tracing::info!(online, "window preview: power-on placeholder clicked");
+fn paint_preview_power_on_btn(ui: &mut egui::Ui, btn_rect: Rect, lang: UiLang, enabled: bool) {
+    let clicked = ui
+        .add_enabled_ui(enabled, |ui| {
+            preview_overlay_configure_button(ui, btn_rect, t(lang, Msg::DeviceMgmtPreviewPowerOn))
+        })
+        .inner
+        .clicked();
+    if clicked {
+        tracing::info!(enabled, "window preview: power-on placeholder clicked");
         ui.ctx().request_repaint();
     }
 }
@@ -147,10 +167,17 @@ fn paint_preview_delete_btn(
     btn_rect: Rect,
     lang: UiLang,
     app: &mut CenterApp,
-    card_index: usize,
+    record_id: &str,
+    enabled: bool,
 ) {
-    if danger_preview_delete_button(ui, btn_rect, t(lang, Msg::DeviceMgmtPreviewDelete)).clicked() {
-        app.pending_delete_vm_window_row_ix = Some(card_index);
+    let clicked = ui
+        .add_enabled_ui(enabled, |ui| {
+            danger_preview_delete_button(ui, btn_rect, t(lang, Msg::DeviceMgmtPreviewDelete))
+        })
+        .inner
+        .clicked();
+    if clicked {
+        app.pending_delete_vm_window_record_id = Some(record_id.to_string());
         ui.ctx().request_repaint();
     }
 }

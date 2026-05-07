@@ -166,12 +166,14 @@ pub struct CenterApp {
     pub(crate) device_masonry_heights: HashMap<String, f32>,
     /// Window management tab: last painted card height per `VmWindowRecord::record_id`.
     pub(crate) vm_window_masonry_heights: HashMap<String, f32>,
+    /// Window management toolbar filter (`None` = all devices, `Some(device_id)` = one device).
+    pub(crate) vm_window_filter_device_id: Option<String>,
     pub(crate) vm_window_create: vm_window_create_dialog::CenterVmWindowCreateForm,
     pub(crate) vm_window_create_id_nonce: u64,
     /// Card overlay delete: applied before painting so the same frame never reads `endpoints[i]` after removal.
     pub(crate) pending_remove_endpoint: Option<usize>,
-    /// Window-mgmt card delete: row index into `vm_window_records`; resolved into a `DeleteVmWindowOnHost` RPC.
-    pub(crate) pending_delete_vm_window_row_ix: Option<usize>,
+    /// Window-mgmt card delete: pending `record_id`; resolved into a `DeleteVmWindowOnHost` RPC.
+    pub(crate) pending_delete_vm_window_record_id: Option<String>,
     /// Host JSON draft window (device card preview → Configure).
     pub(crate) host_config_window_open: bool,
     /// Draft JSON for [`device_store::host_managed_config`] (host config window).

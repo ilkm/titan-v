@@ -166,6 +166,7 @@ fn paint_device_card_column(
         app,
         ui,
         meta.row_ix,
+        meta.record_id,
         meta.preview_key,
         meta.card_w,
         meta.lang,

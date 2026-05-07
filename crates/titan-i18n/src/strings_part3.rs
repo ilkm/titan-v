@@ -70,6 +70,8 @@ fn center_vm_window_create_i18n_devices(lang: UiLang, msg: Msg) -> Option<&'stat
     match (lang, msg) {
         (UiLang::En, Msg::CenterWinMgmtDevice) => Some("Device"),
         (UiLang::Zh, Msg::CenterWinMgmtDevice) => Some("设备"),
+        (UiLang::En, Msg::CenterWinMgmtAllDevices) => Some("All devices"),
+        (UiLang::Zh, Msg::CenterWinMgmtAllDevices) => Some("全部设备"),
         (UiLang::En, Msg::CenterWinMgmtDevicePlaceholder) => Some("Select a device (required)"),
         (UiLang::Zh, Msg::CenterWinMgmtDevicePlaceholder) => Some("请选择设备（必填）"),
         (UiLang::En, Msg::CenterWinMgmtErrNoDevice) => Some("Please select a device."),

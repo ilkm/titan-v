@@ -90,11 +90,12 @@ macro_rules! build_center_app_initial_state {
             vm_window_remark_edit_focus_next: false,
             device_masonry_heights: HashMap::new(),
             vm_window_masonry_heights: HashMap::new(),
+            vm_window_filter_device_id: None,
             vm_window_create:
                 crate::app::vm_window_create_dialog::CenterVmWindowCreateForm::with_defaults(),
             vm_window_create_id_nonce: 0,
             pending_remove_endpoint: None,
-            pending_delete_vm_window_row_ix: None,
+            pending_delete_vm_window_record_id: None,
             host_config_window_open: false,
             host_managed_draft_json: String::new(),
             host_managed_last_msg: String::new(),
