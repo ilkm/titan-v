@@ -74,11 +74,7 @@ impl ServeRun {
         if let Err(e) = self.shutdown_tx.send(true) {
             tracing::debug!(error = %e, "host serve shutdown signal failed");
         }
-        let _ = std::thread::Builder::new()
-            .name("titan-host-serve-join".into())
-            .spawn(move || {
-                let _ = self.join.join();
-            });
+        let _ = self.join.join();
     }
 }
 
