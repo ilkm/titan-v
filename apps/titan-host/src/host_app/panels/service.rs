@@ -141,8 +141,22 @@ impl HostApp {
     }
 
     fn panel_service_lan_bind_iface_row(&mut self, ui: &mut egui::Ui, lang: UiLang) {
+        let rows = self.panel_service_lan_bind_rows();
+        self.panel_service_lan_bind_field(ui, lang, &rows);
+    }
+
+    fn panel_service_lan_bind_rows(&mut self) -> Vec<crate::serve::LanIpv4Row> {
         let rows = crate::serve::list_physical_lan_ipv4_rows();
-        self.persist.normalize_lan_bind_ipv4();
+        self.persist.normalize_lan_bind_ipv4_with_rows(&rows);
+        rows
+    }
+
+    fn panel_service_lan_bind_field(
+        &mut self,
+        ui: &mut egui::Ui,
+        lang: UiLang,
+        rows: &[crate::serve::LanIpv4Row],
+    ) {
         form_field_row(
             ui,
             RichText::new(i18n::t(lang, Msg::HpLanBindIface)).small(),
@@ -152,9 +166,9 @@ impl HostApp {
                     return;
                 }
                 egui::ComboBox::from_id_salt("hp_lan_bind_iface")
-                    .selected_text(self.lan_bind_selected_text(lang, &rows))
+                    .selected_text(self.lan_bind_selected_text(lang, rows))
                     .show_ui(ui, |ui| {
-                        for row in &rows {
+                        for row in rows {
                             let ip = row.ip.to_string();
                             let label = format!("{} ({})", row.iface, ip);
                             ui.selectable_value(&mut self.persist.lan_bind_ipv4, ip, label);

@@ -3,6 +3,7 @@
 use std::net::SocketAddr;
 use std::path::Path;
 
+use crate::serve::LanIpv4Row;
 use serde::{Deserialize, Serialize};
 use titan_common::{DEFAULT_CENTER_POLL_UDP_PORT, DEFAULT_CENTER_REGISTER_UDP_PORT, UiLang};
 
@@ -86,6 +87,11 @@ impl HostUiPersist {
     /// Picks the first physical LAN IPv4 when unset or stale (no “all NICs” mode).
     pub fn normalize_lan_bind_ipv4(&mut self) {
         let rows = crate::serve::list_physical_lan_ipv4_rows();
+        self.normalize_lan_bind_ipv4_with_rows(&rows);
+    }
+
+    /// Same normalization using caller-provided rows to avoid duplicate scans.
+    pub fn normalize_lan_bind_ipv4_with_rows(&mut self, rows: &[LanIpv4Row]) {
         if rows.is_empty() {
             self.lan_bind_ipv4.clear();
             return;
