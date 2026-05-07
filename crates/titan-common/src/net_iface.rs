@@ -1,7 +1,5 @@
 use std::collections::HashSet;
 use std::net::Ipv4Addr;
-#[cfg(target_os = "macos")]
-use std::process::Command;
 #[cfg(target_os = "windows")]
 use std::sync::{Mutex, OnceLock};
 #[cfg(target_os = "windows")]
@@ -98,7 +96,17 @@ fn virtual_iface_needles() -> [&'static str; 21] {
 
 #[cfg(target_os = "macos")]
 fn physical_iface_allowlist() -> Option<HashSet<String>> {
-    parse_device_names(run_stdout("networksetup", &["-listallhardwareports"])?)
+    let mut names = HashSet::new();
+    let Ok(ifaces) = if_addrs::get_if_addrs() else {
+        return None;
+    };
+    for iface in ifaces {
+        let name = iface.name;
+        if is_macos_hardware_iface_name(&name) {
+            let _ = names.insert(name);
+        }
+    }
+    (!names.is_empty()).then_some(names)
 }
 
 #[cfg(target_os = "linux")]
@@ -126,31 +134,11 @@ fn physical_iface_allowlist() -> Option<HashSet<String>> {
 }
 
 #[cfg(target_os = "macos")]
-fn run_stdout(bin: &str, args: &[&str]) -> Option<String> {
-    let output = build_stdout_command(bin, args).output().ok()?;
-    if !output.status.success() {
-        return None;
-    }
-    String::from_utf8(output.stdout).ok()
-}
-
-#[cfg(target_os = "macos")]
-fn build_stdout_command(bin: &str, args: &[&str]) -> Command {
-    let mut cmd = Command::new(bin);
-    cmd.args(args);
-    cmd
-}
-
-#[cfg(target_os = "macos")]
-fn parse_device_names(text: String) -> Option<HashSet<String>> {
-    let mut names = HashSet::new();
-    for line in text.lines() {
-        let trimmed = line.trim();
-        if let Some(name) = trimmed.strip_prefix("Device: ") {
-            let _ = names.insert(name.trim().to_string());
-        }
-    }
-    (!names.is_empty()).then_some(names)
+fn is_macos_hardware_iface_name(name: &str) -> bool {
+    let mut parts = name.splitn(2, |c: char| c.is_ascii_digit());
+    let prefix = parts.next().unwrap_or_default();
+    let suffix = &name[prefix.len()..];
+    prefix == "en" && !suffix.is_empty() && suffix.chars().all(|c| c.is_ascii_digit())
 }
 
 #[cfg(target_os = "windows")]
