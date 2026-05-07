@@ -17,7 +17,7 @@ use crate::app::i18n::UiLang;
 use crate::app::lan_host_register;
 use crate::app::persist_data::{CenterPersist, NavTab};
 use crate::app::ui::theme::apply_center_theme;
-use persist_load::{load_center_bootstrap, load_or_migrate_endpoints};
+use persist_load::{load_center_bootstrap, load_endpoints};
 use security::init_center_security;
 
 macro_rules! build_center_app_initial_state {
@@ -141,13 +141,13 @@ impl CenterApp {
         apply_center_theme(&cc.egui_ctx);
         let (net_tx, net_rx) = mpsc::sync_channel(512);
         let db_path = device_store::registration_db_path();
-        let (persist, legacy_eps) = load_center_bootstrap(&db_path);
+        let persist = load_center_bootstrap(&db_path);
         lan_host_register::spawn_center_lan_host_register_listener(
             net_tx.clone(),
             cc.egui_ctx.clone(),
             persist.host_collect_register_udp_port.max(1),
         );
-        let endpoints = load_or_migrate_endpoints(&db_path, legacy_eps);
+        let endpoints = load_endpoints(&db_path);
         let control_addr = endpoints
             .first()
             .map(|e| e.addr.clone())

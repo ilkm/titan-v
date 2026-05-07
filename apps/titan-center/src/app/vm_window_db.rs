@@ -4,10 +4,12 @@
 //! [`titan_common::ControlRequest::ApplyVmWindowSnapshot`]. Schema mirrors what host used to
 //! carry, so the JSON wire format stays intact.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use rusqlite::{Connection, params};
 use titan_common::{VM_WINDOW_FOLDER_ID_MIN, VmWindowRecord};
+
+use super::device_store;
 
 const DDL: &str = r#"
 CREATE TABLE IF NOT EXISTS vm_window_records (
@@ -43,20 +45,9 @@ fn ensure_remark_column(conn: &Connection) -> rusqlite::Result<()> {
     Ok(())
 }
 
-/// `~/Library/Application Support/titan-center/vm_windows.sqlite` (or platform equivalent).
-///
-/// Overridable via `TITAN_CENTER_VM_WINDOW_DB_PATH` (absolute path). Used by integration tests
-/// to redirect the on-disk store into a temp directory and avoid clobbering the real DB.
-pub fn center_vm_window_db_path() -> PathBuf {
-    if let Ok(p) = std::env::var("TITAN_CENTER_VM_WINDOW_DB_PATH") {
-        let s = p.trim();
-        if !s.is_empty() {
-            return PathBuf::from(s);
-        }
-    }
-    let base = dirs::data_local_dir()
-        .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
-    base.join("titan-center").join("vm_windows.sqlite")
+/// Shared center DB path (`titan-db.sqlite`) used by all center SQLite tables.
+pub fn center_vm_window_db_path() -> std::path::PathBuf {
+    device_store::registration_db_path()
 }
 
 fn open(path: &Path) -> rusqlite::Result<Connection> {

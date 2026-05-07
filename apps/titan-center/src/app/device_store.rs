@@ -1,6 +1,6 @@
-//! SQLite store for the registered host/device list (control-plane TCP addresses).
+//! SQLite store for center-local persistent data.
 //!
-//! File location: [`registration_db_path`] → `{dirs::data_local_dir()}/titan-center/devices.sqlite`
+//! File location: [`registration_db_path`] → `{dirs::data_local_dir()}/titan-center/titan-db.sqlite`
 //! (e.g. macOS `~/Library/Application Support/...`, Linux `~/.local/share/...`), **not** the git repo root.
 //! Settings JSON lives in `app_kv` under key [`super::constants::PERSIST_KEY`]; devices in `registered_devices`.
 
@@ -17,7 +17,7 @@ use super::persist_data::HostEndpoint;
 pub fn registration_db_path() -> PathBuf {
     let base = dirs::data_local_dir()
         .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
-    base.join("titan-center").join("devices.sqlite")
+    base.join("titan-center").join("titan-db.sqlite")
 }
 
 pub(crate) fn open(path: &Path) -> rusqlite::Result<Connection> {
@@ -157,15 +157,6 @@ pub fn addr_for_device_id(path: &Path, device_id: &str) -> rusqlite::Result<Opti
     Ok(v)
 }
 
-pub fn legacy_endpoints_from_center_json(json: &str) -> Option<Vec<HostEndpoint>> {
-    let v: serde_json::Value = serde_json::from_str(json).ok()?;
-    let arr = v.get("endpoints")?.as_array()?;
-    if arr.is_empty() {
-        return None;
-    }
-    serde_json::from_value(serde_json::Value::Array(arr.clone())).ok()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -209,7 +200,7 @@ mod tests {
     #[test]
     fn roundtrip_registered_devices() {
         let mut tmp = std::env::temp_dir();
-        tmp.push("titan-center-test-devices.sqlite");
+        tmp.push("titan-center-test-titan-db.sqlite");
         let _ = std::fs::remove_file(&tmp);
         let devs = sample_two_host_endpoints();
         save_registered_devices(&tmp, &devs).unwrap();
@@ -221,7 +212,7 @@ mod tests {
     #[test]
     fn save_fills_empty_device_id_with_legacy_prefix() {
         let mut tmp = std::env::temp_dir();
-        tmp.push("titan-center-test-devices-legacyid.sqlite");
+        tmp.push("titan-center-test-titan-db-legacyid.sqlite");
         let _ = std::fs::remove_file(&tmp);
         let mut d = HostEndpoint {
             label: "m".into(),
@@ -238,17 +229,5 @@ mod tests {
         d.ensure_device_id();
         assert_eq!(d.device_id, "legacy:10.0.0.5:7788");
         let _ = std::fs::remove_file(&tmp);
-    }
-
-    #[test]
-    fn legacy_json_parses_endpoints() {
-        let json = concat!(
-            r#"{"endpoints":[{"label":"x","addr":"10.0.0.1:7788","#,
-            r#""last_caps":"","last_vm_count":0,"last_known_online":false}],"accounts":[]}"#
-        );
-        let eps = legacy_endpoints_from_center_json(json).unwrap();
-        assert_eq!(eps.len(), 1);
-        assert_eq!(eps[0].addr, "10.0.0.1:7788");
-        assert!(eps[0].device_id.is_empty());
     }
 }

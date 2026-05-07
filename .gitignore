@@ -1,6 +1,6 @@
 # Rust
 /target/
-# Obsolete repo-root eframe JSON (Center uses `devices.sqlite`; Host has no local UI file).
+# Obsolete repo-root eframe JSON (Center uses `titan-db.sqlite`; Host has no local UI file).
 /titan-center
 /titan-host
 **/*.rs.bk
