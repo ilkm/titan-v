@@ -191,13 +191,15 @@ mod announce_tests {
 
     #[test]
     fn host_announce_rejects_v2_schema() {
-        let json = concat!(
-            r#"{"kind":"titan.v3.host_announce","schema":2,"host_quic_addr":"10.0.0.2:7788","#,
-            r#""label":"h","device_id":"mid","host_spki_sha256_hex":"#,
-            r#"00000000000000000000000000000000000000000000000000000000000000aa"}"#
-        )
-        .as_bytes();
-        let d: HostAnnounceBeacon = serde_json::from_slice(json).unwrap();
+        let json = serde_json::json!({
+            "kind": "titan.v3.host_announce",
+            "schema": 2,
+            "host_quic_addr": "10.0.0.2:7788",
+            "label": "h",
+            "device_id": "mid",
+            "host_spki_sha256_hex": fake_fp(),
+        });
+        let d: HostAnnounceBeacon = serde_json::from_value(json).unwrap();
         assert!(d.validate().is_err());
     }
 
