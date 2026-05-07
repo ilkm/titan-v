@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""List Rust functions whose *code lines* (general.mdc口径) exceed a limit.
+"""List Rust functions whose body *code lines* exceed a limit.
 
-Span: from the line containing `fn` through the line containing the matching
-closing `}` of the function body (signature + body). Excludes lines that are
-only blank, only // or /// or //!, or only block-comment.
+Function counting scope:
+- Count only code lines inside the outermost function `{ ... }` body.
+- Do NOT count signature/parameter lines.
+- Do NOT count blank lines, pure comment lines, or lines that are only `{` / `}`.
 """
 
 from __future__ import annotations
@@ -13,6 +14,8 @@ import sys
 from pathlib import Path
 
 LIMIT = 30
+LINE_RECOMMENDED = 80
+LINE_LIMIT = 120
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -29,6 +32,15 @@ def is_code_line(line: str) -> bool:
     return True
 
 
+def is_counted_body_code_line(line: str) -> bool:
+    s = line.strip()
+    if not is_code_line(line):
+        return False
+    if s in {"{", "}"}:
+        return False
+    return True
+
+
 FN_RE = re.compile(
     r"^\s*(?:#\[[^\]]*\]\s*)*(?:(?:pub|pub\(crate\)|pub\(super\)|pub\(self\))\s+)*"
     r"(?:async\s+)?fn\s+([a-zA-Z_][a-zA-Z0-9_]*)\b"
@@ -36,10 +48,10 @@ FN_RE = re.compile(
 
 
 def scan_rust_file(path: Path) -> list[tuple[int, int, str]]:
-    """Return list of (start_line_1based, code_lines, name) for functions over LIMIT."""
+    """Return list of (start_line_1based, body_code_lines, name) for functions over LIMIT."""
     text = path.read_text(encoding="utf-8")
     lines = text.splitlines(keepends=True)
-    code_flags = [is_code_line(l) for l in lines]
+    body_code_flags = [is_counted_body_code_line(l) for l in lines]
     out: list[tuple[int, int, str]] = []
 
     i = 0
@@ -58,35 +70,58 @@ def scan_rust_file(path: Path) -> list[tuple[int, int, str]]:
         start = i
         # Join from fn line for brace scan
         tail = "".join(lines[i:])
-        end_rel = find_fn_body_end(tail)
-        if end_rel is None:
+        bounds = find_fn_body_bounds(tail)
+        if bounds is None:
             i += 1
             continue
-        end_char = end_rel
-        # Map char offset to end line
-        consumed = 0
-        end_line = start
-        for j in range(i, len(lines)):
-            chunk = lines[j]
-            if consumed + len(chunk) > end_char:
-                end_line = j
-                break
-            consumed += len(chunk)
-        else:
-            end_line = len(lines) - 1
-
-        code_lines = sum(1 for k in range(start, end_line + 1) if code_flags[k])
-        if code_lines > LIMIT:
-            out.append((start + 1, code_lines, name))
-        i = end_line + 1
+        body_open_char, body_close_char = bounds
+        body_open_line = char_to_line(lines, i, body_open_char)
+        body_close_line = char_to_line(lines, i, body_close_char)
+        if body_open_line is None or body_close_line is None:
+            i += 1
+            continue
+        body_code_lines = sum(
+            1
+            for k in range(body_open_line + 1, body_close_line)
+            if body_code_flags[k]
+        )
+        if body_code_lines > LIMIT:
+            out.append((start + 1, body_code_lines, name))
+        i = body_close_line + 1
     return out
 
 
-def find_fn_body_end(src: str) -> int | None:
-    """Return index after last char of matching top-level `}` for fn body, or None."""
+def char_to_line(lines: list[str], line_offset: int, char_pos: int) -> int | None:
+    consumed = 0
+    for j in range(line_offset, len(lines)):
+        chunk = lines[j]
+        if consumed + len(chunk) > char_pos:
+            return j
+        consumed += len(chunk)
+    if lines:
+        return len(lines) - 1
+    return None
+
+
+def scan_long_lines(path: Path) -> list[tuple[int, int]]:
+    """Return list of (line_1based, line_length) for code lines over LINE_LIMIT."""
+    text = path.read_text(encoding="utf-8")
+    out: list[tuple[int, int]] = []
+    for idx, line in enumerate(text.splitlines(), start=1):
+        if not is_code_line(line):
+            continue
+        line_length = len(line)
+        if line_length > LINE_LIMIT:
+            out.append((idx, line_length))
+    return out
+
+
+def find_fn_body_bounds(src: str) -> tuple[int, int] | None:
+    """Return (open_brace_idx, close_brace_idx) for function body, or None."""
     # Find first `{` that starts the body (after fn ...). Skip generics/parens crudely.
     state = "seek_brace"  # before outer {
     brace = 0
+    body_open = -1
     i = 0
     n = len(src)
     # Lexer states
@@ -177,6 +212,7 @@ def find_fn_body_end(src: str) -> int | None:
         if state == "seek_brace":
             if c == "{":
                 state = "in_body"
+                body_open = i
                 brace = 1
                 i += 1
                 continue
@@ -189,7 +225,7 @@ def find_fn_body_end(src: str) -> int | None:
         elif c == "}":
             brace -= 1
             if brace == 0:
-                return i + 1
+                return (body_open, i)
         i += 1
     return None
 
@@ -219,17 +255,27 @@ def _char_literal_start(src: str, i: int) -> bool:
 
 def main() -> None:
     over: list[tuple[Path, int, int, str]] = []
+    long_lines: list[tuple[Path, int, int]] = []
     for path in sorted(ROOT.rglob("*.rs")):
         if "target" in path.parts or ".git" in path.parts:
             continue
+        rel = path.relative_to(ROOT)
         for start_line, code_lines, name in scan_rust_file(path):
-            over.append((path.relative_to(ROOT), start_line, code_lines, name))
+            over.append((rel, start_line, code_lines, name))
+        for line_no, line_length in scan_long_lines(path):
+            long_lines.append((rel, line_no, line_length))
 
     over.sort(key=lambda t: (-t[2], str(t[0])))
     for p, ln, cl, name in over:
         print(f"{cl:4d}  {p}:{ln}  fn {name}")
+    long_lines.sort(key=lambda t: (-t[2], str(t[0]), t[1]))
+    for p, ln, ll in long_lines:
+        print(
+            f"{ll:4d}  {p}:{ln}  line-length>{LINE_LIMIT} (recommended<={LINE_RECOMMENDED})"
+        )
     print(f"total: {len(over)}", file=sys.stderr)
-    sys.exit(1 if over else 0)
+    print(f"line_total: {len(long_lines)}", file=sys.stderr)
+    sys.exit(1 if over or long_lines else 0)
 
 
 if __name__ == "__main__":

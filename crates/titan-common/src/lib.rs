@@ -6,6 +6,7 @@ pub mod capabilities;
 pub mod discovery;
 pub mod error;
 pub mod net_iface;
+pub mod net_ipv4;
 pub mod plan;
 pub mod state;
 pub mod ui_lang;
@@ -21,6 +22,7 @@ pub use discovery::{
 };
 pub use error::{Error, Result};
 pub use net_iface::{LanIpv4Row, list_physical_lan_ipv4_rows};
+pub use net_ipv4::{ipv4_broadcast_from_mask, ipv4_in_subnet};
 pub use plan::VmSpoofProfile;
 pub use state::{NodeState, VmPowerState};
 pub use ui_lang::UiLang;

@@ -9,7 +9,11 @@ use super::quic_client::exchange_one;
 
 pub fn capabilities_summary(c: &Capabilities) -> String {
     let mut s = format!(
-        "openvmm={} gpu={} stream={} hw_spoof={} guest_agent={} stream_precheck={} spoof_net={} spoof_cp={} spoof_proc={} k_ipc={} whv={} nvn={} wrtc={} wd={}",
+        concat!(
+            "openvmm={} gpu={} stream={} hw_spoof={} guest_agent={} ",
+            "stream_precheck={} spoof_net={} spoof_cp={} spoof_proc={} ",
+            "k_ipc={} whv={} nvn={} wrtc={} wd={}"
+        ),
         c.openvmm,
         c.gpu_partition,
         c.streaming,

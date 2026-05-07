@@ -99,7 +99,11 @@ mod tests {
 
     #[test]
     fn parses_fp_from_quinn_error_string() {
-        let s = "quinn handshake 192.0.2.1:7788: connection lost: tls: untrusted host certificate (fingerprint sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef)";
+        let s = concat!(
+            "quinn handshake 192.0.2.1:7788: connection lost: tls: ",
+            "untrusted host certificate (fingerprint sha256:",
+            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef)"
+        );
         let fp = CenterApp::extract_untrusted_host_fingerprint(s);
         assert_eq!(
             fp.as_deref(),

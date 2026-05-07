@@ -150,7 +150,14 @@ impl HostApp {
         // Pure assembly: every field is either threaded from `channels` or initialised with a
         // trivial empty default. Compact form keeps the fn under 30 code lines without a wider
         // HostApp split (cross-cutting `self.foo` rename across many files).
-        let HostAppChannels { persist_apply_tx, persist_apply_rx, lang_apply_tx, lang_apply_rx, vm_windows_reload_tx, vm_windows_reload_rx } = channels;
+        let HostAppChannels {
+            persist_apply_tx,
+            persist_apply_rx,
+            lang_apply_tx,
+            lang_apply_rx,
+            vm_windows_reload_tx,
+            vm_windows_reload_rx,
+        } = channels;
         Self {
             host_security, really_quitting: false, hidden_to_tray: false, _tray: initial_tray, serve_run: None,
             persist_apply_tx: Some(persist_apply_tx), persist_apply_rx,

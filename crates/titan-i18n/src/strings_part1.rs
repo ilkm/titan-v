@@ -1,6 +1,12 @@
 use crate::UiLang;
 use crate::msg::Msg;
 
+const DISCOVERY_BIND_BLURB_EN: &str = concat!(
+    "Optional: pick one or more local IPv4 addresses to send subnet broadcasts ",
+    "from (multi-homed). Leave none selected to use the OS default route ",
+    "(255.255.255.255)."
+);
+
 pub(super) fn translate(lang: UiLang, msg: Msg) -> Option<&'static str> {
     brand_settings_lang(lang, msg)
         .or_else(|| nav_all(lang, msg))
@@ -56,9 +62,7 @@ fn discovery_top(lang: UiLang, msg: Msg) -> Option<&'static str> {
 
 fn discovery_bind_ports(lang: UiLang, msg: Msg) -> Option<&'static str> {
     match (lang, msg) {
-        (UiLang::En, Msg::DiscoveryBindBlurb) => Some(
-            "Optional: pick one or more local IPv4 addresses to send subnet broadcasts from (multi-homed). Leave none selected to use the OS default route (255.255.255.255).",
-        ),
+        (UiLang::En, Msg::DiscoveryBindBlurb) => Some(DISCOVERY_BIND_BLURB_EN),
         (UiLang::Zh, Msg::DiscoveryBindBlurb) => Some(
             "可选：选择一个或多个本机 IPv4，从对应网卡向子网广播；不选则走系统默认路由（255.255.255.255）。",
         ),

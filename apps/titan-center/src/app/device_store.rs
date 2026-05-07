@@ -242,7 +242,10 @@ mod tests {
 
     #[test]
     fn legacy_json_parses_endpoints() {
-        let json = r#"{"endpoints":[{"label":"x","addr":"10.0.0.1:7788","last_caps":"","last_vm_count":0,"last_known_online":false}],"accounts":[]}"#;
+        let json = concat!(
+            r#"{"endpoints":[{"label":"x","addr":"10.0.0.1:7788","#,
+            r#""last_caps":"","last_vm_count":0,"last_known_online":false}],"accounts":[]}"#
+        );
         let eps = legacy_endpoints_from_center_json(json).unwrap();
         assert_eq!(eps.len(), 1);
         assert_eq!(eps[0].addr, "10.0.0.1:7788");

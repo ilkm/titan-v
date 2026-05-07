@@ -1,6 +1,28 @@
 use crate::UiLang;
 use crate::msg::Msg;
 
+const HOST_COLLECT_BLURB_EN: &str = concat!(
+    "Broadcasts a short poll on UDP. Each `titan-host serve` on the LAN replies ",
+    "with its control-plane TCP address - no per-host Connect click. Uses the ",
+    "same bind-IPv4 list as guest discovery when set."
+);
+
+const HOST_COLLECT_BLURB_ZH: &str = concat!(
+    "在局域网周期性广播唤请包（UDP）。各台 `titan-host serve` 收到后自动向中控上报",
+    "控制面 TCP 地址，无需在每台机器上单独操作中控。若上方指定了绑定 IPv4，则与",
+    "本页「来宾发现」共用该列表。"
+);
+
+const DEVICE_MGMT_EMPTY_HINT_EN: &str = concat!(
+    "No hosts yet. Use **Settings** -> LAN discovery / LAN host registration; ",
+    "devices also merge here when they announce on UDP."
+);
+
+const ADD_HOST_DIALOG_SUBTITLE_EN: &str = concat!(
+    "Control-plane address on the machine running `titan-host serve`. ",
+    "The host must be online - we send Hello before adding."
+);
+
 pub(super) fn translate(lang: UiLang, msg: Msg) -> Option<&'static str> {
     host_collect_block(lang, msg)
         .or_else(|| device_empty_and_preview(lang, msg))
@@ -14,12 +36,8 @@ fn host_collect_block(lang: UiLang, msg: Msg) -> Option<&'static str> {
     match (lang, msg) {
         (UiLang::En, Msg::HostCollectTitle) => Some("LAN host registration (scale-out)"),
         (UiLang::Zh, Msg::HostCollectTitle) => Some("局域网宿主注册（批量）"),
-        (UiLang::En, Msg::HostCollectBlurb) => Some(
-            "Broadcasts a short poll on UDP. Each `titan-host serve` on the LAN replies with its control-plane TCP address — no per-host Connect click. Uses the same bind-IPv4 list as guest discovery when set.",
-        ),
-        (UiLang::Zh, Msg::HostCollectBlurb) => Some(
-            "在局域网周期性广播唤请包（UDP）。各台 `titan-host serve` 收到后自动向中控上报控制面 TCP 地址，无需在每台机器上单独操作中控。若上方指定了绑定 IPv4，则与本页「来宾发现」共用该列表。",
-        ),
+        (UiLang::En, Msg::HostCollectBlurb) => Some(HOST_COLLECT_BLURB_EN),
+        (UiLang::Zh, Msg::HostCollectBlurb) => Some(HOST_COLLECT_BLURB_ZH),
         (UiLang::En, Msg::HostCollectCheckbox) => Some("Broadcast registration poll"),
         (UiLang::Zh, Msg::HostCollectCheckbox) => Some("广播唤请宿主注册"),
         (UiLang::En, Msg::HostCollectIntervalLabel) => Some("Poll interval (seconds):"),
@@ -40,9 +58,7 @@ fn device_empty_and_preview(lang: UiLang, msg: Msg) -> Option<&'static str> {
         (UiLang::Zh, Msg::NoDataShort) => Some("暂无数据"),
         (UiLang::En, Msg::DeviceMgmtNoRegistered) => Some("No registered devices yet"),
         (UiLang::Zh, Msg::DeviceMgmtNoRegistered) => Some("暂无注册设备～"),
-        (UiLang::En, Msg::DeviceMgmtEmptyHint) => Some(
-            "No hosts yet. Use **Settings** → LAN discovery / LAN host registration; devices also merge here when they announce on UDP.",
-        ),
+        (UiLang::En, Msg::DeviceMgmtEmptyHint) => Some(DEVICE_MGMT_EMPTY_HINT_EN),
         (UiLang::Zh, Msg::DeviceMgmtEmptyHint) => Some(
             "暂无设备。请打开左侧「设置」使用局域网发现或局域网宿主注册；宿主 UDP 宣告后也会出现在此列表。",
         ),
@@ -100,9 +116,7 @@ fn add_host_dialog(lang: UiLang, msg: Msg) -> Option<&'static str> {
         (UiLang::Zh, Msg::BtnAddHost) => Some("+ 添加主机"),
         (UiLang::En, Msg::AddHostDialogTitle) => Some("Add host"),
         (UiLang::Zh, Msg::AddHostDialogTitle) => Some("添加主机"),
-        (UiLang::En, Msg::AddHostDialogSubtitle) => Some(
-            "Control-plane address on the machine running `titan-host serve`. The host must be online — we send Hello before adding.",
-        ),
+        (UiLang::En, Msg::AddHostDialogSubtitle) => Some(ADD_HOST_DIALOG_SUBTITLE_EN),
         (UiLang::Zh, Msg::AddHostDialogSubtitle) => Some(
             "填写运行 `titan-host serve` 的机器上的控制面 TCP 地址。添加前会检测在线（发送 Hello）。",
         ),

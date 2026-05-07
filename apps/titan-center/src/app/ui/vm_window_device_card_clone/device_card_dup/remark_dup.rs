@@ -11,72 +11,215 @@ use crate::app::constants::FORM_VALUE_TEXT;
 use crate::app::i18n::{Msg, UiLang, t};
 use crate::app::ui::widgets::dialog_underline_text_row_gap;
 
-#[rustfmt::skip]
-pub(super) fn paint_vm_dup_remark_block(app: &mut CenterApp, ui: &mut egui::Ui, lang: UiLang, inner_w: f32, row_ix: usize, record_id: &str) {
-    let (weak, remark_font, title_rt, stat_lbl_gap) = remark_block_style(ui, lang);
+struct RemarkStyle {
+    weak: Color32,
+    remark_font: FontId,
+    title_rt: RichText,
+    stat_lbl_gap: f32,
+}
+
+struct VmDupEditorLayout<'a> {
+    lang: UiLang,
+    inner_w: f32,
+    row_ix: usize,
+    record_id: &'a str,
+    edit_id: egui::Id,
+    request_focus: bool,
+    end_edit: &'a Cell<bool>,
+}
+
+pub(super) fn paint_vm_dup_remark_block(
+    app: &mut CenterApp,
+    ui: &mut egui::Ui,
+    lang: UiLang,
+    inner_w: f32,
+    row_ix: usize,
+    record_id: &str,
+) {
+    let style = remark_block_style(ui, lang);
     let editing = app.vm_window_remark_edit_record_id.as_deref() == Some(record_id);
     if editing {
-        paint_vm_dup_remark_edit_row(app, ui, lang, inner_w, row_ix, record_id, &title_rt, &remark_font, stat_lbl_gap);
+        paint_vm_dup_remark_edit_row(app, ui, lang, inner_w, row_ix, record_id, &style);
     } else {
-        paint_vm_dup_remark_display_row(app, ui, lang, inner_w, row_ix, record_id, title_rt, remark_font, weak, stat_lbl_gap);
+        paint_vm_dup_remark_display_row(app, ui, lang, inner_w, row_ix, record_id, &style);
     }
 }
 
-fn remark_block_style(ui: &egui::Ui, lang: UiLang) -> (Color32, FontId, RichText, f32) {
+fn remark_block_style(ui: &egui::Ui, lang: UiLang) -> RemarkStyle {
     let weak = ui.visuals().widgets.inactive.text_color();
     let remark_font = FontId::proportional(CARD_BODY_GRID_PX);
     let title_rt = RichText::new(t(lang, Msg::DeviceMgmtRemarkTitle))
         .font(remark_font.clone())
         .color(weak);
     let stat_lbl_gap = device_card_stat_label_value_gap(ui, CARD_BODY_GRID_PX);
-    (weak, remark_font, title_rt, stat_lbl_gap)
+    RemarkStyle {
+        weak,
+        remark_font,
+        title_rt,
+        stat_lbl_gap,
+    }
 }
 
-#[rustfmt::skip]
-fn paint_vm_dup_remark_display_row(app: &mut CenterApp, ui: &mut egui::Ui, lang: UiLang, inner_w: f32, row_ix: usize, record_id: &str, title_rt: RichText, remark_font: FontId, weak: Color32, stat_lbl_gap: f32) {
+fn paint_vm_dup_remark_display_row(
+    app: &mut CenterApp,
+    ui: &mut egui::Ui,
+    lang: UiLang,
+    inner_w: f32,
+    row_ix: usize,
+    record_id: &str,
+    style: &RemarkStyle,
+) {
     let hint = t(lang, Msg::DeviceMgmtRemarkDblclkHint);
-    let rem = app
-        .vm_window_records
-        .get(row_ix)
-        .filter(|r| r.record_id == record_id)
-        .map(|r| r.remark.clone())
-        .unwrap_or_default();
-    let right_rt = if rem.is_empty() {
-        RichText::new(hint).font(remark_font.clone()).color(weak)
+    let right_rt = if let Some(rem) = vm_dup_remark_value(app, row_ix, record_id) {
+        RichText::new(rem)
+            .font(style.remark_font.clone())
+            .color(style.weak)
     } else {
-        RichText::new(rem).font(remark_font.clone()).color(weak)
+        RichText::new(hint)
+            .font(style.remark_font.clone())
+            .color(style.weak)
     };
-    let touch_id = ui.make_persistent_id(("vm_window_clone_remark_touch", record_id));
-    let row_resp = device_mgmt_remark_row_interact(ui, inner_w, stat_lbl_gap, title_rt, right_rt, touch_id, REMARK_ROW_H);
+    let row_resp = vm_dup_remark_row_response(ui, inner_w, record_id, style, right_rt);
     if row_resp.double_clicked() {
         app.vm_window_remark_edit_record_id = Some(record_id.to_string());
         app.vm_window_remark_edit_focus_next = true;
     }
 }
 
-#[rustfmt::skip]
-fn paint_vm_dup_remark_edit_row(app: &mut CenterApp, ui: &mut egui::Ui, lang: UiLang, inner_w: f32, row_ix: usize, record_id: &str, title_rt: &RichText, remark_font: &FontId, stat_lbl_gap: f32) {
+fn vm_dup_remark_row_response(
+    ui: &mut egui::Ui,
+    inner_w: f32,
+    record_id: &str,
+    style: &RemarkStyle,
+    right_rt: RichText,
+) -> egui::Response {
+    let touch_id = ui.make_persistent_id(("vm_window_clone_remark_touch", record_id));
+    device_mgmt_remark_row_interact(
+        ui,
+        inner_w,
+        style.stat_lbl_gap,
+        style.title_rt.clone(),
+        right_rt,
+        touch_id,
+        REMARK_ROW_H,
+    )
+}
+
+fn paint_vm_dup_remark_edit_row(
+    app: &mut CenterApp,
+    ui: &mut egui::Ui,
+    lang: UiLang,
+    inner_w: f32,
+    row_ix: usize,
+    record_id: &str,
+    style: &RemarkStyle,
+) {
     let edit_id = ui.make_persistent_id(("vm_window_clone_remark_edit", record_id));
     let request_focus = std::mem::take(&mut app.vm_window_remark_edit_focus_next);
-    let end_edit = Cell::new(false);
-    ui.allocate_ui_with_layout(egui::vec2(inner_w, REMARK_ROW_H), Layout::left_to_right(Align::Min), |ui| {
-        ui.spacing_mut().item_spacing.x = 0.0;
-        ui.add(Label::new(title_rt.clone()));
-        ui.add_space(stat_lbl_gap);
-        ui.with_layout(Layout::top_down(Align::Min), |ui| {
-            ui.set_width(ui.available_width());
-            let te_resp = vm_dup_remark_edit_field(ui, app, lang, row_ix, record_id, remark_font, edit_id);
-            if request_focus {
-                te_resp.request_focus();
-            }
-            if te_resp.lost_focus() {
-                end_edit.set(true);
-            }
-        });
-    });
-    if end_edit.get() {
+    if paint_vm_dup_remark_editor_row(
+        app,
+        ui,
+        lang,
+        inner_w,
+        row_ix,
+        record_id,
+        style,
+        edit_id,
+        request_focus,
+    ) {
         app.commit_vm_window_remark_edit(record_id);
     }
+}
+
+fn vm_dup_remark_value(app: &CenterApp, row_ix: usize, record_id: &str) -> Option<String> {
+    app.vm_window_records
+        .get(row_ix)
+        .filter(|r| r.record_id == record_id)
+        .map(|r| r.remark.clone())
+}
+
+fn paint_vm_dup_remark_editor_row(
+    app: &mut CenterApp,
+    ui: &mut egui::Ui,
+    lang: UiLang,
+    inner_w: f32,
+    row_ix: usize,
+    record_id: &str,
+    style: &RemarkStyle,
+    edit_id: egui::Id,
+    request_focus: bool,
+) -> bool {
+    let end_edit = Cell::new(false);
+    paint_vm_dup_remark_editor_layout(
+        app,
+        ui,
+        style,
+        VmDupEditorLayout {
+            lang,
+            inner_w,
+            row_ix,
+            record_id,
+            edit_id,
+            request_focus,
+            end_edit: &end_edit,
+        },
+    );
+    end_edit.get()
+}
+
+fn paint_vm_dup_remark_editor_layout(
+    app: &mut CenterApp,
+    ui: &mut egui::Ui,
+    style: &RemarkStyle,
+    args: VmDupEditorLayout<'_>,
+) {
+    ui.allocate_ui_with_layout(
+        egui::vec2(args.inner_w, REMARK_ROW_H),
+        Layout::left_to_right(Align::Min),
+        |ui| {
+            paint_vm_dup_editor_title(ui, style);
+            paint_vm_dup_editor_field(
+                ui,
+                app,
+                args.lang,
+                args.row_ix,
+                args.record_id,
+                &style.remark_font,
+                args.edit_id,
+                args.request_focus,
+                args.end_edit,
+            );
+        },
+    );
+}
+
+fn paint_vm_dup_editor_title(ui: &mut egui::Ui, style: &RemarkStyle) {
+    ui.spacing_mut().item_spacing.x = 0.0;
+    ui.add(Label::new(style.title_rt.clone()));
+    ui.add_space(style.stat_lbl_gap);
+}
+
+fn paint_vm_dup_editor_field(
+    ui: &mut egui::Ui,
+    app: &mut CenterApp,
+    lang: UiLang,
+    row_ix: usize,
+    record_id: &str,
+    remark_font: &FontId,
+    edit_id: egui::Id,
+    request_focus: bool,
+    end_edit: &Cell<bool>,
+) {
+    ui.with_layout(Layout::top_down(Align::Min), |ui| {
+        ui.set_width(ui.available_width());
+        let te = vm_dup_remark_edit_field(ui, app, lang, row_ix, record_id, remark_font, edit_id);
+        if request_focus {
+            te.request_focus();
+        }
+        if te.lost_focus() {
+            end_edit.set(true);
+        }
+    });
 }
 
 fn vm_dup_remark_edit_field(

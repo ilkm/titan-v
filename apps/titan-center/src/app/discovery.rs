@@ -6,7 +6,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use if_addrs::IfAddr;
-use titan_common::{CenterPollBeacon, DiscoveryBeacon, list_physical_lan_ipv4_rows};
+use titan_common::{
+    CenterPollBeacon, DiscoveryBeacon, ipv4_broadcast_from_mask, list_physical_lan_ipv4_rows,
+};
 
 /// Snapshot of discovery settings used to decide whether to respawn the UDP thread.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -24,8 +26,7 @@ impl DiscoverySpawnSig {
         host_control: String,
         mut bind_ipv4s: Vec<String>,
     ) -> Self {
-        bind_ipv4s.sort();
-        bind_ipv4s.dedup();
+        canonicalize_bind_ipv4s(&mut bind_ipv4s);
         Self {
             interval_secs,
             port,
@@ -51,8 +52,7 @@ impl HostCollectSpawnSig {
         register_port: u16,
         mut bind_ipv4s: Vec<String>,
     ) -> Self {
-        bind_ipv4s.sort();
-        bind_ipv4s.dedup();
+        canonicalize_bind_ipv4s(&mut bind_ipv4s);
         Self {
             interval_secs,
             poll_port,
@@ -60,6 +60,11 @@ impl HostCollectSpawnSig {
             bind_ipv4s,
         }
     }
+}
+
+fn canonicalize_bind_ipv4s(bind_ipv4s: &mut Vec<String>) {
+    bind_ipv4s.sort();
+    bind_ipv4s.dedup();
 }
 
 pub use titan_common::LanIpv4Row;
@@ -79,12 +84,6 @@ pub fn default_manual_host_ipv4_string() -> String {
     };
     let o = row.ip.octets();
     Ipv4Addr::new(o[0], o[1], o[2], 1).to_string()
-}
-
-fn ipv4_broadcast_from_mask(addr: Ipv4Addr, netmask: Ipv4Addr) -> Ipv4Addr {
-    let a = u32::from_be_bytes(addr.octets());
-    let m = u32::from_be_bytes(netmask.octets());
-    Ipv4Addr::from(((a & m) | !m).to_be_bytes())
 }
 
 fn resolve_broadcast_dest(bind: Ipv4Addr, udp_port: u16) -> SocketAddr {

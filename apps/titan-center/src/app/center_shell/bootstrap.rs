@@ -20,6 +20,104 @@ use crate::app::ui::theme::apply_center_theme;
 use persist_load::{load_center_bootstrap, load_or_migrate_endpoints};
 use security::init_center_security;
 
+macro_rules! build_center_app_initial_state {
+    (
+        $ctx:expr,
+        $persist:expr,
+        $endpoints:expr,
+        $center_security:expr,
+        $ui_lang:expr,
+        $active_nav:expr,
+        $v:expr,
+        $net:expr,
+        $d:expr
+    ) => {
+        Self {
+            center_security: $center_security,
+            tofu_pending: None,
+            ctx: $ctx,
+            endpoints: $endpoints,
+            selected_host: 0,
+            accounts: $persist.accounts,
+            proxy_labels: $persist.proxy_labels,
+            last_script_version: $persist.last_script_version,
+            list_vms_auto_refresh: $persist.list_vms_auto_refresh,
+            list_vms_poll_secs: $persist.list_vms_poll_secs.max(5),
+            list_vms_poll_accum: 0.0,
+            auto_hello_accum: $d.auto_hello_accum,
+            desktop_poll_accum: $d.desktop_poll_accum,
+            prev_nav_for_desktop: $active_nav,
+            desktop_fetch_busy: false,
+            reachability_poll_accum: REACHABILITY_PROBE_SECS,
+            reachability_probe_busy: false,
+            host_desktop_textures: HashMap::new(),
+            host_resource_stats: HashMap::new(),
+            discovery_gen: Arc::new(AtomicU64::new(0)),
+            discovery_active_sig: None,
+            discovery_broadcast: $persist.discovery_broadcast,
+            discovery_interval_secs: $persist.discovery_interval_secs.max(1),
+            discovery_udp_port: $persist.discovery_udp_port,
+            discovery_bind_ipv4s: $persist.discovery_bind_ipv4s,
+            host_collect_gen: Arc::new(AtomicU64::new(0)),
+            host_collect_active_sig: None,
+            host_collect_broadcast: $persist.host_collect_broadcast,
+            host_collect_interval_secs: $persist.host_collect_interval_secs.max(1),
+            host_collect_poll_udp_port: $persist.host_collect_poll_udp_port,
+            host_collect_register_udp_port: $persist.host_collect_register_udp_port,
+            discovery_if_rows: Vec::new(),
+            discovery_if_scan_secs: -1.0e6_f64,
+            ui_lang: $ui_lang,
+            host_synced_ui_lang: $ui_lang,
+            settings_open: false,
+            settings_lang_btn_rect: None,
+            add_host_dialog_open: false,
+            add_host_dialog_ip: String::new(),
+            add_host_dialog_port: "7788".into(),
+            add_host_dialog_err: String::new(),
+            add_host_verify_busy: false,
+            add_host_verify_session: 0,
+            add_host_verify_deadline: None,
+            ui_toast_until: None,
+            ui_toast_text: String::new(),
+            active_nav: $active_nav,
+            really_quitting: false,
+            hidden_to_tray: false,
+            _tray: None,
+            tray_icon_init_attempted: false,
+            device_remark_edit_index: None,
+            device_remark_edit_focus_next: false,
+            vm_window_remark_edit_record_id: None,
+            vm_window_remark_edit_focus_next: false,
+            device_masonry_heights: HashMap::new(),
+            vm_window_masonry_heights: HashMap::new(),
+            vm_window_create:
+                crate::app::vm_window_create_dialog::CenterVmWindowCreateForm::with_defaults(),
+            vm_window_create_id_nonce: 0,
+            pending_remove_endpoint: None,
+            pending_delete_vm_window_row_ix: None,
+            host_config_window_open: false,
+            host_managed_draft_json: String::new(),
+            host_managed_last_msg: String::new(),
+            fleet_by_endpoint: HashMap::new(),
+            vm_inventory: Vec::new(),
+            vm_window_records: $v.vm_window_records,
+            last_action: String::new(),
+            control_addr: $net.control_addr,
+            net_tx: $net.net_tx,
+            net_rx: $net.net_rx,
+            net_busy: false,
+            host_sessions: HashMap::new(),
+            reachability_wall_anchor: Instant::now(),
+            telemetry_links: HashMap::new(),
+            host_disk_volumes: Vec::new(),
+            last_capabilities: String::new(),
+            last_net_error: String::new(),
+            sqlite_snapshot_last_time: -1.0e9_f64,
+            sqlite_snapshot_busy: false,
+        }
+    };
+}
+
 impl CenterApp {
     /// Interval between automatic `Hello` attempts when not connected (`control_addr` non-empty).
     /// Combined with announce-driven `force_reconnect`, the upper bound for a typical reconnect
@@ -153,19 +251,17 @@ impl CenterApp {
         // follow-up refactor (cross-cutting `self.foo` rename); kept compact here so this fn
         // stays under the 30-line limit without that broader churn.
         let StateInit { ctx, persist, endpoints, center_security, ui_lang, active_nav, v, net, d } = s;
-        Self {
-            center_security, tofu_pending: None, ctx, endpoints, selected_host: 0, accounts: persist.accounts, proxy_labels: persist.proxy_labels, last_script_version: persist.last_script_version, list_vms_auto_refresh: persist.list_vms_auto_refresh, list_vms_poll_secs: persist.list_vms_poll_secs.max(5),
-            list_vms_poll_accum: 0.0, auto_hello_accum: d.auto_hello_accum, desktop_poll_accum: d.desktop_poll_accum, prev_nav_for_desktop: active_nav, desktop_fetch_busy: false, reachability_poll_accum: REACHABILITY_PROBE_SECS, reachability_probe_busy: false,
-            host_desktop_textures: HashMap::new(), host_resource_stats: HashMap::new(), discovery_gen: Arc::new(AtomicU64::new(0)), discovery_active_sig: None, discovery_broadcast: persist.discovery_broadcast, discovery_interval_secs: persist.discovery_interval_secs.max(1),
-            discovery_udp_port: persist.discovery_udp_port, discovery_bind_ipv4s: persist.discovery_bind_ipv4s, host_collect_gen: Arc::new(AtomicU64::new(0)), host_collect_active_sig: None, host_collect_broadcast: persist.host_collect_broadcast, host_collect_interval_secs: persist.host_collect_interval_secs.max(1),
-            host_collect_poll_udp_port: persist.host_collect_poll_udp_port, host_collect_register_udp_port: persist.host_collect_register_udp_port, discovery_if_rows: Vec::new(), discovery_if_scan_secs: -1.0e6_f64, ui_lang, host_synced_ui_lang: ui_lang, settings_open: false, settings_lang_btn_rect: None,
-            add_host_dialog_open: false, add_host_dialog_ip: String::new(), add_host_dialog_port: "7788".into(), add_host_dialog_err: String::new(), add_host_verify_busy: false, add_host_verify_session: 0, add_host_verify_deadline: None, ui_toast_until: None, ui_toast_text: String::new(), active_nav,
-            really_quitting: false, hidden_to_tray: false, _tray: None, tray_icon_init_attempted: false, device_remark_edit_index: None, device_remark_edit_focus_next: false, vm_window_remark_edit_record_id: None, vm_window_remark_edit_focus_next: false, device_masonry_heights: HashMap::new(), vm_window_masonry_heights: HashMap::new(),
-            vm_window_create: crate::app::vm_window_create_dialog::CenterVmWindowCreateForm::with_defaults(), vm_window_create_id_nonce: 0, pending_remove_endpoint: None, pending_delete_vm_window_row_ix: None, host_config_window_open: false, host_managed_draft_json: String::new(), host_managed_last_msg: String::new(),
-            fleet_by_endpoint: HashMap::new(), vm_inventory: Vec::new(), vm_window_records: v.vm_window_records, last_action: String::new(), control_addr: net.control_addr, net_tx: net.net_tx, net_rx: net.net_rx,
-            net_busy: false, host_sessions: HashMap::new(), reachability_wall_anchor: Instant::now(), telemetry_links: HashMap::new(), host_disk_volumes: Vec::new(),
-            last_capabilities: String::new(), last_net_error: String::new(), sqlite_snapshot_last_time: -1.0e9_f64, sqlite_snapshot_busy: false,
-        }
+        build_center_app_initial_state!(
+            ctx,
+            persist,
+            endpoints,
+            center_security,
+            ui_lang,
+            active_nav,
+            v,
+            net,
+            d
+        )
     }
 }
 

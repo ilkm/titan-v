@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use if_addrs::IfAddr;
 use serde_json::from_slice;
-use titan_common::CenterPollBeacon;
+use titan_common::{CenterPollBeacon, ipv4_broadcast_from_mask, ipv4_in_subnet};
 use titan_quic::{TrustEntry, TrustStore};
 
 use super::{AnnounceEndpoint, HostAnnounceConfig};
@@ -292,17 +292,4 @@ fn broadcast_dest(bind_ip: Ipv4Addr, netmask: Ipv4Addr, port: u16) -> SocketAddr
     }
     let ip = ipv4_broadcast_from_mask(bind_ip, netmask);
     SocketAddr::new(ip.into(), port)
-}
-
-fn ipv4_broadcast_from_mask(addr: Ipv4Addr, netmask: Ipv4Addr) -> Ipv4Addr {
-    let a = u32::from_be_bytes(addr.octets());
-    let m = u32::from_be_bytes(netmask.octets());
-    Ipv4Addr::from(((a & m) | !m).to_be_bytes())
-}
-
-fn ipv4_in_subnet(target: Ipv4Addr, iface_ip: Ipv4Addr, netmask: Ipv4Addr) -> bool {
-    let t = u32::from_be_bytes(target.octets());
-    let i = u32::from_be_bytes(iface_ip.octets());
-    let m = u32::from_be_bytes(netmask.octets());
-    (t & m) == (i & m)
 }

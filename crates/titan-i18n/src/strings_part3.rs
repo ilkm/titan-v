@@ -1,6 +1,16 @@
 use crate::UiLang;
 use crate::msg::Msg;
 
+const CENTER_TOFU_DIALOG_SUBTITLE_EN: &str = concat!(
+    "This host is not in the trust store yet. Verify the fingerprint matches ",
+    "the one shown on the Titan Host settings panel before continuing."
+);
+
+const CENTER_TOFU_WARNING_EN: &str = concat!(
+    "Trusting an unknown fingerprint exposes this control plane to MITM. ",
+    "Confirm only when the value matches the fingerprint shown on the host machine."
+);
+
 pub(super) fn translate(lang: UiLang, msg: Msg) -> Option<&'static str> {
     center_vm_window_create_i18n(lang, msg)
         .or_else(|| inventory_and_preview(lang, msg))
@@ -15,9 +25,7 @@ fn tofu_dialog(lang: UiLang, msg: Msg) -> Option<&'static str> {
     match (lang, msg) {
         (UiLang::En, Msg::CenterTofuDialogTitle) => Some("Trust this host?"),
         (UiLang::Zh, Msg::CenterTofuDialogTitle) => Some("信任该宿主机？"),
-        (UiLang::En, Msg::CenterTofuDialogSubtitle) => Some(
-            "This host is not in the trust store yet. Verify the fingerprint matches the one shown on the Titan Host settings panel before continuing.",
-        ),
+        (UiLang::En, Msg::CenterTofuDialogSubtitle) => Some(CENTER_TOFU_DIALOG_SUBTITLE_EN),
         (UiLang::Zh, Msg::CenterTofuDialogSubtitle) => {
             Some("该宿主机尚未在信任列表中，请先比对其 Titan Host 设置页中的指纹是否一致再继续。")
         }
@@ -25,9 +33,7 @@ fn tofu_dialog(lang: UiLang, msg: Msg) -> Option<&'static str> {
         (UiLang::Zh, Msg::CenterTofuHostLabel) => Some("宿主地址"),
         (UiLang::En, Msg::CenterTofuFingerprintLabel) => Some("SPKI fingerprint (sha256)"),
         (UiLang::Zh, Msg::CenterTofuFingerprintLabel) => Some("SPKI 指纹（sha256）"),
-        (UiLang::En, Msg::CenterTofuWarning) => Some(
-            "Trusting an unknown fingerprint exposes this control plane to MITM. Confirm only when the value matches the fingerprint shown on the host machine.",
-        ),
+        (UiLang::En, Msg::CenterTofuWarning) => Some(CENTER_TOFU_WARNING_EN),
         (UiLang::Zh, Msg::CenterTofuWarning) => {
             Some("信任未知指纹存在中间人风险，请确认指纹与目标宿主机本地显示一致后再点击。")
         }

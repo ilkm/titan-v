@@ -6,6 +6,7 @@ use crate::app::persist_data::HostEndpoint;
 use if_addrs::IfAddr;
 use std::collections::HashSet;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use titan_common::ipv4_in_subnet;
 
 impl CenterApp {
     pub(crate) fn apply_net_host_announced(
@@ -249,10 +250,7 @@ impl CenterApp {
             tracing::debug!(%source_ip, "lan announce rejected: source not in selected bind subnets");
             return false;
         }
-        if let Some(announced) = parse_quic_addr_ipv4(quic_addr)
-            && !is_ipv4_in_any_selected_subnet(announced, &selected)
-        {
-            tracing::debug!(%quic_addr, %source_ip, "lan announce rejected: announced addr not in selected bind subnets");
+        if !is_announced_addr_allowed(quic_addr, source_ip, &selected) {
             return false;
         }
         true
@@ -311,19 +309,20 @@ fn build_lan_trust_entry(fingerprint: &str, label: &str) -> titan_quic::TrustEnt
 }
 
 fn parse_ipv4(s: &str) -> Option<Ipv4Addr> {
-    s.parse::<IpAddr>().ok().and_then(|ip| match ip {
-        IpAddr::V4(v4) => Some(v4),
-        IpAddr::V6(_) => None,
-    })
+    s.parse::<IpAddr>().ok().and_then(ipv4_from_ip_addr)
 }
 
 fn parse_quic_addr_ipv4(s: &str) -> Option<Ipv4Addr> {
     s.parse::<SocketAddr>()
         .ok()
-        .and_then(|addr| match addr.ip() {
-            IpAddr::V4(v4) => Some(v4),
-            IpAddr::V6(_) => None,
-        })
+        .and_then(|addr| ipv4_from_ip_addr(addr.ip()))
+}
+
+fn ipv4_from_ip_addr(ip: IpAddr) -> Option<Ipv4Addr> {
+    match ip {
+        IpAddr::V4(v4) => Some(v4),
+        IpAddr::V6(_) => None,
+    }
 }
 
 fn selected_bind_networks(selected_bind_ips: &[String]) -> Vec<(Ipv4Addr, Ipv4Addr)> {
@@ -352,9 +351,20 @@ fn is_ipv4_in_any_selected_subnet(target: Ipv4Addr, nets: &[(Ipv4Addr, Ipv4Addr)
         .any(|(ip, mask)| ipv4_in_subnet(target, *ip, *mask))
 }
 
-fn ipv4_in_subnet(target: Ipv4Addr, iface_ip: Ipv4Addr, netmask: Ipv4Addr) -> bool {
-    let t = u32::from_be_bytes(target.octets());
-    let i = u32::from_be_bytes(iface_ip.octets());
-    let m = u32::from_be_bytes(netmask.octets());
-    (t & m) == (i & m)
+fn is_announced_addr_allowed(
+    quic_addr: &str,
+    source_ip: &str,
+    selected: &[(Ipv4Addr, Ipv4Addr)],
+) -> bool {
+    if let Some(announced) = parse_quic_addr_ipv4(quic_addr)
+        && !is_ipv4_in_any_selected_subnet(announced, selected)
+    {
+        tracing::debug!(
+            %quic_addr,
+            %source_ip,
+            "lan announce rejected: announced addr not in selected bind subnets"
+        );
+        return false;
+    }
+    true
 }

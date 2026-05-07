@@ -20,6 +20,21 @@ pub(super) const CARD_BODY_GRID_PX: f32 = 13.0;
 pub(super) const METRIC_BODY_ROW_GAP: f32 = 5.0;
 pub(super) const REMARK_ROW_H: f32 = 32.0;
 
+#[derive(Copy, Clone)]
+struct VmCardMeta<'a> {
+    row_ix: usize,
+    card_w: f32,
+    lang: UiLang,
+    is_sel: bool,
+    label_s: &'a str,
+    addr_s: &'a str,
+    win_n: u32,
+    online: bool,
+    preview_key: &'a str,
+    record_id: &'a str,
+    remark_body: &'a str,
+}
+
 struct VmWindowCardPaintPrep {
     row_ix: usize,
     label_s: String,
@@ -62,25 +77,21 @@ pub fn paint_vm_window_device_card_clone(
     lang: UiLang,
 ) -> egui::Response {
     let prep = VmWindowCardPaintPrep::from_row(row, row_ix);
-    let record_id = row.record_id.as_str();
+    let meta = VmCardMeta {
+        row_ix: prep.row_ix,
+        card_w,
+        lang,
+        is_sel: false,
+        label_s: &prep.label_s,
+        addr_s: &prep.addr_s,
+        win_n: prep.win_n,
+        online: true,
+        preview_key: &prep.preview_key,
+        record_id: row.record_id.as_str(),
+        remark_body: prep.remark.as_str(),
+    };
     vm_window_clone_card_shell(ui)
-        .show(ui, |ui| {
-            paint_device_masonry_frame_inner(
-                app,
-                ui,
-                prep.row_ix,
-                card_w,
-                lang,
-                false,
-                &prep.label_s,
-                &prep.addr_s,
-                prep.win_n,
-                true,
-                &prep.preview_key,
-                record_id,
-                prep.remark.as_str(),
-            )
-        })
+        .show(ui, |ui| paint_device_masonry_frame_inner(app, ui, meta))
         .inner
 }
 
@@ -94,19 +105,30 @@ fn vm_window_clone_row_meta(row: &VmWindowRecord) -> (String, String, u32) {
     (title, row.host_control_addr.clone(), 0)
 }
 
-#[rustfmt::skip]
-fn paint_device_masonry_frame_inner(app: &mut HostApp, ui: &mut egui::Ui, row_ix: usize, card_w: f32, lang: UiLang, is_sel: bool, label_s: &str, addr_s: &str, win_n: u32, online: bool, preview_key: &str, record_id: &str, remark_body: &str) -> egui::Response {
-    device_card_set_fixed_width(ui, card_w);
+fn paint_device_masonry_frame_inner(
+    app: &mut HostApp,
+    ui: &mut egui::Ui,
+    meta: VmCardMeta<'_>,
+) -> egui::Response {
+    device_card_set_fixed_width(ui, meta.card_w);
     let card_tl = ui.cursor().min;
     let mut select_split_y = card_tl.y;
     let mut select_interact_top_y = card_tl.y;
     ui.vertical(|ui| {
         paint_device_card_column(
-            app, ui, row_ix, card_w, lang, is_sel, label_s, addr_s, win_n, online, preview_key,
-            record_id, remark_body, &mut select_split_y, &mut select_interact_top_y,
+            app,
+            ui,
+            meta,
+            &mut select_split_y,
+            &mut select_interact_top_y,
         );
     });
-    device_card_select_interact(ui, pos2(card_tl.x, select_interact_top_y), select_split_y, row_ix)
+    device_card_select_interact(
+        ui,
+        pos2(card_tl.x, select_interact_top_y),
+        select_split_y,
+        meta.row_ix,
+    )
 }
 
 fn device_card_set_fixed_width(ui: &mut egui::Ui, card_w: f32) {
@@ -115,20 +137,72 @@ fn device_card_set_fixed_width(ui: &mut egui::Ui, card_w: f32) {
     ui.set_max_width(card_w);
 }
 
-#[rustfmt::skip]
-fn paint_device_card_column(app: &mut HostApp, ui: &mut egui::Ui, row_ix: usize, card_w: f32, lang: UiLang, is_sel: bool, label_s: &str, addr_s: &str, win_n: u32, online: bool, preview_key: &str, record_id: &str, remark_body: &str, select_split_y: &mut f32, select_interact_top_y: &mut f32) {
+fn paint_device_card_column(
+    app: &mut HostApp,
+    ui: &mut egui::Ui,
+    meta: VmCardMeta<'_>,
+    select_split_y: &mut f32,
+    select_interact_top_y: &mut f32,
+) {
     ui.spacing_mut().item_spacing.y = 0.0;
-    preview_dup::paint_device_preview_slot(app, ui, row_ix, preview_key, card_w, lang, online);
+    preview_dup::paint_device_preview_slot(
+        app,
+        ui,
+        meta.row_ix,
+        meta.preview_key,
+        meta.card_w,
+        meta.lang,
+        meta.online,
+    );
     *select_interact_top_y = ui.cursor().min.y;
-    Frame::NONE.inner_margin(Margin::symmetric(12, 10)).show(ui, |ui| {
-        let inner_w = (card_w - 24.0).max(1.0);
-        ui.set_width(inner_w);
-        ui.vertical(|ui| {
-            ui.spacing_mut().item_spacing.y = 6.0;
-            metrics_dup::paint_device_status_and_metrics(ui, lang, app, preview_key, online, is_sel, label_s, inner_w, addr_s, win_n, select_split_y);
-            remark_dup::paint_vm_dup_remark_block(ui, lang, inner_w, record_id, remark_body);
+    Frame::NONE
+        .inner_margin(Margin::symmetric(12, 10))
+        .show(ui, |ui| {
+            paint_host_vm_metrics_and_remark(app, ui, meta, select_split_y);
         });
+}
+
+fn paint_host_vm_metrics_and_remark(
+    app: &mut HostApp,
+    ui: &mut egui::Ui,
+    meta: VmCardMeta<'_>,
+    select_split_y: &mut f32,
+) {
+    let inner_w = (meta.card_w - 24.0).max(1.0);
+    ui.set_width(inner_w);
+    ui.vertical(|ui| {
+        ui.spacing_mut().item_spacing.y = 6.0;
+        paint_host_vm_metrics(ui, app, meta, inner_w, select_split_y);
+        remark_dup::paint_vm_dup_remark_block(
+            ui,
+            meta.lang,
+            inner_w,
+            meta.record_id,
+            meta.remark_body,
+        );
     });
+}
+
+fn paint_host_vm_metrics(
+    ui: &mut egui::Ui,
+    app: &mut HostApp,
+    meta: VmCardMeta<'_>,
+    inner_w: f32,
+    select_split_y: &mut f32,
+) {
+    metrics_dup::paint_device_status_and_metrics(
+        ui,
+        meta.lang,
+        app,
+        meta.preview_key,
+        meta.online,
+        meta.is_sel,
+        meta.label_s,
+        inner_w,
+        meta.addr_s,
+        meta.win_n,
+        select_split_y,
+    );
 }
 
 fn device_card_select_interact(
