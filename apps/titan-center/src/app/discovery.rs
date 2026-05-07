@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use if_addrs::IfAddr;
-use titan_common::{CenterPollBeacon, DiscoveryBeacon};
+use titan_common::{CenterPollBeacon, DiscoveryBeacon, list_physical_lan_ipv4_rows};
 
 /// Snapshot of discovery settings used to decide whether to respawn the UDP thread.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -62,73 +62,11 @@ impl HostCollectSpawnSig {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct LanIpv4Row {
-    pub ip: Ipv4Addr,
-    pub iface: String,
-}
-
-fn contains_any(haystack: &str, needles: &[&str]) -> bool {
-    needles.iter().any(|n| haystack.contains(n))
-}
-
-fn is_virtual_iface_name(name: &str) -> bool {
-    let n = name.to_ascii_lowercase();
-    contains_any(
-        &n,
-        &[
-            "virtual",
-            "vmware",
-            "vbox",
-            "hyper-v",
-            "hyperv",
-            "vethernet",
-            "docker",
-            "wsl",
-            "npcap",
-            "loopback",
-            "tunnel",
-            "bridge",
-            "br-",
-            "tap",
-            "tun",
-            "utun",
-            "tailscale",
-            "zerotier",
-            "wireguard",
-            "hamachi",
-            "vpn",
-        ],
-    )
-}
+pub use titan_common::LanIpv4Row;
 
 /// Non-loopback IPv4 rows for UI (loopback excluded for typical LAN discovery).
 pub fn list_lan_ipv4_rows() -> Vec<LanIpv4Row> {
-    let mut out = Vec::new();
-    let Ok(ifaces) = if_addrs::get_if_addrs() else {
-        return out;
-    };
-    for i in ifaces {
-        if i.is_loopback() {
-            continue;
-        }
-        if is_virtual_iface_name(&i.name) {
-            continue;
-        }
-        let IfAddr::V4(v4) = i.addr else {
-            continue;
-        };
-        if v4.ip.is_unspecified() {
-            continue;
-        }
-        out.push(LanIpv4Row {
-            ip: v4.ip,
-            iface: i.name,
-        });
-    }
-    out.sort_by(|a, b| a.ip.cmp(&b.ip).then(a.iface.cmp(&b.iface)));
-    out.dedup_by(|a, b| a.ip == b.ip && a.iface == b.iface);
-    out
+    list_physical_lan_ipv4_rows()
 }
 
 /// Default IPv4 for manual host entry: same /24-style prefix as the first non-loopback

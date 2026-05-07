@@ -10,8 +10,10 @@ use std::time::Duration;
 mod sidecars;
 
 use serde_json::to_vec;
+pub use titan_common::LanIpv4Row;
 use titan_common::{
     DEFAULT_CENTER_POLL_UDP_PORT, DEFAULT_CENTER_REGISTER_UDP_PORT, HostAnnounceBeacon,
+    list_physical_lan_ipv4_rows as common_list_physical_lan_ipv4_rows,
 };
 use titan_quic::{Identity, TrustStore};
 
@@ -27,12 +29,6 @@ pub struct HostAnnounceConfig {
     pub bind_ipv4: Option<Ipv4Addr>,
     pub public_addr_override: Option<String>,
     pub label_override: Option<String>,
-}
-
-#[derive(Clone, Debug)]
-pub struct LanIpv4Row {
-    pub ip: Ipv4Addr,
-    pub iface: String,
 }
 
 #[derive(Clone, Debug)]
@@ -135,28 +131,7 @@ fn resolve_bind_ipv4s(selected: Option<Ipv4Addr>) -> Vec<Ipv4Addr> {
 }
 
 pub fn list_physical_lan_ipv4_rows() -> Vec<LanIpv4Row> {
-    let mut rows = Vec::new();
-    let Ok(ifaces) = if_addrs::get_if_addrs() else {
-        return rows;
-    };
-    for iface in ifaces {
-        if iface.is_loopback() || is_virtual_iface_name(&iface.name) {
-            continue;
-        }
-        let if_addrs::IfAddr::V4(v4) = iface.addr else {
-            continue;
-        };
-        if v4.ip.is_unspecified() {
-            continue;
-        }
-        rows.push(LanIpv4Row {
-            ip: v4.ip,
-            iface: iface.name,
-        });
-    }
-    rows.sort_by(|a, b| a.ip.cmp(&b.ip).then(a.iface.cmp(&b.iface)));
-    rows.dedup_by(|a, b| a.ip == b.ip && a.iface == b.iface);
-    rows
+    common_list_physical_lan_ipv4_rows()
 }
 
 pub(crate) fn resolve_physical_ipv4s() -> Vec<Ipv4Addr> {
@@ -167,35 +142,6 @@ pub(crate) fn resolve_physical_ipv4s() -> Vec<Ipv4Addr> {
     out.sort();
     out.dedup();
     out
-}
-
-fn is_virtual_iface_name(name: &str) -> bool {
-    let n = name.to_ascii_lowercase();
-    [
-        "virtual",
-        "vmware",
-        "vbox",
-        "hyper-v",
-        "hyperv",
-        "vethernet",
-        "docker",
-        "wsl",
-        "npcap",
-        "loopback",
-        "tunnel",
-        "bridge",
-        "br-",
-        "tap",
-        "tun",
-        "utun",
-        "tailscale",
-        "zerotier",
-        "wireguard",
-        "hamachi",
-        "vpn",
-    ]
-    .iter()
-    .any(|needle| n.contains(needle))
 }
 
 pub fn spawn_host_announce_background(

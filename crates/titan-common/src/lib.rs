@@ -5,6 +5,7 @@
 pub mod capabilities;
 pub mod discovery;
 pub mod error;
+pub mod net_iface;
 pub mod plan;
 pub mod state;
 pub mod ui_lang;
@@ -19,6 +20,7 @@ pub use discovery::{
     HOST_ANNOUNCE_SCHEMA_VERSION, HostAnnounceBeacon,
 };
 pub use error::{Error, Result};
+pub use net_iface::{LanIpv4Row, list_physical_lan_ipv4_rows};
 pub use plan::VmSpoofProfile;
 pub use state::{NodeState, VmPowerState};
 pub use ui_lang::UiLang;
